@@ -12,10 +12,10 @@ pub enum BlockchainError {
 }
 
 #[async_trait]
-pub trait Contract {
+pub trait ContractInterface {
     async fn deposit(
         &self,
-        rpc_url: String, // rpc url is given in runtime
+        rpc_url: &str, // rpc url is given in runtime
         signer_private_key: H256,
         pubkey_salt_hash: Bytes32,
         token_address: Address,
