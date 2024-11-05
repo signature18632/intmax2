@@ -1,3 +1,4 @@
+use ethers::types::Address;
 use serde::{Deserialize, Serialize};
 
 const CONFIG_BYTE: &'static [u8] = include_bytes!("../../config.json");
@@ -6,6 +7,10 @@ const CONFIG_BYTE: &'static [u8] = include_bytes!("../../config.json");
 #[serde(rename_all = "camelCase")]
 pub struct Config {
     pub intmax2_server_url: String,
+
+    // Blockchain
+    pub chain_id: u64,
+    pub liquidity_contract_address: Address,
 }
 
 impl Config {

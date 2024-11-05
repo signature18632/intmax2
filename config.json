@@ -1,3 +1,5 @@
 {
-    "intmax2ServerUrl" : "http://localhost:4000"
+    "intmax2ServerUrl" : "http://localhost:4000",
+    "chainId" : 1,
+    "liquidityContractAddress" : "0x0000000000000000000000000000000000000000"
 }
