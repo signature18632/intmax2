@@ -5,7 +5,7 @@ use ethers::{
     middleware::SignerMiddleware,
     providers::{Http, Provider},
     signers::{Signer as _, Wallet},
-    types::H256,
+    types::{Address, H256},
 };
 
 use crate::utils::config::Config;
@@ -22,10 +22,13 @@ pub async fn get_client(rpc_url: &str) -> Result<Arc<Provider<Http>>, Blockchain
     Ok(Arc::new(get_provider(rpc_url).await?))
 }
 
-pub async fn get_wallet(private_key: H256) -> Result<Wallet<SigningKey>, BlockchainError> {
+pub fn get_wallet(private_key: H256) -> Wallet<SigningKey> {
     let key = SecretKey::from_bytes(private_key.as_bytes().into()).unwrap();
-    let wallet = Wallet::from(key).with_chain_id(Config::load().chain_id);
-    Ok(wallet)
+    Wallet::from(key).with_chain_id(Config::load().chain_id)
+}
+
+pub fn get_address(private_key: H256) -> Address {
+    get_wallet(private_key).address()
 }
 
 pub async fn get_client_with_signer(
@@ -33,7 +36,7 @@ pub async fn get_client_with_signer(
     private_key: H256,
 ) -> Result<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>, BlockchainError> {
     let provider = get_provider(rpc_url).await?;
-    let wallet = get_wallet(private_key).await?;
+    let wallet = get_wallet(private_key);
     let client = SignerMiddleware::new(provider, wallet);
     Ok(client)
 }
