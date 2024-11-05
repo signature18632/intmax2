@@ -1,5 +1,10 @@
+use async_trait::async_trait;
+use ethers::types::H256;
+use intmax2_zkp::ethereum_types::{address::Address, bytes32::Bytes32, u256::U256};
+
 #[derive(Debug, thiserror::Error)]
 pub enum ContractError {
+    #[error("Insufficient funds")]
     InsufficientFunds,
 }
 
@@ -8,29 +13,8 @@ pub trait Contract {
     async fn deposit(
         &self,
         signer_private_key: H256,
-        pubkey_salt_hash: H256,
+        pubkey_salt_hash: Bytes32,
         token_address: Address,
         amount: U256,
-    ) -> Result<(), ContractError>;
-
-    async fn post_registration_block(
-        &self,
-        tx_tree_root: Bytes32,
-        sender_flag: Bytes16,
-        agg_pubkey: FlatG1,
-        agg_signature: FlatG2,
-        message_point: FlatG2,
-        sender_public_keys: Vec<U256>,
-    ) -> Result<(), ContractError>;
-
-    async fn post_non_registration_block(
-        &self,
-        tx_tree_root: Bytes32,
-        sender_flag: Bytes16,
-        agg_pubkey: FlatG1,
-        agg_signature: FlatG2,
-        message_point: FlatG2,
-        public_keys_hash: Bytes32,
-        account_ids: Vec<u8>, // dummy accounts are trimmed
     ) -> Result<(), ContractError>;
 }

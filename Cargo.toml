@@ -38,4 +38,5 @@ openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", features = ["vendored"] }
 self_update = {version="0.41.0", features=["archive-zip", "compression-zip-deflate"]}
 rand_chacha = "0.3.1"
+async-trait = "0.1.83"
 
