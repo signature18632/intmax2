@@ -15,7 +15,7 @@ type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
 #[async_trait]
-pub trait StoreVaultServer {
+pub trait StoreVaultInterface {
     async fn save_balance_proof(
         &self,
         pubkey: U256,
@@ -47,7 +47,7 @@ pub trait StoreVaultServer {
     ) -> Result<Option<(MetaData, Vec<u8>)>, ServerError>;
 
     async fn save_transfer_data(
-        &mut self,
+        &self,
         pubkey: U256,
         encypted_data: Vec<u8>,
     ) -> Result<(), ServerError>;
@@ -63,11 +63,7 @@ pub trait StoreVaultServer {
         timestamp: u64,
     ) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError>;
 
-    async fn save_tx_data(
-        &mut self,
-        pubkey: U256,
-        encypted_data: Vec<u8>,
-    ) -> Result<(), ServerError>;
+    async fn save_tx_data(&self, pubkey: U256, encypted_data: Vec<u8>) -> Result<(), ServerError>;
 
     async fn get_tx_data(&self, uuid: &str) -> Result<Option<(MetaData, Vec<u8>)>, ServerError>;
 
@@ -78,7 +74,7 @@ pub trait StoreVaultServer {
     ) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError>;
 
     async fn save_withdrawal_data(
-        &mut self,
+        &self,
         pubkey: U256,
         encypted_data: Vec<u8>,
     ) -> Result<(), ServerError>;
@@ -94,11 +90,8 @@ pub trait StoreVaultServer {
         timestamp: u64,
     ) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError>;
 
-    async fn save_user_data(
-        &mut self,
-        pubkey: U256,
-        encypted_data: Vec<u8>,
-    ) -> Result<(), ServerError>;
+    async fn save_user_data(&self, pubkey: U256, encypted_data: Vec<u8>)
+        -> Result<(), ServerError>;
 
-    async fn get_user_data(&self, uuid: &str) -> Result<Option<Vec<u8>>, ServerError>;
+    async fn get_user_data(&self, pubkey: U256) -> Result<Option<Vec<u8>>, ServerError>;
 }
