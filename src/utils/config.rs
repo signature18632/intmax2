@@ -6,7 +6,7 @@ const CONFIG_BYTE: &'static [u8] = include_bytes!("../../config.json");
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
-    pub intmax2_server_url: String,
+    pub intmax2_server_base_url: String,
 
     // Blockchain
     pub chain_id: u64,

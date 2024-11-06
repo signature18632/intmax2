@@ -14,7 +14,7 @@ use intmax2_zkp::ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U
 use crate::utils::config::Config;
 
 use super::{
-    handlers::{handle_contract_call, set_gas_price},
+    handlers::handle_contract_call,
     interface::{BlockchainError, ContractInterface},
     utils::{get_address, get_client, get_client_with_signer},
 };
@@ -59,9 +59,8 @@ impl ContractInterface for LiquidityContract {
         let mut tx = contract
             .deposit_native_token(recipient_salt_hash)
             .value(amount);
-        set_gas_price(&mut tx).await?;
         handle_contract_call(
-            tx,
+            &mut tx,
             get_address(signer_private_key),
             "depositer",
             "deposit_native_token",

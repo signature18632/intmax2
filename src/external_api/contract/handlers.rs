@@ -8,27 +8,8 @@ use ethers::{
 
 use super::interface::BlockchainError;
 
-pub async fn set_gas_price(
-    _tx: &mut ethers::contract::builders::ContractCall<
-        SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
-        (),
-    >,
-) -> Result<(), BlockchainError> {
-    // todo: implement gas price setting
-    // let result = get_gas_estimation().await?;
-    // let inner_tx = tx
-    //     .tx
-    //     .as_eip1559_mut()
-    //     .ok_or(anyhow::anyhow!("EIP-1559 tx expected"))?;
-    // *inner_tx = inner_tx
-    //     .clone()
-    //     .max_priority_fee_per_gas(result.max_priority_fee_per_gas)
-    //     .max_fee_per_gas(result.max_fee_per_gas);
-    Ok(())
-}
-
 pub async fn handle_contract_call<S: ToString>(
-    tx: ethers::contract::builders::ContractCall<
+    tx: &mut ethers::contract::builders::ContractCall<
         SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
         (),
     >,
@@ -36,6 +17,7 @@ pub async fn handle_contract_call<S: ToString>(
     from_name: S,
     tx_name: S,
 ) -> Result<H256, BlockchainError> {
+    set_gas_price(tx)?;
     let result = tx.send().await;
     match result {
         Ok(tx) => {
@@ -78,4 +60,23 @@ pub async fn handle_contract_call<S: ToString>(
             }
         }
     }
+}
+
+fn set_gas_price(
+    _tx: &mut ethers::contract::builders::ContractCall<
+        SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
+        (),
+    >,
+) -> Result<(), BlockchainError> {
+    // todo: implement gas price setting
+    // let result = get_gas_estimation().await?;
+    // let inner_tx = tx
+    //     .tx
+    //     .as_eip1559_mut()
+    //     .ok_or(anyhow::anyhow!("EIP-1559 tx expected"))?;
+    // *inner_tx = inner_tx
+    //     .clone()
+    //     .max_priority_fee_per_gas(result.max_priority_fee_per_gas)
+    //     .max_fee_per_gas(result.max_fee_per_gas);
+    Ok(())
 }
