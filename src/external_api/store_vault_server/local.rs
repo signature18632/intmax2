@@ -53,12 +53,12 @@ impl StoreVaultInterface for LocalStoreVaultServer {
     async fn save_deposit_data(
         &self,
         pubkey: U256,
-        encypted_data: Vec<u8>,
+        encrypted_data: Vec<u8>,
     ) -> Result<(), ServerError> {
         self.0
             .lock()
             .unwrap()
-            .save_deposit_data(pubkey, encypted_data);
+            .save_deposit_data(pubkey, encrypted_data);
         Ok(())
     }
 
@@ -86,12 +86,12 @@ impl StoreVaultInterface for LocalStoreVaultServer {
     async fn save_transfer_data(
         &self,
         pubkey: U256,
-        encypted_data: Vec<u8>,
+        encrypted_data: Vec<u8>,
     ) -> Result<(), ServerError> {
         self.0
             .lock()
             .unwrap()
-            .save_transfer_data(pubkey, encypted_data);
+            .save_transfer_data(pubkey, encrypted_data);
         Ok(())
     }
 
@@ -116,8 +116,8 @@ impl StoreVaultInterface for LocalStoreVaultServer {
         Ok(data)
     }
 
-    async fn save_tx_data(&self, pubkey: U256, encypted_data: Vec<u8>) -> Result<(), ServerError> {
-        self.0.lock().unwrap().save_tx_data(pubkey, encypted_data);
+    async fn save_tx_data(&self, pubkey: U256, encrypted_data: Vec<u8>) -> Result<(), ServerError> {
+        self.0.lock().unwrap().save_tx_data(pubkey, encrypted_data);
         Ok(())
     }
 
@@ -142,12 +142,12 @@ impl StoreVaultInterface for LocalStoreVaultServer {
     async fn save_withdrawal_data(
         &self,
         pubkey: U256,
-        encypted_data: Vec<u8>,
+        encrypted_data: Vec<u8>,
     ) -> Result<(), ServerError> {
         self.0
             .lock()
             .unwrap()
-            .save_withdrawal_data(pubkey, encypted_data);
+            .save_withdrawal_data(pubkey, encrypted_data);
         Ok(())
     }
 
@@ -175,9 +175,12 @@ impl StoreVaultInterface for LocalStoreVaultServer {
     async fn save_user_data(
         &self,
         pubkey: U256,
-        encypted_data: Vec<u8>,
+        encrypted_data: Vec<u8>,
     ) -> Result<(), ServerError> {
-        self.0.lock().unwrap().save_user_data(pubkey, encypted_data);
+        self.0
+            .lock()
+            .unwrap()
+            .save_user_data(pubkey, encrypted_data);
         Ok(())
     }
 

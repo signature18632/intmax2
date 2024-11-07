@@ -32,7 +32,7 @@ pub trait StoreVaultInterface {
     async fn save_deposit_data(
         &self,
         pubkey: U256,
-        encypted_data: Vec<u8>,
+        encrypted_data: Vec<u8>,
     ) -> Result<(), ServerError>;
 
     async fn get_deposit_data_all_after(
@@ -49,7 +49,7 @@ pub trait StoreVaultInterface {
     async fn save_transfer_data(
         &self,
         pubkey: U256,
-        encypted_data: Vec<u8>,
+        encrypted_data: Vec<u8>,
     ) -> Result<(), ServerError>;
 
     async fn get_transfer_data(
@@ -63,7 +63,7 @@ pub trait StoreVaultInterface {
         timestamp: u64,
     ) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError>;
 
-    async fn save_tx_data(&self, pubkey: U256, encypted_data: Vec<u8>) -> Result<(), ServerError>;
+    async fn save_tx_data(&self, pubkey: U256, encrypted_data: Vec<u8>) -> Result<(), ServerError>;
 
     async fn get_tx_data(&self, uuid: &str) -> Result<Option<(MetaData, Vec<u8>)>, ServerError>;
 
@@ -76,7 +76,7 @@ pub trait StoreVaultInterface {
     async fn save_withdrawal_data(
         &self,
         pubkey: U256,
-        encypted_data: Vec<u8>,
+        encrypted_data: Vec<u8>,
     ) -> Result<(), ServerError>;
 
     async fn get_withdrawal_data(
@@ -90,8 +90,11 @@ pub trait StoreVaultInterface {
         timestamp: u64,
     ) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError>;
 
-    async fn save_user_data(&self, pubkey: U256, encypted_data: Vec<u8>)
-        -> Result<(), ServerError>;
+    async fn save_user_data(
+        &self,
+        pubkey: U256,
+        encrypted_data: Vec<u8>,
+    ) -> Result<(), ServerError>;
 
     async fn get_user_data(&self, pubkey: U256) -> Result<Option<Vec<u8>>, ServerError>;
 }

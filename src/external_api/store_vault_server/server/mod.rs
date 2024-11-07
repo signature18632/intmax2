@@ -6,3 +6,4 @@ pub mod get_user_data;
 pub mod save_balance_proof;
 pub mod save_encrypted_data;
 pub mod save_user_data;
+pub mod store_vault_server;
