@@ -13,7 +13,7 @@ use plonky2::{
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
 
-use crate::external_api::error::ServerError;
+use crate::external_api::common::error::ServerError;
 
 use super::interface::StoreVaultInterface;
 
