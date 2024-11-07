@@ -4,3 +4,4 @@ pub mod conversion;
 pub mod deposit_index;
 pub mod info;
 pub mod update_witness;
+pub mod validity_pis;
