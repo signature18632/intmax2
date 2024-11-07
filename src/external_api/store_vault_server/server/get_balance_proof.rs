@@ -16,19 +16,13 @@ type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
 use crate::external_api::{
-    common::error::ServerError,
+    common::{error::ServerError, response::ServerCommonResponse},
     utils::{
         encode::decode_plonky2_proof,
         handler::{handle_response, ResponseType},
         retry::with_retry,
     },
 };
-
-#[derive(Serialize, Deserialize)]
-pub struct GetBalanceProofSuccessResponse {
-    pub success: bool,
-    pub data: GetBalanceProofData,
-}
 
 #[derive(Serialize, Deserialize)]
 pub struct GetBalanceProofData {
@@ -54,7 +48,7 @@ pub async fn get_balance_proof(
 
     match handle_response(response).await? {
         ResponseType::Success(response) => {
-            let response: GetBalanceProofSuccessResponse = response
+            let response: ServerCommonResponse<GetBalanceProofData> = response
                 .json()
                 .await
                 .map_err(|e| ServerError::DeserializationError(e.to_string()))?;

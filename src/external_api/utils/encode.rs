@@ -9,6 +9,14 @@ const D: usize = 2;
 type C = PoseidonGoldilocksConfig;
 type F = GoldilocksField;
 
+pub fn decode_base64(encoded: &str) -> Result<Vec<u8>, base64::DecodeError> {
+    BASE64_STANDARD.decode(encoded)
+}
+
+pub fn encode_base64(data: &[u8]) -> String {
+    BASE64_STANDARD.encode(data)
+}
+
 pub fn encode_plonky2_proof(
     proof: ProofWithPublicInputs<F, C, D>,
     circuit_data: &VerifierCircuitData<F, C, D>,
