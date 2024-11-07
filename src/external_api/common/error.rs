@@ -9,6 +9,15 @@ pub enum ServerError {
     #[error("Deserialization error: {0}")]
     DeserializationError(String),
 
+    #[error("Proof Decode error: {0}")]
+    ProofDecodeError(String),
+
+    #[error("Proof verification error: {0}")]
+    ProofVerificationError(String),
+
+    #[error("Invalid response: {0}")]
+    InvalidResponse(String),
+
     #[error("Internal error: {0}")]
     InternalError(String),
 }
