@@ -1,8 +1,9 @@
 use intmax2_zkp::ethereum_types::bytes32::Bytes32;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use crate::external_api::{
-    common::error::ServerError,
+    common::{error::ServerError, response::ServerCommonResponse},
     utils::{
         handler::{handle_response, ResponseType},
         retry::with_retry,
@@ -10,6 +11,11 @@ use crate::external_api::{
 };
 
 use super::data_type::EncryptedDataType;
+
+#[derive(Serialize, Deserialize)]
+struct SaveEncryptedDataResponse {
+    uuid: String,
+}
 
 pub async fn save_encrypted_data(
     server_base_url: &str,
@@ -31,7 +37,15 @@ pub async fn save_encrypted_data(
         ServerError::NetworkError(format!("Failed to save encrypted data to server: {}", e))
     })?;
     match handle_response(response).await? {
-        ResponseType::Success(_) => Ok(()),
+        ResponseType::Success(response) => {
+            let response: ServerCommonResponse<SaveEncryptedDataResponse> =
+                response
+                    .json()
+                    .await
+                    .map_err(|e| ServerError::DeserializationError(e.to_string()))?;
+            log::info!("Saved encrypted data with uuid: {}", response.data.uuid);
+            Ok(())
+        }
         ResponseType::ServerError(error) => Err(ServerError::ServerError(error.message)),
         _ => Err(ServerError::UnknownError("Unknown error".to_string())),
     }
