@@ -2553,6 +2553,7 @@ dependencies = [
  "ethers",
  "hex",
  "intmax2-zkp 0.1.0 (git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli)",
+ "itertools 0.13.0",
  "log",
  "mining_circuit_v1",
  "num-bigint 0.4.6",
@@ -2670,6 +2671,15 @@ name = "itertools"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
 dependencies = [
  "either",
 ]

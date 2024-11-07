@@ -3,3 +3,4 @@ pub mod get_balance_proof;
 pub mod get_encrypted_data;
 pub mod get_encrypted_data_all;
 pub mod save_balance_proof;
+pub mod save_encrypted_data;

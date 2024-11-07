@@ -228,3 +228,30 @@ struct Withdrawal {
     created_at: String,
     sorting_value: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use intmax2_zkp::ethereum_types::{bytes32::Bytes32, u32limb_trait::U32LimbTrait as _};
+
+    use crate::{
+        external_api::store_vault_server::server::data_type::EncryptedDataType,
+        utils::init_logger::init_logger,
+    };
+
+    #[tokio::test]
+    async fn test_get_encrypted_data_all() -> anyhow::Result<()> {
+        init_logger();
+
+        let mut rng = rand::thread_rng();
+
+        let server_base_url = "http://localhost:4000/v1/backups";
+        let pubkey = Bytes32::rand(&mut rng);
+        let timestamp = 0;
+
+        let data_type = EncryptedDataType::Deposit;
+        let _result =
+            super::get_encrypted_data_all(server_base_url, data_type, pubkey, timestamp).await?;
+
+        Ok(())
+    }
+}
