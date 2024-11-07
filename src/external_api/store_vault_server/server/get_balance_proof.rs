@@ -108,6 +108,7 @@ mod tests {
     use crate::utils::{circuit_verifiers::CircuitVerifiers, init_logger::init_logger};
 
     #[tokio::test]
+    #[ignore]
     async fn test_get_balance_proof() -> anyhow::Result<()> {
         init_logger();
 

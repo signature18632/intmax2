@@ -6,6 +6,9 @@ pub enum ServerError {
     #[error("Server error: {0}")]
     ServerError(String),
 
+    #[error("Unknown error: {0}")]
+    UnknownError(String),
+
     #[error("Deserialization error: {0}")]
     DeserializationError(String),
 
