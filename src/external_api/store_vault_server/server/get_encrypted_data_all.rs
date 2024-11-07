@@ -3,32 +3,59 @@ use reqwest::Response;
 use serde::{Deserialize, Serialize};
 
 use crate::external_api::{
-    common::{error::ServerError, response::ServerCommonResponse},
+    common::{
+        error::ServerError,
+        pagination::{PaginationRequest, PaginationResponse},
+        response::ServerCommonResponse,
+    },
     utils::{
-        encode::decode_base64,
         handler::{handle_response, ResponseType},
         retry::with_retry,
     },
 };
 
-use super::data_type::EncryptedDataType;
+use super::{data_type::EncryptedDataType, get_encrypted_data::format_data};
 
-pub async fn get_encrypted_data(
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GetEncryptedDataAllRequest {
+    pub pagination: PaginationRequest,
+    pub sender: Bytes32,
+    pub sorting: String,
+    pub order_by: String,
+}
+
+pub async fn get_encrypted_data_all(
     server_base_url: &str,
     data_type: EncryptedDataType,
-    uuid: &str,
-) -> Result<Option<(MetaData, Vec<u8>)>, ServerError> {
-    let url = format!("{}/{}/{}", server_base_url, data_type, uuid);
+    pubkey: Bytes32,
+    timestamp: u64,
+) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError> {
+    let url = format!("{}/{}s/list", server_base_url, data_type);
 
-    let response = with_retry(|| async { reqwest::Client::new().get(&url).send().await })
-        .await
-        .map_err(|e| {
-            ServerError::NetworkError(format!("Failed to get encrypted data from server: {}", e))
-        })?;
+    let timestamp_nano = timestamp * 1000_000; // convert to nano seconds
+    let request = GetEncryptedDataAllRequest {
+        pagination: PaginationRequest::from_sorting_value(&timestamp_nano.to_string()),
+        sender: pubkey,
+        sorting: "desc".to_string(),
+        order_by: "date_create".to_string(),
+    };
+    let response = with_retry(|| async {
+        reqwest::Client::new()
+            .post(&url)
+            .json(&request)
+            .send()
+            .await
+    })
+    .await
+    .map_err(|e| {
+        ServerError::NetworkError(format!("Failed to get encrypted data from server: {}", e))
+    })?;
+
     match handle_response(response).await? {
         ResponseType::Success(response) => {
-            let (meta, data) = deserialize_response(response, data_type).await?;
-            Ok(Some((meta, data)))
+            let result = deserialize_response(response, data_type).await?;
+            Ok(result)
         }
         ResponseType::NotFound(error) => {
             log::warn!(
@@ -36,7 +63,7 @@ pub async fn get_encrypted_data(
                 data_type,
                 error.message
             );
-            Ok(None)
+            Ok(vec![])
         }
         ResponseType::ServerError(error) => {
             log::error!("Failed to get encrypted data: {}", error.message);
@@ -52,7 +79,7 @@ pub async fn get_encrypted_data(
 async fn deserialize_response(
     response: Response,
     data_type: EncryptedDataType,
-) -> Result<(MetaData, Vec<u8>), ServerError> {
+) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError> {
     match data_type {
         EncryptedDataType::Deposit => {
             let response: ServerCommonResponse<GetDepositData> =
@@ -62,12 +89,16 @@ async fn deserialize_response(
                         e
                     ))
                 })?;
-            let (meta, data) = format_data(
-                &response.data.deposit.uuid,
-                &response.data.deposit.created_at,
-                &response.data.deposit.encrypted_deposit_data,
-            )?;
-            Ok((meta, data))
+            let mut result = Vec::new();
+            for deposit in response.data.deposits {
+                let (meta, data) = format_data(
+                    &deposit.uuid,
+                    &deposit.created_at,
+                    &deposit.encrypted_deposit_data,
+                )?;
+                result.push((meta, data));
+            }
+            Ok(result)
         }
         EncryptedDataType::Transaction => {
             let response: ServerCommonResponse<GetTransactionData> =
@@ -77,12 +108,16 @@ async fn deserialize_response(
                         e
                     ))
                 })?;
-            let (meta, data) = format_data(
-                &response.data.transaction.uuid,
-                &response.data.transaction.created_at,
-                &response.data.transaction.encrypted_transaction_data,
-            )?;
-            Ok((meta, data))
+            let mut result = Vec::new();
+            for transaction in response.data.transactions {
+                let (meta, data) = format_data(
+                    &transaction.uuid,
+                    &transaction.created_at,
+                    &transaction.encrypted_transaction_data,
+                )?;
+                result.push((meta, data));
+            }
+            Ok(result)
         }
         EncryptedDataType::Transfer => {
             let response: ServerCommonResponse<GetTransferData> =
@@ -92,13 +127,16 @@ async fn deserialize_response(
                         e
                     ))
                 })?;
-            let (meta, data) = format_data(
-                &response.data.transfer.uuid,
-                &response.data.transfer.created_at,
-                &response.data.transfer.encrypted_transfer_data,
-            )?;
-
-            Ok((meta, data))
+            let mut result = Vec::new();
+            for transfer in response.data.transfers {
+                let (meta, data) = format_data(
+                    &transfer.uuid,
+                    &transfer.created_at,
+                    &transfer.encrypted_transfer_data,
+                )?;
+                result.push((meta, data));
+            }
+            Ok(result)
         }
         EncryptedDataType::Withdrawal => {
             let response: ServerCommonResponse<GetWithdrawalData> =
@@ -108,12 +146,16 @@ async fn deserialize_response(
                         e
                     ))
                 })?;
-            let (meta, data) = format_data(
-                &response.data.withdrawal.uuid,
-                &response.data.withdrawal.created_at,
-                &response.data.withdrawal.encrypted_withdrawal_data,
-            )?;
-            Ok((meta, data))
+            let mut result = Vec::new();
+            for withdrawal in response.data.withdrawals {
+                let (meta, data) = format_data(
+                    &withdrawal.uuid,
+                    &withdrawal.created_at,
+                    &withdrawal.encrypted_withdrawal_data,
+                )?;
+                result.push((meta, data));
+            }
+            Ok(result)
         }
     }
 }
@@ -121,22 +163,26 @@ async fn deserialize_response(
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GetDepositData {
-    deposit: Deposit,
+    pagination: PaginationResponse,
+    deposits: Vec<Deposit>,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Deposit {
     uuid: String,
-    recipient: Bytes32,
+    sender: Bytes32,
+    signature: String,
     encrypted_deposit_data: String,
     created_at: String,
+    sorting_value: String,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GetTransactionData {
-    transaction: Transaction,
+    pagination: PaginationResponse,
+    transactions: Vec<Transaction>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -146,12 +192,14 @@ struct Transaction {
     sender: Bytes32,
     encrypted_transaction_data: String,
     created_at: String,
+    sorting_value: String,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GetTransferData {
-    transfer: Transfer,
+    pagination: PaginationResponse,
+    transfers: Vec<Transfer>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -161,12 +209,14 @@ struct Transfer {
     recipient: Bytes32,
     encrypted_transfer_data: String,
     created_at: String,
+    sorting_value: String,
 }
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GetWithdrawalData {
-    withdrawal: Withdrawal,
+    pagination: PaginationResponse,
+    withdrawals: Vec<Withdrawal>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -176,26 +226,5 @@ struct Withdrawal {
     recipient: Bytes32,
     encrypted_withdrawal_data: String,
     created_at: String,
-}
-
-pub(super) fn format_data(
-    uuid: &str,
-    created_at: &str,
-    data: &str,
-) -> Result<(MetaData, Vec<u8>), ServerError> {
-    let timestamp = chrono::DateTime::parse_from_rfc3339(created_at)
-        .map_err(|e| {
-            ServerError::DeserializationError(format!("Error while parsing timestamp: {}", e))
-        })?
-        .with_timezone(&chrono::Utc)
-        .timestamp() as u64;
-    let meta = MetaData {
-        uuid: uuid.to_string(),
-        timestamp,
-        block_number: None,
-    };
-    let data = decode_base64(data).map_err(|e| {
-        ServerError::DeserializationError(format!("Error while decoding data: {}", e))
-    })?;
-    Ok((meta, data))
+    sorting_value: String,
 }
