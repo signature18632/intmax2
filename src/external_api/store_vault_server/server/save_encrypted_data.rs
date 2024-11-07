@@ -5,6 +5,7 @@ use serde_json::{json, Value};
 use crate::external_api::{
     common::{error::ServerError, response::ServerCommonResponse},
     utils::{
+        encode::encode_base64,
         handler::{handle_response, ResponseType},
         retry::with_retry,
     },
@@ -56,6 +57,7 @@ fn generate_request(
     pubkey: Bytes32,
     encrypted_data: Vec<u8>,
 ) -> Value {
+    let encrypted_data = encode_base64(&encrypted_data);
     match data_type {
         EncryptedDataType::Deposit => {
             let data = serde_json::to_value(encrypted_data).unwrap();
@@ -77,7 +79,6 @@ fn generate_request(
             json!({
                 "sender": pubkey,
                 "encryptedTransactionData": data,
-                "signature": "", // TODO: add signature
             })
         }
         EncryptedDataType::Withdrawal => {
@@ -85,7 +86,6 @@ fn generate_request(
             json!({
                 "sender": pubkey,
                 "encryptedWithdrawalData": data,
-                "signature": "", // TODO: add signature
             })
         }
     }

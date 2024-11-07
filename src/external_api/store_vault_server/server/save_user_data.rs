@@ -4,6 +4,7 @@ use serde_json::json;
 use crate::external_api::{
     common::error::ServerError,
     utils::{
+        encode::encode_base64,
         handler::{handle_response, ResponseType},
         retry::with_retry,
     },
@@ -15,11 +16,11 @@ pub async fn save_user_data(
     encypted_data: Vec<u8>,
 ) -> Result<(), ServerError> {
     let url = format!("{}/user-data", server_base_url,);
+    let encrypted_data_encoded = encode_base64(&encypted_data);
     let request = json!({
         "user": pubkey,
-        "encryptedUserData": encypted_data,
+        "encryptedUserData": encrypted_data_encoded,
     });
-
     let response = with_retry(|| async {
         reqwest::Client::new()
             .post(url.clone())
