@@ -3,8 +3,8 @@ use intmax2_zkp::{
     circuits::validity::validity_pis::ValidityPublicInputs,
     common::{
         trees::{
-            account_tree::AccountMembershipProof, block_hash_tree::BlockHashMerkleProof,
-            deposit_tree::DepositMerkleProof, sender_tree::SenderLeaf,
+            block_hash_tree::BlockHashMerkleProof, deposit_tree::DepositMerkleProof,
+            sender_tree::SenderLeaf,
         },
         witness::update_witness::UpdateWitness,
     },
@@ -57,13 +57,7 @@ pub trait BlockValidityInterface {
         &self,
         root_block_number: u32,
         leaf_block_number: u32,
-    ) -> Result<Vec<BlockHashMerkleProof>, ServerError>;
-
-    async fn get_account_membership_proof(
-        &self,
-        block_number: u32,
-        pubkey: U256,
-    ) -> Result<AccountMembershipProof, ServerError>;
+    ) -> Result<BlockHashMerkleProof, ServerError>;
 
     async fn get_deposit_merkle_proof(
         &self,
