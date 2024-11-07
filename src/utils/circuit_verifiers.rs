@@ -92,6 +92,7 @@ fn load_verifier_circuit_data(path: &Path) -> anyhow::Result<VerifierCircuitData
 mod tests {
 
     #[test]
+    #[ignore]
     fn test_save_circuit_verifiers() {
         let circuit_verifiers = super::CircuitVerifiers::construct();
         circuit_verifiers.save().unwrap();

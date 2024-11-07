@@ -37,14 +37,14 @@ pub struct GetBalanceProofData {
 
 pub async fn get_balance_proof(
     balance_circuit_vd: &VerifierCircuitData<F, C, D>,
-    base_url: &str,
+    server_base_url: &str,
     pubkey: Bytes32,
     block_number: u32,
     private_commitment: PoseidonHashOut,
 ) -> Result<Option<ProofWithPublicInputs<F, C, D>>, ServerError> {
     let url = format!(
-        "{}/balance_proof?user={}&blockNumber={}&privateCommitment={}",
-        base_url, pubkey, block_number, private_commitment
+        "{}/balance-proof?user={}&blockNumber={}&privateCommitment={}",
+        server_base_url, pubkey, block_number, private_commitment
     );
     let response = with_retry(|| async { reqwest::Client::new().get(&url).send().await })
         .await
@@ -103,6 +103,30 @@ pub async fn get_balance_proof(
 
 #[cfg(test)]
 mod tests {
+    use intmax2_zkp::{ethereum_types::u256::U256, utils::poseidon_hash_out::PoseidonHashOut};
+
+    use crate::utils::{circuit_verifiers::CircuitVerifiers, init_logger::init_logger};
+
     #[tokio::test]
-    async fn test_get_balance_proof() {}
+    async fn test_get_balance_proof() -> anyhow::Result<()> {
+        init_logger();
+
+        let mut rng = rand::thread_rng();
+        let circuit_data = CircuitVerifiers::load()?;
+        let balance_circuit_vd = circuit_data.get_balance_vd();
+        let mock_url = "http://localhost:4000/v1/backups";
+        let pubkey = U256::rand(&mut rng);
+        let block_number = 1;
+        let private_commitment = PoseidonHashOut::rand(&mut rng);
+
+        let _proof = super::get_balance_proof(
+            balance_circuit_vd,
+            mock_url,
+            pubkey.into(),
+            block_number,
+            private_commitment,
+        )
+        .await?;
+        Ok(())
+    }
 }

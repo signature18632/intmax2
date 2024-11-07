@@ -2549,6 +2549,7 @@ dependencies = [
  "dir",
  "dirs",
  "dotenv",
+ "env_logger",
  "ethers",
  "hex",
  "intmax2-zkp 0.1.0 (git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli)",
