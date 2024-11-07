@@ -1,5 +1,6 @@
 pub mod account_id;
 pub mod block_merkle_proof;
+pub mod block_validity_prover;
 pub mod conversion;
 pub mod deposit_index;
 pub mod deposit_merkle_proof;
