@@ -1,5 +1,5 @@
 [package]
-name = "intmax2-cli"
+name = "intmax2-core-sdk"
 version = "0.1.0"
 edition = "2021"
 
