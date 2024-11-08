@@ -132,7 +132,7 @@ where
         Ok(())
     }
 
-    pub async fn send_tx_request<F, C, const D: usize>(
+    pub async fn send_tx_request(
         &self,
         key: KeySet,
         transfers: Vec<Transfer>,
@@ -216,11 +216,7 @@ where
         Ok(memo)
     }
 
-    pub async fn finalize_tx<F, C, const D: usize>(
-        &self,
-        key: KeySet,
-        memo: &TxRequestMemo,
-    ) -> Result<(), ClientError> {
+    pub async fn finalize_tx(&self, key: KeySet, memo: &TxRequestMemo) -> Result<(), ClientError> {
         // get proposal
         let mut proposal = None;
         let mut tries = 0;

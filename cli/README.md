@@ -5,7 +5,7 @@
 The general syntax for using the CLI tool is:
 
 ```
-intmax2_cli <COMMAND> [OPTIONS]
+intmax2-cli <COMMAND> [OPTIONS]
 ```
 
 ### Available Commands
@@ -15,7 +15,7 @@ intmax2_cli <COMMAND> [OPTIONS]
    Send a transaction to another address.
 
    ```
-   intmax2_cli tx --private-key <PRIVATE_KEY> --to <RECIPIENT_ADDRESS> --amount <AMOUNT> --token-index <TOKEN_INDEX>
+   intmax2-cli tx --private-key <PRIVATE_KEY> --to <RECIPIENT_ADDRESS> --amount <AMOUNT> --token-index <TOKEN_INDEX>
    ```
 
 2. **Deposit**
@@ -23,7 +23,7 @@ intmax2_cli <COMMAND> [OPTIONS]
    Deposit funds into the Intmax2 system.
 
    ```
-   intmax2_cli deposit --rpc-url <RPC_URL> --eth-private-key <ETH_PRIVATE_KEY> --private-key <PRIVATE_KEY> --amount <AMOUNT> --token-index <TOKEN_INDEX>
+   intmax2-cli deposit --rpc-url <RPC_URL> --eth-private-key <ETH_PRIVATE_KEY> --private-key <PRIVATE_KEY> --amount <AMOUNT> --token-index <TOKEN_INDEX>
    ```
 
 3. **Sync**
@@ -31,7 +31,7 @@ intmax2_cli <COMMAND> [OPTIONS]
    Synchronize your account with the latest state.
 
    ```
-   intmax2_cli sync --private-key <PRIVATE_KEY>
+   intmax2-cli sync --private-key <PRIVATE_KEY>
    ```
 
 4. **Balance**
@@ -39,7 +39,7 @@ intmax2_cli <COMMAND> [OPTIONS]
    Check the balance of your account.
 
    ```
-   intmax2_cli balance --private-key <PRIVATE_KEY>
+   intmax2-cli balance --private-key <PRIVATE_KEY>
    ```
 
 ### Options
@@ -55,20 +55,20 @@ intmax2_cli <COMMAND> [OPTIONS]
 
 1. Send a transaction:
    ```
-   intmax2_cli tx --private-key 0x... --to 0x... --amount 1000000000000000000 --token-index 0
+   intmax2-cli tx --private-key 0x... --to 0x... --amount 1000000000000000000 --token-index 0
    ```
 
 2. Make a deposit:
    ```
-   intmax2_cli deposit --rpc-url https://mainnet.infura.io/v3/YOUR-PROJECT-ID --eth-private-key 0x... --private-key 0x... --amount 1000000000000000000 --token-index 0
+   intmax2-cli deposit --rpc-url https://mainnet.infura.io/v3/YOUR-PROJECT-ID --eth-private-key 0x... --private-key 0x... --amount 1000000000000000000 --token-index 0
    ```
 
 3. Sync your account:
    ```
-   intmax2_cli sync --private-key 0x...
+   intmax2-cli sync --private-key 0x...
    ```
 
 4. Check your balance:
    ```
-   intmax2_cli balance --private-key 0x...
+   intmax2-cli balance --private-key 0x...
    ```
