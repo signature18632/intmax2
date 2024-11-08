@@ -25,6 +25,7 @@ pub struct FeeProof {
 
 #[async_trait]
 pub trait BlockBuilderInterface {
+    // Send tx to the block builder
     async fn initialize_tx(
         &self,
         pubkey: U256,
@@ -32,8 +33,10 @@ pub trait BlockBuilderInterface {
         fee_proof: FeeProof,
     ) -> Result<(), ServerError>;
 
+    // Query tx tree root proposal from the block builder
     async fn query_tx(&self, pubkey: U256, tx: Tx) -> Result<Option<BlockProposal>, ServerError>;
 
+    // Send signature to the block builder
     async fn post_signature(
         &self,
         pubkey: U256,

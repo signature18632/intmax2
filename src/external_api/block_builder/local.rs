@@ -90,6 +90,11 @@ impl BlockBuilderInterface for LocalBlockBuilder {
         tx: Tx,
         _fee_proof: FeeProof,
     ) -> Result<(), ServerError> {
+        if self.state.lock().unwrap().proposals.is_some() {
+            return Err(ServerError::InternalError(
+                "Cannot initialize tx".to_string(),
+            ));
+        }
         let account_id = self.validity_prover.lock().unwrap().get_account_id(pubkey);
         let is_registration_block = account_id.is_none();
         if self.state.lock().unwrap().is_registration_block.is_none() {
