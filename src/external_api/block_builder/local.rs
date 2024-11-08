@@ -27,101 +27,68 @@ pub struct LocalBlockBuilder {
     pub contract: Arc<Mutex<MockContract>>,
     pub validity_prover: Arc<Mutex<BlockValidityProver<F, C, D>>>,
     pub inner_block_builder: Arc<Mutex<InnerBlockBuilder>>,
-    pub state: Arc<Mutex<State>>,
 }
 
-pub struct State {
-    is_registration_block: Option<bool>,
-    txs: Vec<(U256, Tx)>,
-    proposals: Option<Vec<BlockProposal>>,
-    signatures: Vec<UserSignature>,
-}
-
-impl State {
-    pub fn is_empty(&self) -> bool {
-        self.is_registration_block.is_none() && self.txs.is_empty() && self.proposals.is_none()
-    }
-
-    pub fn clear(&mut self) {
-        self.is_registration_block = None;
-        self.txs.clear();
-        self.proposals = None;
-        self.signatures.clear();
-    }
-}
-
+// Methods called by the block builder
 impl LocalBlockBuilder {
     pub fn construct_block(&self) -> Result<(), ServerError> {
-        let is_registration_block = self.state.lock().unwrap().is_registration_block.unwrap();
-        let txs = self.state.lock().unwrap().txs.clone();
-
-        let mut contract = self.contract.lock().unwrap();
-        let validity_prover = &self.validity_prover.lock().unwrap();
-        let proposals = self
-            .inner_block_builder
+        self.inner_block_builder
             .lock()
             .unwrap()
-            .propose(&mut *contract, &validity_prover, is_registration_block, txs)
-            .map_err(|e| ServerError::InternalError(format!("Block construction {:?}", e)))?;
-
-        self.state.lock().unwrap().proposals = Some(proposals);
+            .construct_block()
+            .map_err(|e| {
+                ServerError::InternalError(format!("Failed to construct block: {}", e.to_string()))
+            })?;
         Ok(())
     }
 
     pub fn post_block(&self) -> Result<(), ServerError> {
         let mut contract = self.contract.lock().unwrap();
-        let validity_prover = &self.validity_prover.lock().unwrap();
-        let signatures = self.state.lock().unwrap().signatures.clone();
+        let validity_prover = self.validity_prover.lock().unwrap();
         self.inner_block_builder
             .lock()
             .unwrap()
-            .post_block(&mut *contract, &validity_prover, signatures)
-            .map_err(|e| ServerError::InternalError(format!("Post block {:?}", e)))?;
-        self.state.lock().unwrap().clear();
+            .post_block(&mut contract, &validity_prover)
+            .map_err(|e| {
+                ServerError::InternalError(format!("Failed to post block: {}", e.to_string()))
+            })?;
         Ok(())
     }
 }
 
 #[async_trait]
 impl BlockBuilderInterface for LocalBlockBuilder {
-    async fn initialize_tx(
+    async fn send_tx_request(
         &self,
         pubkey: U256,
         tx: Tx,
-        _fee_proof: FeeProof,
+        _fee_proof: Option<FeeProof>,
     ) -> Result<(), ServerError> {
-        if self.state.lock().unwrap().proposals.is_some() {
-            return Err(ServerError::InternalError(
-                "Cannot initialize tx".to_string(),
-            ));
-        }
-        let account_id = self.validity_prover.lock().unwrap().get_account_id(pubkey);
-        let is_registration_block = account_id.is_none();
-        if self.state.lock().unwrap().is_registration_block.is_none() {
-            self.state.lock().unwrap().is_registration_block = Some(is_registration_block);
-        } else if self.state.lock().unwrap().is_registration_block != Some(is_registration_block) {
-            return Err(ServerError::InternalError(
-                "Cannot mix registration and non-registration txs".to_string(),
-            ));
-        }
-        self.state.lock().unwrap().txs.push((pubkey, tx));
+        let validity_prover = self.validity_prover.lock().unwrap();
+        self.inner_block_builder
+            .lock()
+            .unwrap()
+            .send_tx_request(&validity_prover, pubkey, tx)
+            .map_err(|e| {
+                ServerError::InternalError(format!("Failed to send tx request: {}", e.to_string()))
+            })?;
         Ok(())
     }
 
-    async fn query_tx(&self, pubkey: U256, tx: Tx) -> Result<Option<BlockProposal>, ServerError> {
-        let tx_index = self
-            .state
+    async fn query_proposal(
+        &self,
+        pubkey: U256,
+        _tx: Tx,
+    ) -> Result<Option<BlockProposal>, ServerError> {
+        let proposal = self
+            .inner_block_builder
             .lock()
             .unwrap()
-            .txs
-            .iter()
-            .position(|(p, t)| *p == pubkey && *t == tx)
-            .ok_or(ServerError::InternalError("Query tx not found".to_string()))?;
-        if self.state.lock().unwrap().proposals.is_none() {
-            return Ok(None);
-        }
-        let proposals = self.state.lock().unwrap().proposals.clone().unwrap();
-        Ok(proposals.get(tx_index).cloned())
+            .query_proposal(pubkey)
+            .map_err(|e| {
+                ServerError::InternalError(format!("Failed to query proposal: {}", e.to_string()))
+            })?;
+        Ok(proposal)
     }
 
     async fn post_signature(
@@ -131,7 +98,13 @@ impl BlockBuilderInterface for LocalBlockBuilder {
         signature: FlatG2,
     ) -> Result<(), ServerError> {
         let user_signatre = UserSignature { pubkey, signature };
-        self.state.lock().unwrap().signatures.push(user_signatre);
+        self.inner_block_builder
+            .lock()
+            .unwrap()
+            .post_signature(user_signatre)
+            .map_err(|e| {
+                ServerError::InternalError(format!("Failed to post signature: {}", e.to_string()))
+            })?;
         Ok(())
     }
 }

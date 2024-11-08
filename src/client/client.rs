@@ -2,7 +2,6 @@ use ethers::types::H256;
 use intmax2_zkp::{
     circuits::balance::{balance_pis::BalancePublicInputs, send::spent_circuit::SpentPublicInputs},
     common::{
-        block_builder::BlockProposal,
         deposit::{get_pubkey_salt_hash, Deposit},
         salt::Salt,
         signature::key_set::KeySet,
@@ -20,12 +19,14 @@ use intmax2_zkp::{
         common_tx_data::CommonTxData, deposit_data::DepositData, meta_data::MetaData,
         transfer_data::TransferData, tx_data::TxData, user_data::UserData,
     },
+    utils::poseidon_hash_out::PoseidonHashOut,
 };
 
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
+use serde::{Deserialize, Serialize};
 
 use crate::{
     client::balance_logic::{process_common_tx, process_transfer},
@@ -66,6 +67,8 @@ pub struct Client<
     // config
     pub deposit_timeout: u64,
     pub tx_timeout: u64,
+    pub max_tx_query_times: usize,
+    pub tx_query_interval: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -73,6 +76,17 @@ pub enum SyncStatus {
     Continue, // continue syncing
     Complete, // sync completed
     Pending,  // there are pending actions
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TxRequestMemo {
+    pub tx: Tx,
+    pub transfers: Vec<Transfer>,
+    pub spent_witness: SpentWitness,
+    pub spent_proof: ProofWithPublicInputs<F, C, D>,
+    pub prev_block_number: u32,
+    pub prev_private_commitment: PoseidonHashOut,
 }
 
 impl<BC, BB, S, V, B> Client<BC, BB, S, V, B>
@@ -121,7 +135,11 @@ where
         Ok(())
     }
 
-    pub async fn send_tx(&self, key: KeySet, transfers: Vec<Transfer>) -> Result<(), ClientError> {
+    pub async fn send_tx_request<F, C, const D: usize>(
+        &self,
+        key: KeySet,
+        transfers: Vec<Transfer>,
+    ) -> Result<TxRequestMemo, ClientError> {
         // input validation
         if transfers.len() == 0 {
             return Err(ClientError::InternalError("transfers is empty".to_string()));
@@ -153,9 +171,9 @@ where
                 .get(&(transfer.token_index as usize))
                 .cloned()
                 .unwrap_or_default();
-            if balance.is_insufficient {
+            if !balance.is_insufficient {
                 return Err(ClientError::BalanceError(format!(
-                    "Already insufficient balance: token index {}",
+                    "Already insufficient: token index {}",
                     transfer.token_index
                 )));
             }
@@ -181,53 +199,83 @@ where
             tx,
             new_salt,
         )
-        .map_err(|e| ClientError::WitnessGenerationError(format!("Spent witness: {:?}", e)))?;
+        .map_err(|e| {
+            ClientError::WitnessGenerationError(format!("failed to generate spent witness: {}", e))
+        })?;
         let spent_proof = self.balance_prover.prove_spent(&spent_witness).await?;
 
-        let is_first_time = self
-            .validity_prover
-            .get_account_id(key.pubkey)
-            .await?
-            .is_none();
+        self.block_builder
+            .send_tx_request(key.pubkey, tx, None)
+            .await?;
 
-        // get block proposal & verify it
-        // let proposals = block_builder
-        //     .propose(
-        //         contract,
-        //         validity_prover,
-        //         is_first_time, // Use registration block for the first tx
-        //         vec![(key.pubkey, tx)],
-        //     )
-        //     .map_err(|e| anyhow::anyhow!("failed to propose block: {}", e))?;
-        let proposal: BlockProposal = todo!();
-        // proposal
-        //     .verify(tx)
-        //     .map_err(|e| anyhow::anyhow!("failed to verify proposal: {}", e))?;
-
-        // backup before posting block
-        let common_tx_data = CommonTxData {
-            spent_proof,
-            sender_prev_block_number: user_data.block_number,
+        let memo = TxRequestMemo {
             tx,
+            transfers,
+            spent_witness,
+            spent_proof,
+            prev_block_number: user_data.block_number,
+            prev_private_commitment: user_data.private_commitment(),
+        };
+        Ok(memo)
+    }
+
+    pub async fn finalize_tx<F, C, const D: usize>(
+        &self,
+        key: KeySet,
+        memo: &TxRequestMemo,
+    ) -> Result<(), ClientError> {
+        // get proposal
+        let mut proposal = None;
+        let mut tries = 0;
+        while proposal.is_none() {
+            if tries >= self.max_tx_query_times {
+                return Err(ClientError::TxQueryTimeOut(
+                    "max tx query times reached".to_string(),
+                ));
+            }
+            proposal = self
+                .block_builder
+                .query_proposal(key.pubkey, memo.tx)
+                .await?;
+            tries += 1;
+        }
+        let proposal = proposal.unwrap();
+
+        // verify proposal
+        proposal
+            .verify(memo.tx)
+            .map_err(|e| ClientError::InvalidBlockProposal(format!("{}", e)))?;
+
+        // backup before posting signature
+        let common_tx_data = CommonTxData {
+            spent_proof: memo.spent_proof.clone(),
+            sender_prev_block_number: memo.prev_block_number,
+            tx: memo.tx.clone(),
             tx_index: proposal.tx_index,
             tx_merkle_proof: proposal.tx_merkle_proof.clone(),
             tx_tree_root: proposal.tx_tree_root,
         };
+
         // save tx data
         let tx_data = TxData {
             common: common_tx_data.clone(),
-            spent_witness,
+            spent_witness: memo.spent_witness.clone(),
         };
         self.store_vault_server
             .save_tx_data(key.pubkey, tx_data.encrypt(key.pubkey))
             .await?;
+
         // save transfer data
-        for (i, transfer) in transfers.iter().enumerate() {
+        let mut transfer_tree = TransferTree::new(TRANSFER_TREE_HEIGHT);
+        for transfer in &memo.transfers {
+            transfer_tree.push(transfer.clone());
+        }
+        for (i, transfer) in memo.transfers.iter().enumerate() {
             let transfer_merkle_proof = transfer_tree.prove(i);
             let transfer_data = TransferData {
                 sender: key.pubkey,
-                prev_block_number: user_data.block_number,
-                prev_private_commitment: user_data.private_commitment(),
+                prev_block_number: memo.prev_block_number,
+                prev_private_commitment: memo.prev_private_commitment,
                 tx_data: common_tx_data.clone(),
                 transfer: transfer.clone(),
                 transfer_index: i,
@@ -248,11 +296,11 @@ where
             }
         }
 
-        // sign and post block
+        // sign and post signature
         let signature = proposal.sign(key);
-        // self.block_builder
-        //     .post_block(contract, validity_prover, vec![signature])
-        //     .map_err(|e| anyhow::anyhow!("failed to post block: {}", e))?;
+        self.block_builder
+            .post_signature(signature.pubkey, memo.tx, signature.signature)
+            .await?;
         Ok(())
     }
 
