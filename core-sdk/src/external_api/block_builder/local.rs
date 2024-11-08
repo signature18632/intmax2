@@ -23,6 +23,7 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
+#[derive(Clone)]
 pub struct LocalBlockBuilder {
     pub contract: Arc<Mutex<MockContract>>,
     pub validity_prover: Arc<Mutex<BlockValidityProver<F, C, D>>>,
