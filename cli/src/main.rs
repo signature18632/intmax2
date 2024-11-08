@@ -1,5 +1,7 @@
 use clap::{Parser, Subcommand};
+use cli::{balance, deposit, sync, tx};
 use ethers::types::{H256, U256};
+use intmax2_zkp::ethereum_types::{bytes32::Bytes32, u32limb_trait::U32LimbTrait as _};
 
 pub mod cli;
 
@@ -21,7 +23,7 @@ enum Commands {
         #[clap(long)]
         amount: U256,
         #[clap(long)]
-        token_index: u64,
+        token_index: u32,
     },
     Deposit {
         #[clap(long)]
@@ -29,11 +31,11 @@ enum Commands {
         #[clap(long)]
         eth_private_key: H256,
         #[clap(long)]
-        to: H256,
+        private_key: H256,
         #[clap(long)]
         amount: U256,
         #[clap(long)]
-        token_index: u64,
+        token_index: u32,
     },
     Sync {
         #[clap(long)]
@@ -45,7 +47,8 @@ enum Commands {
     },
 }
 
-fn main() {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     match &args.command {
@@ -55,26 +58,43 @@ fn main() {
             amount,
             token_index,
         } => {
-            println!("Executing tx command");
-            // Implement tx logic here
+            let to = h256_to_u256(*to);
+            let amount = u256_convert(*amount);
+            tx(*private_key, to, amount, *token_index).await?;
         }
         Commands::Deposit {
             rpc_url,
             eth_private_key,
-            to,
+            private_key,
             amount,
             token_index,
         } => {
-            println!("Executing deposit command");
-            // Implement deposit logic here
+            let amount = u256_convert(*amount);
+            let token_index = *token_index;
+            deposit(rpc_url, *eth_private_key, *private_key, amount, token_index).await?;
         }
         Commands::Sync { private_key } => {
-            println!("Executing sync command");
-            // Implement sync logic here
+            sync(*private_key).await?;
         }
         Commands::Balance { private_key } => {
             println!("Executing balance command");
-            // Implement balance logic here
+            balance(*private_key).await?;
         }
     }
+
+    Ok(())
+}
+
+fn u256_to_bytes32(u256: U256) -> Bytes32 {
+    let mut bytes = [0u8; 32];
+    u256.to_big_endian(&mut bytes);
+    Bytes32::from_bytes_be(&bytes)
+}
+
+fn u256_convert(u256: U256) -> intmax2_zkp::ethereum_types::u256::U256 {
+    u256_to_bytes32(u256).into()
+}
+
+fn h256_to_u256(h256: H256) -> intmax2_zkp::ethereum_types::u256::U256 {
+    intmax2_zkp::ethereum_types::u256::U256::from_bytes_be(h256.as_bytes())
 }
