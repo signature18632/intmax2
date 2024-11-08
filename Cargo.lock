@@ -1655,9 +1655,9 @@ dependencies = [
 
 [[package]]
 name = "fastrand"
-version = "2.1.1"
+version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8c02a5121d4ea3eb16a80748c74f5549a5665e4c21333c6098f283870fbdea6"
+checksum = "486f806e73c5707928240ddc295403b1b93c96a02038563881c4a2fd84b81ac4"
 
 [[package]]
 name = "ff"
@@ -2579,7 +2579,7 @@ dependencies = [
 [[package]]
 name = "intmax2-zkp"
 version = "0.1.0"
-source = "git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli#bb7e224c0dc75a97789291efa82612f7f2412347"
+source = "git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli#540fed5f4ed78414dc7fb3b78a0d6f9adbedeff6"
 dependencies = [
  "anyhow",
  "ark-bn254",
@@ -4863,9 +4863,9 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 
 [[package]]
 name = "tempfile"
-version = "3.13.0"
+version = "3.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0f2c9fc62d0beef6951ccffd757e241266a2c833136efbe35af6cd2567dca5b"
+checksum = "28cce251fcbc87fac86a866eeb0d6c2d536fc16d06f184bb61aeae11aa4cee0c"
 dependencies = [
  "cfg-if 1.0.0",
  "fastrand",
