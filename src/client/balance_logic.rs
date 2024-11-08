@@ -1,15 +1,21 @@
 use intmax2_zkp::{
-    circuits::balance::balance_processor::get_prev_balance_pis,
+    circuits::balance::{
+        balance_pis::BalancePublicInputs, balance_processor::get_prev_balance_pis,
+    },
     common::{
         private_state::FullPrivateState,
         salt::Salt,
         witness::{
             deposit_witness::DepositWitness, private_transition_witness::PrivateTransitionWitness,
-            receive_deposit_witness::ReceiveDepositWitness, tx_witness::TxWitness,
+            receive_deposit_witness::ReceiveDepositWitness,
+            receive_transfer_witness::ReceiveTransferWitness, transfer_witness::TransferWitness,
+            tx_witness::TxWitness,
         },
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
-    mock::data::{common_tx_data::CommonTxData, deposit_data::DepositData},
+    mock::data::{
+        common_tx_data::CommonTxData, deposit_data::DepositData, transfer_data::TransferData,
+    },
 };
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
@@ -88,6 +94,77 @@ pub async fn process_deposit<V: BlockValidityInterface, B: BalanceProverInterfac
         .prove_receive_deposit(
             pubkey,
             &receive_deposit_witness,
+            &Some(before_balance_proof),
+        )
+        .await?;
+
+    Ok(balance_proof)
+}
+
+pub async fn process_transfer<V: BlockValidityInterface, B: BalanceProverInterface>(
+    validity_prover: &V,
+    balance_processor: &B,
+    pubkey: U256,
+    full_private_state: &mut FullPrivateState,
+    new_salt: Salt,
+    sender_balance_proof: &ProofWithPublicInputs<F, C, D>, /* sender's balance proof after
+                                                            * applying tx */
+    prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>, /* receiver's prev balance
+                                                                  * proof */
+    receive_block_number: u32,
+    transfer_data: &TransferData<F, C, D>,
+) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
+    let sender_balance_pis = BalancePublicInputs::from_pis(&sender_balance_proof.public_inputs);
+    if sender_balance_pis.public_state.block_number > receive_block_number {
+        return Err(ClientError::InternalError(
+            "Sender's block number is greater than receive block number".to_string(),
+        ));
+    }
+
+    // update balance proof up to the deposit block
+    let before_balance_proof = update_balance_proof(
+        validity_prover,
+        balance_processor,
+        pubkey,
+        prev_balance_proof,
+        receive_block_number,
+    )
+    .await?;
+
+    // Generate witness
+    let transfer_witness = TransferWitness {
+        tx: transfer_data.tx_data.tx.clone(),
+        transfer: transfer_data.transfer.clone(),
+        transfer_index: transfer_data.transfer_index,
+        transfer_merkle_proof: transfer_data.transfer_merkle_proof.clone(),
+    };
+    let nullifier: Bytes32 = transfer_witness.transfer.commitment().into();
+    let private_transition_witness = PrivateTransitionWitness::new(
+        full_private_state,
+        transfer_data.transfer.token_index,
+        transfer_data.transfer.amount,
+        nullifier,
+        new_salt,
+    )
+    .map_err(|e| ClientError::WitnessGenerationError(format!("PrivateTransitionWitness {}", e)))?;
+    let block_merkle_proof = validity_prover
+        .get_block_merkle_proof(
+            receive_block_number,
+            sender_balance_pis.public_state.block_number,
+        )
+        .await?;
+    let receive_trasfer_witness = ReceiveTransferWitness {
+        transfer_witness,
+        private_transition_witness,
+        sender_balance_proof: sender_balance_proof.clone(),
+        block_merkle_proof,
+    };
+
+    // prove transfer
+    let balance_proof = balance_processor
+        .prove_receive_transfer(
+            pubkey,
+            &receive_trasfer_witness,
             &Some(before_balance_proof),
         )
         .await?;
