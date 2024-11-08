@@ -13,4 +13,7 @@ pub enum ClientError {
 
     #[error("Sync error: {0}")]
     SyncError(String),
+
+    #[error("Decryption error: {0}")]
+    DecryptionError(String),
 }
