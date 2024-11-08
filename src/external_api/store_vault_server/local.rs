@@ -24,6 +24,12 @@ const D: usize = 2;
 #[derive(Clone)]
 pub struct LocalStoreVaultServer(Arc<Mutex<StoreVaultServerInner<F, C, D>>>);
 
+impl LocalStoreVaultServer {
+    pub fn new() -> Self {
+        Self(Arc::new(Mutex::new(StoreVaultServerInner::new())))
+    }
+}
+
 #[async_trait]
 impl StoreVaultInterface for LocalStoreVaultServer {
     async fn save_balance_proof(

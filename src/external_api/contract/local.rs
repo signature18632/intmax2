@@ -11,6 +11,12 @@ use super::interface::{BlockchainError, ContractInterface};
 
 pub struct LocalContract(pub Arc<Mutex<MockContract>>);
 
+impl LocalContract {
+    pub fn new() -> Self {
+        Self(Arc::new(Mutex::new(MockContract::new())))
+    }
+}
+
 #[async_trait]
 impl ContractInterface for LocalContract {
     async fn deposit_native_token(

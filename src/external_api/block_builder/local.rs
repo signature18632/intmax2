@@ -31,6 +31,18 @@ pub struct LocalBlockBuilder {
 
 // Methods called by the block builder
 impl LocalBlockBuilder {
+    pub fn new(
+        contract: Arc<Mutex<MockContract>>,
+        validity_prover: Arc<Mutex<BlockValidityProver<F, C, D>>>,
+    ) -> Self {
+        let inner_block_builder = Arc::new(Mutex::new(InnerBlockBuilder::new()));
+        Self {
+            contract,
+            validity_prover,
+            inner_block_builder,
+        }
+    }
+
     pub fn construct_block(&self) -> Result<(), ServerError> {
         self.inner_block_builder
             .lock()
