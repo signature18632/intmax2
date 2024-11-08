@@ -237,6 +237,13 @@ where
                 .block_builder
                 .query_proposal(key.pubkey, memo.tx)
                 .await?;
+            if proposal.is_none() {
+                log::warn!(
+                    "tx query failed, retrying after {} seconds",
+                    self.tx_query_interval
+                );
+                tokio::time::sleep(tokio::time::Duration::from_secs(self.tx_query_interval)).await;
+            }
             tries += 1;
         }
         let proposal = proposal.unwrap();
