@@ -40,6 +40,7 @@ use crate::{
 
 use super::{
     balance_logic::process_deposit,
+    config::ClientConfig,
     error::ClientError,
     strategy::{
         strategy::{determin_next_action, Action},
@@ -58,17 +59,13 @@ pub struct Client<
     V: BlockValidityInterface,
     B: BalanceProverInterface,
 > {
+    pub config: ClientConfig,
+
     pub contract: BC,
     pub block_builder: BB,
     pub store_vault_server: S,
     pub validity_prover: V,
     pub balance_prover: B,
-
-    // config
-    pub deposit_timeout: u64,
-    pub tx_timeout: u64,
-    pub max_tx_query_times: usize,
-    pub tx_query_interval: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -228,7 +225,7 @@ where
         let mut proposal = None;
         let mut tries = 0;
         while proposal.is_none() {
-            if tries >= self.max_tx_query_times {
+            if tries >= self.config.max_tx_query_times {
                 return Err(ClientError::TxQueryTimeOut(
                     "max tx query times reached".to_string(),
                 ));
@@ -240,9 +237,12 @@ where
             if proposal.is_none() {
                 log::warn!(
                     "tx query failed, retrying after {} seconds",
-                    self.tx_query_interval
+                    self.config.tx_query_interval
                 );
-                tokio::time::sleep(tokio::time::Duration::from_secs(self.tx_query_interval)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(
+                    self.config.tx_query_interval,
+                ))
+                .await;
             }
             tries += 1;
         }
@@ -327,8 +327,8 @@ where
             &self.store_vault_server,
             &self.validity_prover,
             key,
-            self.deposit_timeout,
-            self.tx_timeout,
+            self.config.deposit_timeout,
+            self.config.tx_timeout,
         )
         .await?;
 
@@ -366,7 +366,7 @@ where
             &self.validity_prover,
             key,
             user_data.withdrawal_lpt,
-            self.tx_timeout,
+            self.config.tx_timeout,
         )
         .await?;
         if withdrawal_info.pending.len() > 0 {

@@ -1,7 +1,7 @@
 use ethers::types::H256;
 use hashbrown::HashMap;
 use intmax2_core_sdk::{
-    client::client::Client,
+    client::{client::Client, config::ClientConfig},
     external_api::{
         balance_prover::local::LocalBalanceProver,
         block_builder::local::LocalBlockBuilder,
@@ -29,16 +29,14 @@ async fn e2e_test() -> anyhow::Result<()> {
     let balance_prover =
         LocalBalanceProver::new(validity_prover.inner_block_validity_prover.clone());
 
+    let config = ClientConfig::default();
     let client = Client {
+        config,
         contract,
         store_vault_server,
         block_builder: block_builder.clone(),
         balance_prover,
         validity_prover: validity_prover.clone(),
-        deposit_timeout: 0,
-        tx_timeout: 0,
-        max_tx_query_times: 1,
-        tx_query_interval: 0,
     };
 
     let mut rng = rand::thread_rng();
