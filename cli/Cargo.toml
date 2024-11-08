@@ -1,0 +1,10 @@
+[package]
+name = "intmax2-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.18", features = ["derive"] }
+plonky2 = { git="https://github.com/InternetMaximalism/polygon-plonky2.git", branch="intmax2-dev"}
+intmax2-zkp = {git ="https://github.com/InternetMaximalism/intmax2-zkp", branch = "cli"}
+intmax2-core-sdk = {path="../core-sdk"}
