@@ -2537,9 +2537,11 @@ name = "intmax2-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "ethers",
  "intmax2-core-sdk",
  "intmax2-zkp",
  "plonky2",
+ "tokio",
 ]
 
 [[package]]
