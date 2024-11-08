@@ -26,7 +26,7 @@ pub async fn post_signature(
     pubkey: Bytes32,
     tx: Tx,
     signature: FlatG2,
-    fee_proof: FeeProof,
+    fee_proof: Option<FeeProof>,
 ) -> Result<(), ServerError> {
     let url = format!("{}/block/signature", server_base_url);
     let request = json!({

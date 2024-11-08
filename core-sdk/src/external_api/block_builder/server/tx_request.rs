@@ -16,7 +16,7 @@ struct TxRequestResponse {
     message: String,
 }
 
-pub async fn tx_request(server_base_url: &str, pubkey: Bytes32, tx: Tx) -> Result<(), ServerError> {
+pub async fn send_tx_request(server_base_url: &str, pubkey: Bytes32, tx: Tx) -> Result<(), ServerError> {
     let url = format!("{}/transaction", server_base_url);
     let request = json!({
         "sender": pubkey,
@@ -63,7 +63,7 @@ mod tests {
     use intmax2_zkp::ethereum_types::bytes32::Bytes32;
     use intmax2_zkp::ethereum_types::u32limb_trait::U32LimbTrait;
 
-    use crate::external_api::block_builder::server::tx_request::tx_request;
+    use crate::external_api::block_builder::server::tx_request::send_tx_request;
     use crate::utils::init_logger::init_logger;
 
     #[tokio::test]
@@ -73,7 +73,7 @@ mod tests {
         let server_base_url = "http://localhost:4000/v1";
         let pubkey = Bytes32::rand(&mut rng);
         let tx = Tx::rand(&mut rng);
-        tx_request(server_base_url, pubkey, tx).await?;
+        send_tx_request(server_base_url, pubkey, tx).await?;
         Ok(())
     }
 }
