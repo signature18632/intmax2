@@ -11,11 +11,14 @@ use intmax2_core_sdk::{
         contract::local::LocalContract,
         store_vault_server::local::LocalStoreVaultServer,
     },
+    utils::init_logger::init_logger,
 };
 use intmax2_zkp::common::{signature::key_set::KeySet, trees::asset_tree::AssetLeaf};
 
 #[tokio::test]
 async fn e2e_test() -> anyhow::Result<()> {
+    init_logger();
+
     let contract = LocalContract::new();
     let store_vault_server = LocalStoreVaultServer::new();
     let validity_prover = LocalBlockValidityProver::new(contract.0.clone());
