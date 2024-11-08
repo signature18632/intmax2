@@ -4,6 +4,7 @@ use intmax2_zkp::{
         receive_deposit_witness::ReceiveDepositWitness,
         receive_transfer_witness::ReceiveTransferWitness, spent_witness::SpentWitness,
         tx_witness::TxWitness, update_witness::UpdateWitness,
+        withdrawal_witness::WithdrawalWitness,
     },
     ethereum_types::u256::U256,
 };
@@ -32,6 +33,7 @@ const D: usize = 2;
 pub struct LocalBalanceProver {
     pub validity_vd: VerifierCircuitData<F, C, D>,
     pub balance_processor: BalanceProcessor<F, C, D>,
+    // pub single_withdrawal_circuit: SingleWithdrawalCircuit<F, C, D>,
 }
 
 impl LocalBalanceProver {
@@ -46,6 +48,10 @@ impl LocalBalanceProver {
         let validity_circuit = temp.validity_circuit();
         let balance_processor = BalanceProcessor::new(validity_circuit);
         drop(temp);
+
+        // let balance_common_data = balance_processor.co
+        // let single_withdrawal_circuit = SingleWithdrawalCircuit::new();
+
         Self {
             validity_vd,
             balance_processor,
@@ -131,5 +137,12 @@ impl BalanceProverInterface for LocalBalanceProver {
                 ServerError::InternalError(format!("prove_receive_deposit failed: {:?}", e))
             })?;
         Ok(balance_proof)
+    }
+
+    async fn prove_single_withdrawal(
+        &self,
+        withdrawal_witness: &WithdrawalWitness<F, C, D>,
+    ) -> Result<ProofWithPublicInputs<F, C, D>, ServerError> {
+        todo!()
     }
 }

@@ -4,6 +4,7 @@ use intmax2_zkp::{
         receive_deposit_witness::ReceiveDepositWitness,
         receive_transfer_witness::ReceiveTransferWitness, spent_witness::SpentWitness,
         tx_witness::TxWitness, update_witness::UpdateWitness,
+        withdrawal_witness::WithdrawalWitness,
     },
     ethereum_types::u256::U256,
 };
@@ -53,5 +54,10 @@ pub trait BalanceProverInterface {
         pubkey: U256,
         receive_deposit_witness: &ReceiveDepositWitness,
         prev_proof: &Option<ProofWithPublicInputs<F, C, D>>,
+    ) -> Result<ProofWithPublicInputs<F, C, D>, ServerError>;
+
+    async fn prove_single_withdrawal(
+        &self,
+        withdrawal_witness: &WithdrawalWitness<F, C, D>,
     ) -> Result<ProofWithPublicInputs<F, C, D>, ServerError>;
 }
