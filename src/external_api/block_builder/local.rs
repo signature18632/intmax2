@@ -25,7 +25,7 @@ const D: usize = 2;
 
 pub struct LocalBlockBuilder {
     pub contract: Arc<Mutex<MockContract>>,
-    pub validity_prover: Arc<BlockValidityProver<F, C, D>>,
+    pub validity_prover: Arc<Mutex<BlockValidityProver<F, C, D>>>,
     pub inner_block_builder: Arc<Mutex<InnerBlockBuilder>>,
     pub state: Arc<Mutex<State>>,
 }
@@ -56,17 +56,12 @@ impl LocalBlockBuilder {
         let txs = self.state.lock().unwrap().txs.clone();
 
         let mut contract = self.contract.lock().unwrap();
-        let validity_prover = &self.validity_prover;
+        let validity_prover = &self.validity_prover.lock().unwrap();
         let proposals = self
             .inner_block_builder
             .lock()
             .unwrap()
-            .propose(
-                &mut *contract,
-                &*validity_prover,
-                is_registration_block,
-                txs,
-            )
+            .propose(&mut *contract, &validity_prover, is_registration_block, txs)
             .map_err(|e| ServerError::InternalError(format!("Block construction {:?}", e)))?;
 
         self.state.lock().unwrap().proposals = Some(proposals);
@@ -75,7 +70,7 @@ impl LocalBlockBuilder {
 
     pub fn post_block(&self) -> Result<(), ServerError> {
         let mut contract = self.contract.lock().unwrap();
-        let validity_prover = &self.validity_prover;
+        let validity_prover = &self.validity_prover.lock().unwrap();
         let signatures = self.state.lock().unwrap().signatures.clone();
         self.inner_block_builder
             .lock()
@@ -95,7 +90,7 @@ impl BlockBuilderInterface for LocalBlockBuilder {
         tx: Tx,
         _fee_proof: FeeProof,
     ) -> Result<(), ServerError> {
-        let account_id = self.validity_prover.get_account_id(pubkey);
+        let account_id = self.validity_prover.lock().unwrap().get_account_id(pubkey);
         let is_registration_block = account_id.is_none();
         if self.state.lock().unwrap().is_registration_block.is_none() {
             self.state.lock().unwrap().is_registration_block = Some(is_registration_block);

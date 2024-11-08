@@ -40,6 +40,15 @@ impl LocalBlockValidityProver {
             inner_block_validity_prover: Arc::new(Mutex::new(block_validity_prover)),
         }
     }
+
+    pub fn sync(&self) -> anyhow::Result<()> {
+        let contract = self.contract.lock().unwrap();
+        self.inner_block_validity_prover
+            .lock()
+            .unwrap()
+            .sync(&contract)?;
+        Ok(())
+    }
 }
 
 #[async_trait]
