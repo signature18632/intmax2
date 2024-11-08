@@ -66,6 +66,19 @@ impl LocalBlockBuilder {
             })?;
         Ok(())
     }
+
+    pub fn post_empty_block(&self) -> Result<(), ServerError> {
+        let mut contract = self.contract.lock().unwrap();
+        let validity_prover = self.validity_prover.lock().unwrap();
+        self.inner_block_builder
+            .lock()
+            .unwrap()
+            .post_empty_block(&mut contract, &validity_prover)
+            .map_err(|e| {
+                ServerError::InternalError(format!("Failed to post empty block: {}", e.to_string()))
+            })?;
+        Ok(())
+    }
 }
 
 #[async_trait]
