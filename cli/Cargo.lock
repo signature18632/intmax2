@@ -2536,6 +2536,7 @@ dependencies = [
 name = "intmax2-cli"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "clap",
  "ethers",
  "intmax2-core-sdk",

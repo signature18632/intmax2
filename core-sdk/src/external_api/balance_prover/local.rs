@@ -1,6 +1,9 @@
 use async_trait::async_trait;
 use intmax2_zkp::{
-    circuits::withdrawal::single_withdrawal_circuit::SingleWithdrawalCircuit,
+    circuits::{
+        validity::validity_processor::ValidityProcessor,
+        withdrawal::single_withdrawal_circuit::SingleWithdrawalCircuit,
+    },
     common::witness::{
         receive_deposit_witness::ReceiveDepositWitness,
         receive_transfer_witness::ReceiveTransferWitness, spent_witness::SpentWitness,
@@ -16,14 +19,10 @@ use plonky2::{
         proof::ProofWithPublicInputs,
     },
 };
-use std::sync::{Arc, Mutex};
 
 use crate::external_api::common::error::ServerError;
 
-use intmax2_zkp::{
-    circuits::balance::balance_processor::BalanceProcessor,
-    mock::block_validity_prover::BlockValidityProver,
-};
+use intmax2_zkp::circuits::balance::balance_processor::BalanceProcessor;
 
 use super::interface::BalanceProverInterface;
 
@@ -39,18 +38,12 @@ pub struct LocalBalanceProver {
 }
 
 impl LocalBalanceProver {
-    pub fn new(validity_prover: Arc<Mutex<BlockValidityProver<F, C, D>>>) -> Self {
-        let validity_vd = validity_prover
-            .lock()
-            .unwrap()
-            .validity_processor()
-            .get_verifier_data();
+    pub fn new() -> Self {
+        // todo: remove this
+        let validity_processor = ValidityProcessor::new();
+        let validity_vd = validity_processor.get_verifier_data();
 
-        let temp = validity_prover.lock().unwrap();
-        let validity_circuit = temp.validity_circuit();
-        let balance_processor = BalanceProcessor::new(validity_circuit);
-        drop(temp);
-
+        let balance_processor = BalanceProcessor::new(&validity_processor.validity_circuit);
         let balance_common_data = balance_processor.balance_circuit.data.common.clone();
         let balance_vd = balance_processor
             .balance_circuit
