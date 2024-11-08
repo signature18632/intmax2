@@ -5,11 +5,11 @@ use intmax2_zkp::{
         salt::Salt,
         witness::{
             deposit_witness::DepositWitness, private_transition_witness::PrivateTransitionWitness,
-            receive_deposit_witness::ReceiveDepositWitness,
+            receive_deposit_witness::ReceiveDepositWitness, tx_witness::TxWitness,
         },
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
-    mock::data::deposit_data::DepositData,
+    mock::data::{common_tx_data::CommonTxData, deposit_data::DepositData},
 };
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
@@ -89,6 +89,74 @@ pub async fn process_deposit<V: BlockValidityInterface, B: BalanceProverInterfac
             pubkey,
             &receive_deposit_witness,
             &Some(before_balance_proof),
+        )
+        .await?;
+
+    Ok(balance_proof)
+}
+
+pub async fn process_common_tx<V: BlockValidityInterface, B: BalanceProverInterface>(
+    validity_prover: &V,
+    balance_processor: &B,
+    sender: U256,
+    prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
+    tx_block_number: u32,
+    common_tx_data: &CommonTxData<F, C, D>,
+) -> Result<ProofWithPublicInputs<F, C, D>, ClientError> {
+    // sync check
+    if tx_block_number > validity_prover.block_number().await? {
+        return Err(ClientError::InternalError(
+            "Validity prover is not up to date".to_string(),
+        ));
+    }
+    let prev_balance_pis = get_prev_balance_pis(sender, prev_balance_proof);
+    if tx_block_number <= prev_balance_pis.public_state.block_number {
+        return Err(ClientError::InternalError(
+            "tx block number is not greater than prev balance proof".to_string(),
+        ));
+    }
+
+    // get witness
+    let validity_pis = validity_prover
+        .get_validity_pis(tx_block_number)
+        .await?
+        .ok_or(ClientError::InternalError(format!(
+            "validity public inputs not found for block number {}",
+            tx_block_number
+        )))?;
+
+    let sender_leaves = validity_prover
+        .get_sender_leaves(tx_block_number)
+        .await?
+        .ok_or(ClientError::InternalError(format!(
+            "sender leaves not found for block number {}",
+            tx_block_number
+        )))?;
+
+    let tx_witness = TxWitness {
+        validity_pis,
+        sender_leaves,
+        tx: common_tx_data.tx.clone(),
+        tx_index: common_tx_data.tx_index,
+        tx_merkle_proof: common_tx_data.tx_merkle_proof.clone(),
+    };
+    let update_witness = validity_prover
+        .get_update_witness(
+            sender,
+            tx_block_number,
+            prev_balance_pis.public_state.block_number,
+            true,
+        )
+        .await?;
+
+    // prove tx send
+    let balance_proof = balance_processor
+        .prove_send(
+            sender,
+            &tx_witness,
+            &update_witness,
+            &common_tx_data.spent_proof,
+            prev_balance_proof,
         )
         .await?;
 
