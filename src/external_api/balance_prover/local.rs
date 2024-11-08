@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use intmax2_zkp::{
+    circuits::withdrawal::single_withdrawal_circuit::SingleWithdrawalCircuit,
     common::witness::{
         receive_deposit_witness::ReceiveDepositWitness,
         receive_transfer_witness::ReceiveTransferWitness, spent_witness::SpentWitness,
@@ -32,8 +33,9 @@ const D: usize = 2;
 
 pub struct LocalBalanceProver {
     pub validity_vd: VerifierCircuitData<F, C, D>,
+    pub balance_vd: VerifierCircuitData<F, C, D>,
     pub balance_processor: BalanceProcessor<F, C, D>,
-    // pub single_withdrawal_circuit: SingleWithdrawalCircuit<F, C, D>,
+    pub single_withdrawal_circuit: SingleWithdrawalCircuit<F, C, D>,
 }
 
 impl LocalBalanceProver {
@@ -49,12 +51,19 @@ impl LocalBalanceProver {
         let balance_processor = BalanceProcessor::new(validity_circuit);
         drop(temp);
 
-        // let balance_common_data = balance_processor.co
-        // let single_withdrawal_circuit = SingleWithdrawalCircuit::new();
+        let balance_common_data = balance_processor.balance_circuit.data.common.clone();
+        let balance_vd = balance_processor
+            .balance_circuit
+            .data
+            .verifier_data()
+            .clone();
+        let single_withdrawal_circuit = SingleWithdrawalCircuit::new(&balance_common_data);
 
         Self {
             validity_vd,
+            balance_vd,
             balance_processor,
+            single_withdrawal_circuit,
         }
     }
 }
@@ -143,6 +152,20 @@ impl BalanceProverInterface for LocalBalanceProver {
         &self,
         withdrawal_witness: &WithdrawalWitness<F, C, D>,
     ) -> Result<ProofWithPublicInputs<F, C, D>, ServerError> {
-        todo!()
+        let transition_inclusion_value = withdrawal_witness
+            .to_transition_inclusion_value(&self.balance_vd)
+            .map_err(|e| {
+                ServerError::InternalError(format!(
+                    "failed to create transition inclusion value: {}",
+                    e
+                ))
+            })?;
+        let single_withdrawal_proof = self
+            .single_withdrawal_circuit
+            .prove(&transition_inclusion_value)
+            .map_err(|e| {
+                ServerError::InternalError(format!("failed to prove single withdrawal {}", e))
+            })?;
+        Ok(single_withdrawal_proof)
     }
 }
