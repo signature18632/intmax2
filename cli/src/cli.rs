@@ -27,7 +27,7 @@ pub fn get_client() -> anyhow::Result<Client<BC, BB, S, V, B>> {
     let block_builder = BB::new();
     let store_vault_server = S::new()?;
     let validity_prover = V::new()?;
-    let balance_prover = B::new();
+    let balance_prover = B::new()?;
 
     let config = ClientConfig {
         deposit_timeout: 3600,
