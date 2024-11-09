@@ -34,7 +34,7 @@ impl CircuitVerifiers {
     // Construct the circuit verifiers from the processors.
     pub fn construct() -> Self {
         let validity_processor = ValidityProcessor::new();
-        let balance_processor = BalanceProcessor::new(&validity_processor.validity_circuit);
+        let balance_processor = BalanceProcessor::new(&validity_processor.get_verifier_data());
         Self {
             balance_vd: balance_processor.get_verifier_data(),
             validity_vd: validity_processor.validity_circuit.data.verifier_data(),
@@ -56,12 +56,12 @@ impl CircuitVerifiers {
         })
     }
 
-    pub fn get_balance_vd(&self) -> &VerifierCircuitData<F, C, D> {
-        &self.balance_vd
+    pub fn get_balance_vd(&self) -> VerifierCircuitData<F, C, D> {
+        self.balance_vd.clone()
     }
 
-    pub fn get_validity_vd(&self) -> &VerifierCircuitData<F, C, D> {
-        &self.validity_vd
+    pub fn get_validity_vd(&self) -> VerifierCircuitData<F, C, D> {
+        self.validity_vd.clone()
     }
 }
 

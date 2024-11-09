@@ -26,7 +26,7 @@ async fn e2e_test() -> anyhow::Result<()> {
         contract.0.clone(),
         validity_prover.inner_block_validity_prover.clone(),
     );
-    let balance_prover = LocalBalanceProver::new();
+    let balance_prover = LocalBalanceProver::new()?;
 
     let config = ClientConfig::default();
     let client = Client {

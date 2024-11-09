@@ -1,9 +1,6 @@
 use async_trait::async_trait;
 use intmax2_zkp::{
-    circuits::{
-        validity::validity_processor::ValidityProcessor,
-        withdrawal::single_withdrawal_circuit::SingleWithdrawalCircuit,
-    },
+    circuits::withdrawal::single_withdrawal_circuit::SingleWithdrawalCircuit,
     common::witness::{
         receive_deposit_witness::ReceiveDepositWitness,
         receive_transfer_witness::ReceiveTransferWitness, spent_witness::SpentWitness,
@@ -20,7 +17,7 @@ use plonky2::{
     },
 };
 
-use crate::external_api::common::error::ServerError;
+use crate::{external_api::common::error::ServerError, utils::circuit_verifiers::CircuitVerifiers};
 
 use intmax2_zkp::circuits::balance::balance_processor::BalanceProcessor;
 
@@ -38,12 +35,11 @@ pub struct LocalBalanceProver {
 }
 
 impl LocalBalanceProver {
-    pub fn new() -> Self {
-        // todo: remove this
-        let validity_processor = ValidityProcessor::new();
-        let validity_vd = validity_processor.get_verifier_data();
+    pub fn new() -> anyhow::Result<Self> {
+        let verifiers = CircuitVerifiers::load()?;
 
-        let balance_processor = BalanceProcessor::new(&validity_processor.validity_circuit);
+        let validity_vd = verifiers.get_validity_vd();
+        let balance_processor = BalanceProcessor::new(&validity_vd);
         let balance_common_data = balance_processor.balance_circuit.data.common.clone();
         let balance_vd = balance_processor
             .balance_circuit
@@ -52,12 +48,12 @@ impl LocalBalanceProver {
             .clone();
         let single_withdrawal_circuit = SingleWithdrawalCircuit::new(&balance_common_data);
 
-        Self {
+        Ok(Self {
             validity_vd,
             balance_vd,
             balance_processor,
             single_withdrawal_circuit,
-        }
+        })
     }
 }
 

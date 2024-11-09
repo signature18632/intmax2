@@ -128,9 +128,9 @@ dependencies = [
 
 [[package]]
 name = "allocator-api2"
-version = "0.2.18"
+version = "0.2.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c6cb57a04249c6480766f7f7cef5467412af1490f8d1e243141daddada3264f"
+checksum = "611cc2ae7d2e242c457e4be7f97036b8ad9ca152b499f53faf99b1ed8fc2553f"
 
 [[package]]
 name = "android-tzdata"
@@ -2577,7 +2577,7 @@ dependencies = [
 [[package]]
 name = "intmax2-zkp"
 version = "0.1.0"
-source = "git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli#2abc50ddebe332bce9560a949f0aa71e42f35b42"
+source = "git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli#872dbf127620d771d6c79ca0ef6f4b3077d2ae87"
 dependencies = [
  "anyhow",
  "ark-bn254",

@@ -115,7 +115,7 @@ mod tests {
         let private_commitment = PoseidonHashOut::rand(&mut rng);
 
         let _proof = super::get_balance_proof(
-            balance_circuit_vd,
+            &balance_circuit_vd,
             mock_url,
             pubkey.into(),
             block_number,
