@@ -1,0 +1,21 @@
+[package]
+name = "wasm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+plonky2 = { git="https://github.com/InternetMaximalism/polygon-plonky2.git", branch="intmax2-dev", default-features = false}
+intmax2-zkp = {git ="https://github.com/InternetMaximalism/intmax2-zkp", branch = "cli"}
+intmax2-core-sdk = {path="../core-sdk"}
+tokio = { version = "1", features = ["full"] }
+anyhow = "1.0.93"
+num-bigint = "0.4.6"
+rand = "0.8.5"
+getrandom = { version = "0.2", features = ["js"]}
+web-sys = { version = "0.3", features = ["console"] }
+wasm-bindgen = { version = "0.2.81", features = ["serde-serialize"]}
+wasm-bindgen-futures = "0.4"
+wasm-bindgen-rayon = "1.0.3"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
