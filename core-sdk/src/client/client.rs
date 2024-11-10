@@ -35,6 +35,7 @@ use crate::{
         block_builder::interface::BlockBuilderInterface,
         block_validity_prover::interface::BlockValidityInterface,
         contract::interface::ContractInterface, store_vault_server::interface::StoreVaultInterface,
+        withdrawal_aggregator::interface::WithdrawalAggregatorInterface,
     },
 };
 
@@ -58,6 +59,7 @@ pub struct Client<
     S: StoreVaultInterface,
     V: BlockValidityInterface,
     B: BalanceProverInterface,
+    W: WithdrawalAggregatorInterface,
 > {
     pub config: ClientConfig,
 
@@ -66,6 +68,7 @@ pub struct Client<
     pub store_vault_server: S,
     pub validity_prover: V,
     pub balance_prover: B,
+    pub withdrawal_aggregator: W,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -86,13 +89,14 @@ pub struct TxRequestMemo {
     pub prev_private_commitment: PoseidonHashOut,
 }
 
-impl<BC, BB, S, V, B> Client<BC, BB, S, V, B>
+impl<BC, BB, S, V, B, W> Client<BC, BB, S, V, B, W>
 where
     BC: ContractInterface,
     BB: BlockBuilderInterface,
     S: StoreVaultInterface,
     V: BlockValidityInterface,
     B: BalanceProverInterface,
+    W: WithdrawalAggregatorInterface,
 {
     pub async fn deposit(
         &self,
@@ -552,14 +556,15 @@ where
             },
             balance_proof: new_user_balance_proof,
         };
-        let _single_withdrawal_proof = self
+        let single_withdrawal_proof = self
             .balance_prover
             .prove_single_withdrawal(&withdrawal_witness)
             .await?;
 
-        // withdrawal_aggregator
-        //     .add(&single_withdrawal_proof)
-        //     .map_err(|e| anyhow::anyhow!("failed to add withdrawal: {}", e))?;
+        // send withdrawal request
+        self.withdrawal_aggregator
+            .request_withdrawal(&single_withdrawal_proof)
+            .await?;
 
         // update user data
         user_data.block_number = meta.block_number.unwrap();

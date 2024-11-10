@@ -6,6 +6,7 @@ use intmax2_core_sdk::{
         block_validity_prover::server::block_validity_prover::BlockValidityProver,
         contract::liquidity_contract::LiquidityContract,
         store_vault_server::server::store_vault_server::StoreVaultServer,
+        withdrawal_aggregator::server::WithdrawalAggregatorServer,
     },
 };
 use intmax2_zkp::{
@@ -21,13 +22,15 @@ type BB = BlockBuilder;
 type S = StoreVaultServer;
 type V = BlockValidityProver;
 type B = LocalBalanceProver;
+type W = WithdrawalAggregatorServer;
 
-pub fn get_client() -> anyhow::Result<Client<BC, BB, S, V, B>> {
+pub fn get_client() -> anyhow::Result<Client<BC, BB, S, V, B, W>> {
     let contract = LiquidityContract;
     let block_builder = BB::new();
     let store_vault_server = S::new()?;
     let validity_prover = V::new()?;
     let balance_prover = B::new()?;
+    let withdrawal_aggregator = W::new();
 
     let config = ClientConfig {
         deposit_timeout: 3600,
@@ -42,6 +45,7 @@ pub fn get_client() -> anyhow::Result<Client<BC, BB, S, V, B>> {
         store_vault_server,
         validity_prover,
         balance_prover,
+        withdrawal_aggregator,
         config,
     };
 

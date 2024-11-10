@@ -10,6 +10,7 @@ use intmax2_core_sdk::{
         },
         contract::local::LocalContract,
         store_vault_server::local::LocalStoreVaultServer,
+        withdrawal_aggregator::local::LocalWithdrawalAggregator,
     },
     utils::init_logger::init_logger,
 };
@@ -27,6 +28,7 @@ async fn e2e_test() -> anyhow::Result<()> {
         validity_prover.inner_block_validity_prover.clone(),
     );
     let balance_prover = LocalBalanceProver::new()?;
+    let withdrawal_aggregator = LocalWithdrawalAggregator::new()?;
 
     let config = ClientConfig::default();
     let client = Client {
@@ -36,6 +38,7 @@ async fn e2e_test() -> anyhow::Result<()> {
         block_builder: block_builder.clone(),
         balance_prover,
         validity_prover: validity_prover.clone(),
+        withdrawal_aggregator,
     };
 
     let mut rng = rand::thread_rng();
