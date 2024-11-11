@@ -54,9 +54,7 @@ pub async fn get_update_witness(
                     ))
                 })?;
 
-            let verifiers = CircuitVerifiers::load().map_err(|e| {
-                ServerError::InternalError(format!("Failed to load circuit verifiers: {}", e))
-            })?;
+            let verifiers = CircuitVerifiers::load();
             let update_witness = info
                 .data
                 .to_update_witness(&verifiers.get_validity_vd())

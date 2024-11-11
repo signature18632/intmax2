@@ -107,7 +107,7 @@ mod tests {
         init_logger();
 
         let mut rng = rand::thread_rng();
-        let circuit_data = CircuitVerifiers::load()?;
+        let circuit_data = CircuitVerifiers::load();
         let balance_circuit_vd = circuit_data.get_balance_vd();
         let mock_url = "http://localhost:4000/v1/backups";
         let pubkey = U256::rand(&mut rng);

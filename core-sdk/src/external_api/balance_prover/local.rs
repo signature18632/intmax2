@@ -36,7 +36,7 @@ pub struct LocalBalanceProver {
 
 impl LocalBalanceProver {
     pub fn new() -> anyhow::Result<Self> {
-        let verifiers = CircuitVerifiers::load()?;
+        let verifiers = CircuitVerifiers::load();
 
         let validity_vd = verifiers.get_validity_vd();
         let balance_processor = BalanceProcessor::new(&validity_vd);

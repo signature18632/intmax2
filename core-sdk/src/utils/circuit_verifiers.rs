@@ -9,6 +9,11 @@ use plonky2::{
     util::serialization::DefaultGateSerializer,
 };
 
+const VALIDITY_VD_BYTES: &[u8] =
+    include_bytes!("../../circuit_data/validity_verifier_circuit_data.bin");
+const BALANCE_VD_BYTES: &[u8] =
+    include_bytes!("../../circuit_data/balance_verifier_circuit_data.bin");
+
 fn circuit_data_path() -> PathBuf {
     PathBuf::from("circuit_data")
 }
@@ -47,13 +52,13 @@ impl CircuitVerifiers {
         Ok(())
     }
 
-    pub fn load() -> anyhow::Result<Self> {
-        let balance_vd = load_verifier_circuit_data(&balance_circuit_data_path())?;
-        let validity_vd = load_verifier_circuit_data(&validity_circuit_data_path())?;
-        Ok(Self {
+    pub fn load() -> Self {
+        let balance_vd = deserialize_verifier_circuit_data(BALANCE_VD_BYTES.to_vec()).unwrap();
+        let validity_vd = deserialize_verifier_circuit_data(VALIDITY_VD_BYTES.to_vec()).unwrap();
+        Self {
             balance_vd,
             validity_vd,
-        })
+        }
     }
 
     pub fn get_balance_vd(&self) -> VerifierCircuitData<F, C, D> {
@@ -78,13 +83,12 @@ fn save_verifier_circuit_data(
     Ok(())
 }
 
-fn load_verifier_circuit_data(path: &Path) -> anyhow::Result<VerifierCircuitData<F, C, D>> {
-    let mut circuit_file = std::fs::File::open(path)?;
-    let mut content = Vec::new();
-    std::io::Read::read_to_end(&mut circuit_file, &mut content)?;
+fn deserialize_verifier_circuit_data(
+    data: Vec<u8>,
+) -> anyhow::Result<VerifierCircuitData<F, C, D>> {
     let gate_serializer = DefaultGateSerializer;
-    let vd = VerifierCircuitData::from_bytes(content, &gate_serializer)
-        .map_err(|e| anyhow::anyhow!(e))?;
+    let vd =
+        VerifierCircuitData::from_bytes(data, &gate_serializer).map_err(|e| anyhow::anyhow!(e))?;
     Ok(vd)
 }
 
@@ -100,6 +104,6 @@ mod tests {
 
     #[test]
     fn test_load_circuit_verifiers() {
-        let _circuit_verifiers = super::CircuitVerifiers::load().unwrap();
+        let _circuit_verifiers = super::CircuitVerifiers::load();
     }
 }

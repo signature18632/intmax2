@@ -37,7 +37,7 @@ pub struct StoreVaultServer {
 impl StoreVaultServer {
     pub fn new() -> anyhow::Result<Self> {
         let server_base_url = format!("{}/backups", Config::load().intmax2_server_base_url);
-        let verifiers = CircuitVerifiers::load()?;
+        let verifiers = CircuitVerifiers::load();
         let balance_vd = verifiers.get_balance_vd();
         Ok(Self {
             server_base_url,

@@ -45,7 +45,7 @@ impl BlockValidityProver {
     pub fn new() -> anyhow::Result<Self> {
         let base_url = Config::load().intmax2_server_base_url;
         let server_base_url = format!("{}/blockvalidity", base_url);
-        let verifiers = CircuitVerifiers::load()?;
+        let verifiers = CircuitVerifiers::load();
         let validity_vd = verifiers.get_validity_vd();
         Ok(Self {
             server_base_url,

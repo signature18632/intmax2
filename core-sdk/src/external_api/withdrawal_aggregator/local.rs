@@ -21,7 +21,7 @@ pub struct LocalWithdrawalAggregator(pub Arc<Mutex<InnerWithdrawalAggregator<F, 
 
 impl LocalWithdrawalAggregator {
     pub fn new() -> anyhow::Result<Self> {
-        let verifiers = CircuitVerifiers::load()?;
+        let verifiers = CircuitVerifiers::load();
         let inner_withdrawal_aggregator =
             InnerWithdrawalAggregator::new(&verifiers.get_balance_vd().common);
         Ok(Self(Arc::new(Mutex::new(inner_withdrawal_aggregator))))
