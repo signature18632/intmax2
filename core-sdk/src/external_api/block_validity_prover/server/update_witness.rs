@@ -36,7 +36,7 @@ pub async fn get_update_witness(
         "isPrevAccountTree": is_prev_account_tree,
     });
     let response = with_retry(|| async {
-        reqwest::Client::new()
+        reqwest_wasm::Client::new()
             .post(&url)
             .json(&request)
             .send()

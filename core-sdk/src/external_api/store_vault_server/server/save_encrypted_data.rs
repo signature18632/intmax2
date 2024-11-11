@@ -27,7 +27,7 @@ pub async fn save_encrypted_data(
     let url = format!("{}/{}", server_base_url, data_type);
     let request = generate_request(data_type, pubkey, encrypted_data);
     let response = with_retry(|| async {
-        reqwest::Client::new()
+        reqwest_wasm::Client::new()
             .post(&url)
             .json(&request)
             .send()

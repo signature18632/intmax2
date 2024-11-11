@@ -1,4 +1,4 @@
-use reqwest::{Response, StatusCode};
+use reqwest_wasm::{Response, StatusCode};
 
 use crate::external_api::common::{
     error::ServerError,

@@ -40,7 +40,7 @@ pub async fn get_balance_proof(
         "{}/balance-proof?user={}&blockNumber={}&privateCommitment={}",
         server_base_url, pubkey, block_number, private_commitment
     );
-    let response = with_retry(|| async { reqwest::Client::new().get(&url).send().await })
+    let response = with_retry(|| async { reqwest_wasm::Client::new().get(&url).send().await })
         .await
         .map_err(|e| {
             ServerError::NetworkError(format!("Failed to get balance proof from server: {}", e))

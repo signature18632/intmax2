@@ -29,7 +29,7 @@ pub async fn get_deposit_merkle_proof(
         "{}/deposit-tree-proof/{}/{}",
         server_base_url, block_number, deposit_index
     );
-    let response = with_retry(|| async { reqwest::Client::new().get(&url).send().await })
+    let response = with_retry(|| async { reqwest_wasm::Client::new().get(&url).send().await })
         .await
         .map_err(|e| {
             ServerError::NetworkError(format!(

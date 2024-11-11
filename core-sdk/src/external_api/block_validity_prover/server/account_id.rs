@@ -21,7 +21,7 @@ pub async fn get_account_id(
     pubkey: Bytes32,
 ) -> Result<Option<usize>, ServerError> {
     let url = format!("{}/account/{}", server_base_url, pubkey);
-    let response = with_retry(|| async { reqwest::get(&url).await })
+    let response = with_retry(|| async { reqwest_wasm::get(&url).await })
         .await
         .map_err(|e| ServerError::NetworkError(format!("Failed to get account id: {}", e)))?;
     match handle_response(response).await? {

@@ -27,7 +27,7 @@ pub async fn get_block_merkle_proof(
         "{}/block-merkle-proof/{}/{}",
         server_base_url, root_block_number, leaf_block_number
     );
-    let response = with_retry(|| async { reqwest::Client::new().get(&url).send().await })
+    let response = with_retry(|| async { reqwest_wasm::Client::new().get(&url).send().await })
         .await
         .map_err(|e| {
             ServerError::NetworkError(format!(

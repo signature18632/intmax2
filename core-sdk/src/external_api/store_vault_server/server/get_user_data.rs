@@ -22,7 +22,7 @@ pub async fn get_user_data(
     pubkey: Bytes32,
 ) -> Result<Option<Vec<u8>>, ServerError> {
     let url = format!("{}/user-data/{}", server_base_url, pubkey);
-    let response = with_retry(|| async { reqwest::Client::new().get(&url).send().await })
+    let response = with_retry(|| async { reqwest_wasm::Client::new().get(&url).send().await })
         .await
         .map_err(|e| {
             ServerError::NetworkError(format!("Failed to get user data from server: {}", e))

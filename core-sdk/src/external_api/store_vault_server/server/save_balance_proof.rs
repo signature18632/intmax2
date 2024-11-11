@@ -6,7 +6,7 @@ use plonky2::{
         proof::ProofWithPublicInputs,
     },
 };
-use reqwest::Client;
+use reqwest_wasm::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::external_api::{

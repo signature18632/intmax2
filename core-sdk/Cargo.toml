@@ -12,7 +12,6 @@ num-bigint = "0.4.6"
 serde = {version="1.0.210", features = ["derive"]}
 serde_json = "1.0.128"
 config = "0.13"
-reqwest = { version = "0.11", features = ["json"] }
 ethers = "2.0"
 # Only features sync,macros,io-util,rt,time are supported on wasm.
 tokio = { version = "1", features = ["sync", "macros", "io-util", "rt", "time"] }
@@ -37,4 +36,5 @@ base64 = "0.22.1"
 env_logger = "0.11.5"
 itertools = "0.13.0"
 hashbrown = "0.14.5"
+reqwest-wasm ={version= "0.11.16", features = ["json"] }
 

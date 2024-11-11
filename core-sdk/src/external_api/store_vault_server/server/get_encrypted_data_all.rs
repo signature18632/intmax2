@@ -1,5 +1,5 @@
 use intmax2_zkp::{ethereum_types::bytes32::Bytes32, mock::data::meta_data::MetaData};
-use reqwest::Response;
+use reqwest_wasm::Response;
 use serde::{Deserialize, Serialize};
 
 use crate::external_api::{
@@ -41,7 +41,7 @@ pub async fn get_encrypted_data_all(
         order_by: "date_create".to_string(),
     };
     let response = with_retry(|| async {
-        reqwest::Client::new()
+        reqwest_wasm::Client::new()
             .post(&url)
             .json(&request)
             .send()

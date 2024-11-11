@@ -40,7 +40,7 @@ pub async fn query_proposal(
     });
 
     let response = with_retry(|| async {
-        reqwest::Client::new()
+        reqwest_wasm::Client::new()
             .post(&url)
             .json(&request)
             .send()

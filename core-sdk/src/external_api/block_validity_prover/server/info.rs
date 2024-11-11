@@ -17,7 +17,7 @@ struct GetInfoResponse {
 
 pub async fn get_info(server_base_url: &str) -> Result<u32, ServerError> {
     let url = format!("{}/info", server_base_url);
-    let response = with_retry(|| async { reqwest::get(&url).await })
+    let response = with_retry(|| async { reqwest_wasm::get(&url).await })
         .await
         .map_err(|e| ServerError::NetworkError(format!("Failed to get info: {}", e)))?;
     match handle_response(response).await? {

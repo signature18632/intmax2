@@ -22,7 +22,7 @@ pub async fn save_user_data(
         "encryptedUserData": encrypted_data_encoded,
     });
     let response = with_retry(|| async {
-        reqwest::Client::new()
+        reqwest_wasm::Client::new()
             .post(url.clone())
             .json(&request)
             .send()

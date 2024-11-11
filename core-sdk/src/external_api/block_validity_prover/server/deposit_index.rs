@@ -45,7 +45,7 @@ pub async fn get_deposit_index_and_block_number(
         "{}/deposits?depositHashes={}",
         server_base_url, deposit_hash
     );
-    let response = with_retry(|| async { reqwest::Client::new().get(&url).send().await })
+    let response = with_retry(|| async { reqwest_wasm::Client::new().get(&url).send().await })
         .await
         .map_err(|e| {
             ServerError::InternalError(format!(

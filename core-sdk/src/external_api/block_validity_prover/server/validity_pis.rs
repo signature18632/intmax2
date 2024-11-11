@@ -32,7 +32,7 @@ pub async fn get_validity_pis(
         "{}/block-validity-public-inputs?blockNumber={}",
         server_base_url, block_number
     );
-    let response = with_retry(|| async { reqwest::Client::new().get(&url).send().await })
+    let response = with_retry(|| async { reqwest_wasm::Client::new().get(&url).send().await })
         .await
         .map_err(|e| {
             ServerError::NetworkError(format!(

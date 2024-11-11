@@ -16,7 +16,11 @@ struct TxRequestResponse {
     message: String,
 }
 
-pub async fn send_tx_request(server_base_url: &str, pubkey: Bytes32, tx: Tx) -> Result<(), ServerError> {
+pub async fn send_tx_request(
+    server_base_url: &str,
+    pubkey: Bytes32,
+    tx: Tx,
+) -> Result<(), ServerError> {
     let url = format!("{}/transaction", server_base_url);
     let request = json!({
         "sender": pubkey,
@@ -27,7 +31,7 @@ pub async fn send_tx_request(server_base_url: &str, pubkey: Bytes32, tx: Tx) -> 
     });
 
     let response = with_retry(|| async {
-        reqwest::Client::new()
+        reqwest_wasm::Client::new()
             .post(&url)
             .json(&request)
             .send()

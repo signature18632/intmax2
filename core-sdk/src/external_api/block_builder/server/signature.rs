@@ -36,7 +36,7 @@ pub async fn post_signature(
         "feeProof": fee_proof
     });
     let response = with_retry(|| async {
-        reqwest::Client::new()
+        reqwest_wasm::Client::new()
             .post(&url)
             .json(&request)
             .send()

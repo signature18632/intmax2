@@ -56,7 +56,7 @@ pub async fn get_tx_tree_root_status(
     tx_tree_root: Bytes32,
 ) -> Result<Option<(u32, Vec<SenderLeaf>)>, ServerError> {
     let url = format!("{}/tx-root/{}/status", server_base_url, tx_tree_root);
-    let response = with_retry(|| async { reqwest::Client::new().get(&url).send().await })
+    let response = with_retry(|| async { reqwest_wasm::Client::new().get(&url).send().await })
         .await
         .map_err(|e| {
             ServerError::InternalError(format!(

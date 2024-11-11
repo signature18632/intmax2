@@ -1,5 +1,5 @@
 use intmax2_zkp::{ethereum_types::bytes32::Bytes32, mock::data::meta_data::MetaData};
-use reqwest::Response;
+use reqwest_wasm::Response;
 use serde::{Deserialize, Serialize};
 
 use crate::external_api::{
@@ -20,7 +20,7 @@ pub async fn get_encrypted_data(
 ) -> Result<Option<(MetaData, Vec<u8>)>, ServerError> {
     let url = format!("{}/{}/{}", server_base_url, data_type, uuid);
 
-    let response = with_retry(|| async { reqwest::Client::new().get(&url).send().await })
+    let response = with_retry(|| async { reqwest_wasm::Client::new().get(&url).send().await })
         .await
         .map_err(|e| {
             ServerError::NetworkError(format!("Failed to get encrypted data from server: {}", e))
