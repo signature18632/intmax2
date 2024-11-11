@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use intmax2_zkp::{
     ethereum_types::address::Address,
     mock::withdrawal_aggregator::WithdrawalAggregator as InnerWithdrawalAggregator,
@@ -36,7 +37,7 @@ impl LocalWithdrawalAggregator {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait(?Send)]
 impl WithdrawalAggregatorInterface for LocalWithdrawalAggregator {
     async fn fee(&self) -> Result<Fee, ServerError> {
         Ok(Fee {

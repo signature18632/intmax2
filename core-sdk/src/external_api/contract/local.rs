@@ -17,7 +17,7 @@ impl LocalContract {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl ContractInterface for LocalContract {
     async fn deposit_native_token(
         &self,

@@ -14,7 +14,7 @@ pub enum BlockchainError {
     InternalError(String),
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 pub trait ContractInterface {
     async fn deposit_native_token(
         &self,

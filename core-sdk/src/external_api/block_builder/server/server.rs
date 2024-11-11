@@ -25,7 +25,7 @@ impl BlockBuilder {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl BlockBuilderInterface for BlockBuilder {
     async fn send_tx_request(
         &self,

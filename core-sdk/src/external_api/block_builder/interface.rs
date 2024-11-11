@@ -26,7 +26,7 @@ pub struct FeeProof {
     pub transfer_witness: TransferWitness,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 pub trait BlockBuilderInterface {
     // Send tx request to the block builder
     async fn send_tx_request(

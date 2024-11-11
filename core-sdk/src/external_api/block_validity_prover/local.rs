@@ -52,7 +52,7 @@ impl LocalBlockValidityProver {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl BlockValidityInterface for LocalBlockValidityProver {
     async fn block_number(&self) -> Result<u32, ServerError> {
         let b = self

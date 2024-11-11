@@ -14,7 +14,7 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
-#[async_trait]
+#[async_trait(?Send)]
 pub trait StoreVaultInterface {
     async fn save_balance_proof(
         &self,

@@ -19,7 +19,7 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
-#[async_trait]
+#[async_trait(?Send)]
 pub trait BalanceProverInterface {
     async fn prove_spent(
         &self,

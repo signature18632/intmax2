@@ -57,7 +57,7 @@ impl LocalBalanceProver {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl BalanceProverInterface for LocalBalanceProver {
     async fn prove_spent(
         &self,

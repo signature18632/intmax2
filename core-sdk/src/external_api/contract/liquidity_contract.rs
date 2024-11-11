@@ -44,7 +44,7 @@ pub async fn get_liquidity_contract_with_signer(
 #[derive(Debug, Clone)]
 pub struct LiquidityContract;
 
-#[async_trait]
+#[async_trait(?Send)]
 impl ContractInterface for LiquidityContract {
     async fn deposit_native_token(
         &self,

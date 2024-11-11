@@ -82,7 +82,7 @@ impl LocalBlockBuilder {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl BlockBuilderInterface for LocalBlockBuilder {
     async fn send_tx_request(
         &self,

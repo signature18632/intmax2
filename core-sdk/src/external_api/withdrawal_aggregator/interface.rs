@@ -18,7 +18,7 @@ pub struct Fee {
     pub erc1155_fee: u64,
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 pub trait WithdrawalAggregatorInterface {
     async fn fee(&self) -> Result<Fee, ServerError>;
 

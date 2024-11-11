@@ -30,7 +30,7 @@ impl LocalStoreVaultServer {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl StoreVaultInterface for LocalStoreVaultServer {
     async fn save_balance_proof(
         &self,

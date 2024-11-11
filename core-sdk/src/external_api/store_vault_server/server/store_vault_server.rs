@@ -46,7 +46,7 @@ impl StoreVaultServer {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl StoreVaultInterface for StoreVaultServer {
     async fn save_balance_proof(
         &self,

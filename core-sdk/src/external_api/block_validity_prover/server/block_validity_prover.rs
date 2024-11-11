@@ -54,7 +54,7 @@ impl BlockValidityProver {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl BlockValidityInterface for BlockValidityProver {
     async fn block_number(&self) -> Result<u32, ServerError> {
         log::info!("Getting block_number");

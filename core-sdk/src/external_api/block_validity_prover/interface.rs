@@ -18,7 +18,7 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
-#[async_trait]
+#[async_trait(?Send)]
 pub trait BlockValidityInterface {
     // Returns the latest block number which the block validity prover synced to.
     async fn block_number(&self) -> Result<u32, ServerError>;

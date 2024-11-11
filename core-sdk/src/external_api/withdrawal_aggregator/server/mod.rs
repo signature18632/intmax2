@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
@@ -19,7 +20,7 @@ impl WithdrawalAggregatorServer {
     }
 }
 
-#[async_trait::async_trait]
+#[async_trait(?Send)]
 impl WithdrawalAggregatorInterface for WithdrawalAggregatorServer {
     async fn fee(&self) -> Result<Fee, ServerError> {
         todo!()
