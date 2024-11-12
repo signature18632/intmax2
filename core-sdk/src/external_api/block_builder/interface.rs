@@ -31,6 +31,7 @@ pub trait BlockBuilderInterface {
     // Send tx request to the block builder
     async fn send_tx_request(
         &self,
+        block_builder_url: &str,
         pubkey: U256,
         tx: Tx,
         fee_proof: Option<FeeProof>,
@@ -39,6 +40,7 @@ pub trait BlockBuilderInterface {
     // Query tx tree root proposal from the block builder
     async fn query_proposal(
         &self,
+        block_builder_url: &str,
         pubkey: U256,
         tx: Tx,
     ) -> Result<Option<BlockProposal>, ServerError>;
@@ -46,6 +48,7 @@ pub trait BlockBuilderInterface {
     // Send signature to the block builder
     async fn post_signature(
         &self,
+        block_builder_url: &str,
         pubkey: U256,
         tx: Tx,
         signature: FlatG2,

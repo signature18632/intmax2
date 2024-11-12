@@ -11,13 +11,11 @@ use crate::external_api::{
 
 use super::{query::query_proposal, signature::post_signature, tx_request::send_tx_request};
 
-pub struct BlockBuilder {
-    server_base_url: String,
-}
+pub struct BlockBuilder;
 
 impl BlockBuilder {
-    pub fn new(server_base_url: String) -> Self {
-        Self { server_base_url }
+    pub fn new() -> Self {
+        Self
     }
 }
 
@@ -25,30 +23,33 @@ impl BlockBuilder {
 impl BlockBuilderInterface for BlockBuilder {
     async fn send_tx_request(
         &self,
+        block_builder_url: &str,
         pubkey: U256,
         tx: Tx,
         _fee_proof: Option<FeeProof>,
     ) -> Result<(), ServerError> {
-        send_tx_request(&self.server_base_url, pubkey.into(), tx).await?;
+        send_tx_request(block_builder_url, pubkey.into(), tx).await?;
         Ok(())
     }
 
     async fn query_proposal(
         &self,
+        block_builder_url: &str,
         pubkey: U256,
         tx: Tx,
     ) -> Result<Option<BlockProposal>, ServerError> {
-        let proposal = query_proposal(&self.server_base_url, pubkey.into(), tx).await?;
+        let proposal = query_proposal(block_builder_url, pubkey.into(), tx).await?;
         Ok(proposal)
     }
 
     async fn post_signature(
         &self,
+        block_builder_url: &str,
         pubkey: U256,
         tx: Tx,
         signature: FlatG2,
     ) -> Result<(), ServerError> {
-        post_signature(&self.server_base_url, pubkey.into(), tx, signature, None).await?;
+        post_signature(block_builder_url, pubkey.into(), tx, signature, None).await?;
         Ok(())
     }
 }

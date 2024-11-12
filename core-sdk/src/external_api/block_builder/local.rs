@@ -86,6 +86,7 @@ impl LocalBlockBuilder {
 impl BlockBuilderInterface for LocalBlockBuilder {
     async fn send_tx_request(
         &self,
+        _block_builder_url: &str,
         pubkey: U256,
         tx: Tx,
         _fee_proof: Option<FeeProof>,
@@ -103,6 +104,7 @@ impl BlockBuilderInterface for LocalBlockBuilder {
 
     async fn query_proposal(
         &self,
+        _block_builder_url: &str,
         pubkey: U256,
         _tx: Tx,
     ) -> Result<Option<BlockProposal>, ServerError> {
@@ -119,6 +121,7 @@ impl BlockBuilderInterface for LocalBlockBuilder {
 
     async fn post_signature(
         &self,
+        _block_builder_url: &str,
         pubkey: U256,
         _tx: Tx,
         signature: FlatG2,

@@ -140,6 +140,7 @@ where
     /// Send a transaction request to the block builder
     pub async fn send_tx_request(
         &self,
+        block_builder_url: &str,
         key: KeySet,
         transfers: Vec<Transfer>,
     ) -> Result<TxRequestMemo, ClientError> {
@@ -208,7 +209,7 @@ where
         let spent_proof = self.balance_prover.prove_spent(&spent_witness).await?;
 
         self.block_builder
-            .send_tx_request(key.pubkey, tx, None)
+            .send_tx_request(block_builder_url, key.pubkey, tx, None)
             .await?;
 
         let memo = TxRequestMemo {
@@ -223,7 +224,12 @@ where
     }
 
     /// Get proposal from the block builder, verify it, and send the signature to the block builder
-    pub async fn finalize_tx(&self, key: KeySet, memo: &TxRequestMemo) -> Result<(), ClientError> {
+    pub async fn finalize_tx(
+        &self,
+        block_builder_url: &str,
+        key: KeySet,
+        memo: &TxRequestMemo,
+    ) -> Result<(), ClientError> {
         // get proposal
         let mut proposal = None;
         let mut tries = 0;
@@ -235,7 +241,7 @@ where
             }
             proposal = self
                 .block_builder
-                .query_proposal(key.pubkey, memo.tx)
+                .query_proposal(block_builder_url, key.pubkey, memo.tx)
                 .await?;
             if proposal.is_none() {
                 log::warn!(
@@ -309,7 +315,12 @@ where
         // sign and post signature
         let signature = proposal.sign(key);
         self.block_builder
-            .post_signature(signature.pubkey, memo.tx, signature.signature)
+            .post_signature(
+                block_builder_url,
+                signature.pubkey,
+                memo.tx,
+                signature.signature,
+            )
             .await?;
         Ok(())
     }
