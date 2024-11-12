@@ -17,7 +17,15 @@ use crate::external_api::{
     balance_prover::interface::BalanceProverInterface, common::error::ServerError,
 };
 
-pub struct BalanceProver;
+pub struct BalanceProver {
+    pub server_base_url: String,
+}
+
+impl BalanceProver {
+    pub fn new(server_base_url: String) -> Self {
+        Self { server_base_url }
+    }
+}
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;

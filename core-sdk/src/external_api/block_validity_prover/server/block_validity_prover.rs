@@ -42,13 +42,13 @@ pub struct BlockValidityProver {
 }
 
 impl BlockValidityProver {
-    pub fn new(server_base_url: String) -> anyhow::Result<Self> {
+    pub fn new(server_base_url: String) -> Self {
         let verifiers = CircuitVerifiers::load();
         let validity_vd = verifiers.get_validity_vd();
-        Ok(Self {
+        Self {
             server_base_url,
             validity_vd: validity_vd.clone(),
-        })
+        }
     }
 }
 

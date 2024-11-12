@@ -8,15 +8,17 @@ use crate::external_api::common::error::ServerError;
 
 use super::interface::{Fee, WithdrawalAggregatorInterface};
 
-pub struct WithdrawalAggregatorServer;
+pub struct WithdrawalAggregatorServer {
+    pub server_base_url: String,
+}
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
 impl WithdrawalAggregatorServer {
-    pub fn new() -> Self {
-        Self
+    pub fn new(server_base_url: String) -> Self {
+        Self { server_base_url }
     }
 }
 

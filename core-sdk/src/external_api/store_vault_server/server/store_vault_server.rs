@@ -35,13 +35,13 @@ pub struct StoreVaultServer {
 }
 
 impl StoreVaultServer {
-    pub fn new(server_base_url: String) -> anyhow::Result<Self> {
+    pub fn new(server_base_url: String) -> Self {
         let verifiers = CircuitVerifiers::load();
         let balance_vd = verifiers.get_balance_vd();
-        Ok(Self {
+        Self {
             server_base_url,
             balance_vd: balance_vd.clone(),
-        })
+        }
     }
 }
 
