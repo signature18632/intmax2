@@ -105,6 +105,7 @@ where
     B: BalanceProverInterface,
     W: WithdrawalAggregatorInterface,
 {
+    /// Back up deposit information before calling the contract's deposit function
     pub async fn prepare_deposit(
         &self,
         key: KeySet,
@@ -136,6 +137,7 @@ where
         })
     }
 
+    /// Send a transaction request to the block builder
     pub async fn send_tx_request(
         &self,
         key: KeySet,
@@ -220,6 +222,7 @@ where
         Ok(memo)
     }
 
+    /// Get proposal from the block builder, verify it, and send the signature to the block builder
     pub async fn finalize_tx(&self, key: KeySet, memo: &TxRequestMemo) -> Result<(), ClientError> {
         // get proposal
         let mut proposal = None;
@@ -311,6 +314,7 @@ where
         Ok(())
     }
 
+    /// Sync the client's balance proof with the latest block
     pub async fn sync(&self, key: KeySet) -> Result<(), ClientError> {
         let mut sync_status = SyncStatus::Continue;
         while sync_status == SyncStatus::Continue {
@@ -632,6 +636,7 @@ where
         Ok(new_sender_balance_proof)
     }
 
+    /// Get the latest user data from the data store server
     pub async fn get_user_data(&self, key: KeySet) -> Result<UserData, ClientError> {
         let user_data = self
             .store_vault_server
