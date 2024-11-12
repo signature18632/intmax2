@@ -15,7 +15,7 @@ use crate::{
     external_api::{
         common::error::ServerError, store_vault_server::interface::StoreVaultInterface,
     },
-    utils::{circuit_verifiers::CircuitVerifiers, config::Config},
+    utils::circuit_verifiers::CircuitVerifiers,
 };
 
 use super::{
@@ -35,8 +35,7 @@ pub struct StoreVaultServer {
 }
 
 impl StoreVaultServer {
-    pub fn new() -> anyhow::Result<Self> {
-        let server_base_url = format!("{}/backups", Config::load().intmax2_server_base_url);
+    pub fn new(server_base_url: String) -> anyhow::Result<Self> {
         let verifiers = CircuitVerifiers::load();
         let balance_vd = verifiers.get_balance_vd();
         Ok(Self {

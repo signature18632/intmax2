@@ -8,7 +8,7 @@ use intmax2_core_sdk::{
         block_validity_prover::{
             interface::BlockValidityInterface as _, local::LocalBlockValidityProver,
         },
-        contract::local::LocalContract,
+        contract::{interface::ContractInterface, local::LocalContract},
         store_vault_server::local::LocalStoreVaultServer,
         withdrawal_aggregator::local::LocalWithdrawalAggregator,
     },
@@ -33,7 +33,6 @@ async fn e2e_test() -> anyhow::Result<()> {
     let config = ClientConfig::default();
     let client = Client {
         config,
-        contract,
         store_vault_server,
         block_builder: block_builder.clone(),
         balance_prover,
@@ -45,8 +44,14 @@ async fn e2e_test() -> anyhow::Result<()> {
     let alice_key = KeySet::rand(&mut rng);
 
     // deposit 100wei ETH to alice wallet
-    client
-        .deposit("", H256::zero(), alice_key, 0, 100.into())
+    let deposit_call = client.prepare_deposit(alice_key, 0, 100.into()).await?;
+
+    contract
+        .deposit_native_token(
+            H256::zero(),
+            deposit_call.pubkey_salt_hash,
+            deposit_call.amount,
+        )
         .await?;
 
     // post empty block to reflect the deposit

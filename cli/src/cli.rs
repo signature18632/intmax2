@@ -1,4 +1,4 @@
-use ethers::types::H256;
+use ethers::types::{Address, H256};
 use intmax2_core_sdk::{
     client::{client::Client, config::ClientConfig},
     external_api::{
@@ -25,10 +25,10 @@ type B = LocalBalanceProver;
 type W = WithdrawalAggregatorServer;
 
 pub fn get_client() -> anyhow::Result<Client<BC, BB, S, V, B, W>> {
-    let contract = LiquidityContract;
-    let block_builder = BB::new();
-    let store_vault_server = S::new()?;
-    let validity_prover = V::new()?;
+    let contract = BC::new("".to_string(), 1, Address::zero());
+    let block_builder = BB::new("http://localhost:4000/v1".to_string());
+    let store_vault_server = S::new("http://localhost:4000/v1/".to_string())?;
+    let validity_prover = V::new("http://localhost:4000/v1/blockvalidity".to_string())?;
     let balance_prover = B::new()?;
     let withdrawal_aggregator = W::new();
 
@@ -39,7 +39,7 @@ pub fn get_client() -> anyhow::Result<Client<BC, BB, S, V, B, W>> {
         tx_query_interval: 1,
     };
 
-    let client = Client {
+    let client: Client<LiquidityContract, BlockBuilder, StoreVaultServer, BlockValidityProver, LocalBalanceProver, WithdrawalAggregatorServer> = Client {
         contract,
         block_builder,
         store_vault_server,
@@ -53,7 +53,6 @@ pub fn get_client() -> anyhow::Result<Client<BC, BB, S, V, B, W>> {
 }
 
 pub async fn deposit(
-    rpc_url: &str,
     eth_private_key: H256,
     private_key: H256,
     amount: U256,
@@ -62,7 +61,7 @@ pub async fn deposit(
     let client = get_client()?;
     let key = h256_to_keyset(private_key);
     client
-        .deposit(rpc_url, eth_private_key, key, token_index, amount)
+        .deposit(eth_private_key, key, token_index, amount)
         .await?;
     Ok(())
 }

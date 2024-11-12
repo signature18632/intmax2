@@ -63,7 +63,6 @@ async fn main() -> anyhow::Result<()> {
             tx(*private_key, to, amount, *token_index).await?;
         }
         Commands::Deposit {
-            rpc_url,
             eth_private_key,
             private_key,
             amount,
@@ -71,7 +70,7 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let amount = u256_convert(*amount);
             let token_index = *token_index;
-            deposit(rpc_url, *eth_private_key, *private_key, amount, token_index).await?;
+            deposit(*eth_private_key, *private_key, amount, token_index).await?;
         }
         Commands::Sync { private_key } => {
             sync(*private_key).await?;

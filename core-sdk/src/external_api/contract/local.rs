@@ -21,7 +21,6 @@ impl LocalContract {
 impl ContractInterface for LocalContract {
     async fn deposit_native_token(
         &self,
-        _rpc_url: &str,
         _signer_private_key: H256,
         pubkey_salt_hash: Bytes32,
         amount: U256,

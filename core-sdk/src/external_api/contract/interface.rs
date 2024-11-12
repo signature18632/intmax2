@@ -18,7 +18,6 @@ pub enum BlockchainError {
 pub trait ContractInterface {
     async fn deposit_native_token(
         &self,
-        rpc_url: &str,
         signer_private_key: H256,
         pubkey_salt_hash: Bytes32,
         amount: U256,

@@ -4,12 +4,9 @@ use intmax2_zkp::{
     ethereum_types::u256::U256,
 };
 
-use crate::{
-    external_api::{
-        block_builder::interface::{BlockBuilderInterface, FeeProof},
-        common::error::ServerError,
-    },
-    utils::config::Config,
+use crate::external_api::{
+    block_builder::interface::{BlockBuilderInterface, FeeProof},
+    common::error::ServerError,
 };
 
 use super::{query::query_proposal, signature::post_signature, tx_request::send_tx_request};
@@ -19,8 +16,7 @@ pub struct BlockBuilder {
 }
 
 impl BlockBuilder {
-    pub fn new() -> Self {
-        let server_base_url = format!("{}/v1", Config::load().intmax2_server_base_url);
+    pub fn new(server_base_url: String) -> Self {
         Self { server_base_url }
     }
 }

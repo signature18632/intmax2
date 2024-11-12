@@ -29,7 +29,7 @@ use crate::{
         },
         common::error::ServerError,
     },
-    utils::{circuit_verifiers::CircuitVerifiers, config::Config},
+    utils::circuit_verifiers::CircuitVerifiers,
 };
 
 type F = GoldilocksField;
@@ -42,9 +42,7 @@ pub struct BlockValidityProver {
 }
 
 impl BlockValidityProver {
-    pub fn new() -> anyhow::Result<Self> {
-        let base_url = Config::load().intmax2_server_base_url;
-        let server_base_url = format!("{}/blockvalidity", base_url);
+    pub fn new(server_base_url: String) -> anyhow::Result<Self> {
         let verifiers = CircuitVerifiers::load();
         let validity_vd = verifiers.get_validity_vd();
         Ok(Self {

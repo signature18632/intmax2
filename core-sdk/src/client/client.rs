@@ -1,9 +1,7 @@
-use ethers::types::H256;
 use intmax2_zkp::{
     circuits::balance::{balance_pis::BalancePublicInputs, send::spent_circuit::SpentPublicInputs},
     common::{
         deposit::{get_pubkey_salt_hash, Deposit},
-        salt::Salt,
         signature::key_set::KeySet,
         transfer::Transfer,
         trees::transfer_tree::TransferTree,
@@ -14,7 +12,7 @@ use intmax2_zkp::{
         },
     },
     constants::{NUM_TRANSFERS_IN_TX, TRANSFER_TREE_HEIGHT},
-    ethereum_types::u256::U256,
+    ethereum_types::{bytes32::Bytes32, u256::U256},
     mock::data::{
         common_tx_data::CommonTxData, deposit_data::DepositData, meta_data::MetaData,
         transfer_data::TransferData, tx_data::TxData, user_data::UserData,
@@ -29,12 +27,15 @@ use plonky2::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    client::balance_logic::{process_common_tx, process_transfer},
+    client::{
+        balance_logic::{process_common_tx, process_transfer},
+        utils::generate_salt,
+    },
     external_api::{
         balance_prover::interface::BalanceProverInterface,
         block_builder::interface::BlockBuilderInterface,
         block_validity_prover::interface::BlockValidityInterface,
-        contract::interface::ContractInterface, store_vault_server::interface::StoreVaultInterface,
+        store_vault_server::interface::StoreVaultInterface,
         withdrawal_aggregator::interface::WithdrawalAggregatorInterface,
     },
 };
@@ -47,6 +48,7 @@ use super::{
         strategy::{determin_next_action, Action},
         withdrawal::fetch_withdrawal_info,
     },
+    utils::generate_transfer_tree,
 };
 
 type F = GoldilocksField;
@@ -54,7 +56,6 @@ type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
 pub struct Client<
-    BC: ContractInterface,
     BB: BlockBuilderInterface,
     S: StoreVaultInterface,
     V: BlockValidityInterface,
@@ -63,7 +64,6 @@ pub struct Client<
 > {
     pub config: ClientConfig,
 
-    pub contract: BC,
     pub block_builder: BB,
     pub store_vault_server: S,
     pub validity_prover: V,
@@ -89,27 +89,28 @@ pub struct TxRequestMemo {
     pub prev_private_commitment: PoseidonHashOut,
 }
 
-impl<BC, BB, S, V, B, W> Client<BC, BB, S, V, B, W>
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DepositCall {
+    pub pubkey_salt_hash: Bytes32,
+    pub token_index: u32,
+    pub amount: U256,
+}
+
+impl<BB, S, V, B, W> Client<BB, S, V, B, W>
 where
-    BC: ContractInterface,
     BB: BlockBuilderInterface,
     S: StoreVaultInterface,
     V: BlockValidityInterface,
     B: BalanceProverInterface,
     W: WithdrawalAggregatorInterface,
 {
-    pub async fn deposit(
+    pub async fn prepare_deposit(
         &self,
-        rpc_url: &str,
-        ethereum_private_key: H256,
         key: KeySet,
         token_index: u32,
         amount: U256,
-    ) -> Result<(), ClientError> {
-        if token_index != 0 {
-            todo!("multiple token support")
-        }
-
+    ) -> Result<DepositCall, ClientError> {
         // todo: improve the way to choose deposit salt
         let deposit_salt = generate_salt(key, 0);
 
@@ -128,12 +129,11 @@ where
             .save_deposit_data(key.pubkey, deposit_data.encrypt(key.pubkey))
             .await?;
 
-        // call contract
-        self.contract
-            .deposit_native_token(rpc_url, ethereum_private_key, pubkey_salt_hash, amount)
-            .await?;
-
-        Ok(())
+        Ok(DepositCall {
+            pubkey_salt_hash,
+            token_index,
+            amount,
+        })
     }
 
     pub async fn send_tx_request(
@@ -645,20 +645,4 @@ where
             .unwrap_or(UserData::new(key.pubkey));
         Ok(user_data)
     }
-}
-
-pub fn generate_salt(_key: KeySet, _nonce: u32) -> Salt {
-    // todo: deterministic salt generation
-    let mut rng = rand::thread_rng();
-    Salt::rand(&mut rng)
-}
-
-pub fn generate_transfer_tree(transfers: &[Transfer]) -> TransferTree {
-    let mut transfers = transfers.to_vec();
-    transfers.resize(NUM_TRANSFERS_IN_TX, Transfer::default());
-    let mut transfer_tree = TransferTree::new(TRANSFER_TREE_HEIGHT);
-    for transfer in &transfers {
-        transfer_tree.push(transfer.clone());
-    }
-    transfer_tree
 }
