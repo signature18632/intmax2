@@ -1,7 +1,7 @@
 use client::{get_client, Config};
 use convert::{
-    bytes32_to_string, parse_h256, parse_u256, tx_request_memo_to_value, value_to_tx_request_memo,
-    JsUserData,
+    bytes32_to_string, parse_address, parse_h256, parse_u256, tx_request_memo_to_value,
+    value_to_tx_request_memo, JsUserData,
 };
 use ethers::types::H256;
 use intmax2_core_sdk::client::client::TxRequestMemo;
@@ -42,14 +42,20 @@ pub async fn send_tx_request(
     config: Config,
     block_builder_url: &str,
     private_key: &str,
-    to: &str, // recipient hex string
+    is_withdrawal: bool,
+    to: &str, // intmax2 public key (is_withdrawal=false) or ethereum address (is_withdrawal=true)
     amount: &str,
     token_index: u32,
 ) -> Result<JsValue, JsError> {
     let private_key = parse_h256(private_key)?;
-    let to = parse_h256(to)?;
-    let to = h256_to_u256(to);
     let amount = parse_u256(amount)?;
+    let recipient = if is_withdrawal {
+        let to = parse_address(to)?;
+        GenericAddress::from_address(to)
+    } else {
+        let to = h256_to_u256(parse_h256(to)?);
+        GenericAddress::from_pubkey(to)
+    };
 
     let client = get_client(config);
     let key = h256_to_keyset(private_key);
@@ -57,7 +63,7 @@ pub async fn send_tx_request(
     let mut rng = rand::thread_rng();
     let salt = Salt::rand(&mut rng);
     let transfer = Transfer {
-        recipient: GenericAddress::from_pubkey(to),
+        recipient,
         amount,
         token_index,
         salt,
