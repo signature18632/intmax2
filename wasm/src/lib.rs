@@ -5,8 +5,11 @@ use convert::{
 };
 use ethers::types::H256;
 use intmax2_core_sdk::client::client::TxRequestMemo;
-use intmax2_zkp::common::{
-    generic_address::GenericAddress, salt::Salt, signature::key_set::KeySet, transfer::Transfer,
+use intmax2_zkp::{
+    common::{
+        generic_address::GenericAddress, salt::Salt, signature::key_set::KeySet, transfer::Transfer,
+    },
+    ethereum_types::u256::U256,
 };
 use num_bigint::BigUint;
 use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
@@ -14,8 +17,8 @@ use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
 pub mod client;
 pub mod convert;
 
-// Function to take a backup before calling the deposit function of the liquidity contract.
-// You can also get the pubkey_salt_hash from the return value.
+/// Function to take a backup before calling the deposit function of the liquidity contract.
+/// You can also get the pubkey_salt_hash from the return value.
 #[wasm_bindgen]
 pub async fn prepare_deposit(
     config: Config,
@@ -33,7 +36,7 @@ pub async fn prepare_deposit(
     Ok(pubkey_salt_hash)
 }
 
-// Function to send a tx request to the block builder. The return value contains information to take a backup.
+/// Function to send a tx request to the block builder. The return value contains information to take a backup.
 #[wasm_bindgen]
 pub async fn send_tx_request(
     config: Config,
@@ -44,7 +47,8 @@ pub async fn send_tx_request(
     token_index: u32,
 ) -> Result<JsValue, JsError> {
     let private_key = parse_h256(private_key)?;
-    let to = parse_u256(to)?;
+    let to = parse_h256(to)?;
+    let to = h256_to_u256(to);
     let amount = parse_u256(amount)?;
 
     let client = get_client(config);
@@ -66,10 +70,10 @@ pub async fn send_tx_request(
     Ok(tx_request_memo_to_value(&memo))
 }
 
-// In this function, query block proposal from the block builder,
-// and then send the signed tx tree root to the block builder.
-// A backup of the tx is also taken.
-// You need to call send_tx_request before calling this function.
+/// In this function, query block proposal from the block builder,
+/// and then send the signed tx tree root to the block builder.
+/// A backup of the tx is also taken.
+/// You need to call send_tx_request before calling this function.
 #[wasm_bindgen]
 pub async fn finalize_tx(
     config: Config,
@@ -88,7 +92,7 @@ pub async fn finalize_tx(
     Ok(())
 }
 
-// Synchronize the user's balance proof. It may take a long time to generate ZKP.
+/// Synchronize the user's balance proof. It may take a long time to generate ZKP.
 #[wasm_bindgen]
 pub async fn sync(config: Config, private_key: &str) -> Result<(), JsError> {
     let private_key = parse_h256(private_key)?;
@@ -98,8 +102,8 @@ pub async fn sync(config: Config, private_key: &str) -> Result<(), JsError> {
     Ok(())
 }
 
-// Synchronize the user's withdrawal proof, and send request to the withdrawal aggregator.
-// It may take a long time to generate ZKP.
+/// Synchronize the user's withdrawal proof, and send request to the withdrawal aggregator.
+/// It may take a long time to generate ZKP.
 #[wasm_bindgen]
 pub async fn sync_withdrawals(config: Config, private_key: &str) -> Result<(), JsError> {
     let private_key = parse_h256(private_key)?;
@@ -109,7 +113,7 @@ pub async fn sync_withdrawals(config: Config, private_key: &str) -> Result<(), J
     Ok(())
 }
 
-// Get the user's data. It is recommended to sync before calling this function.
+/// Get the user's data. It is recommended to sync before calling this function.
 #[wasm_bindgen]
 pub async fn get_user_data(config: Config, private_key: &str) -> Result<JsUserData, JsError> {
     let private_key = parse_h256(private_key)?;
@@ -117,6 +121,20 @@ pub async fn get_user_data(config: Config, private_key: &str) -> Result<JsUserDa
     let key = h256_to_keyset(private_key);
     let user_data = client.get_user_data(key).await?;
     Ok(JsUserData::from_user_data(&user_data))
+}
+
+/// Function to mimic the deposit call of the contract. For development purposes only.
+#[wasm_bindgen]
+pub async fn mimic_deposit(
+    _token_index: u32,
+    _pubkey_salt_hash: &str,
+    _amount: &str,
+) -> Result<(), JsError> {
+    todo!()
+}
+
+fn h256_to_u256(h256: H256) -> U256 {
+    BigUint::from_bytes_be(h256.as_bytes()).try_into().unwrap()
 }
 
 fn h256_to_keyset(h256: H256) -> KeySet {
