@@ -15,7 +15,7 @@ intmax2-cli <COMMAND> [OPTIONS]
    Send a transaction to another address.
 
    ```
-   intmax2-cli tx --private-key <PRIVATE_KEY> --to <RECIPIENT_ADDRESS> --amount <AMOUNT> --token-index <TOKEN_INDEX>
+   intmax2-cli tx --block_builder_url <BLOCK_BUILDER_URL>  --private-key <PRIVATE_KEY> --to <RECIPIENT_ADDRESS> --amount <AMOUNT> --token-index <TOKEN_INDEX>
    ```
 
 2. **Deposit**
@@ -44,6 +44,7 @@ intmax2-cli <COMMAND> [OPTIONS]
 
 ### Options
 
+- `--block_builder_url`: URL of the block builder
 - `--private-key`: Your private key (in H256 format)
 - `--to`: Recipient's address (in H256 format)
 - `--amount`: Amount to send or deposit (in U256 format)
@@ -55,7 +56,7 @@ intmax2-cli <COMMAND> [OPTIONS]
 
 1. Send a transaction:
    ```
-   intmax2-cli tx --private-key 0x... --to 0x... --amount 1000000000000000000 --token-index 0
+   intmax2-cli tx --block_builder_url http://... --private-key 0x... --to 0x... --amount 1000000000000000000 --token-index 0
    ```
 
 2. Make a deposit:

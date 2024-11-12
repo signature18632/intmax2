@@ -2,9 +2,10 @@ use ethers::types::{Address, H256};
 use intmax2_core_sdk::{
     client::{client::Client, config::ClientConfig},
     external_api::{
-        balance_prover::local::LocalBalanceProver, block_builder::server::server::BlockBuilder,
+        balance_prover::local::LocalBalanceProver,
+        block_builder::server::server::BlockBuilder,
         block_validity_prover::server::block_validity_prover::BlockValidityProver,
-        contract::liquidity_contract::LiquidityContract,
+        contract::{interface::ContractInterface, liquidity_contract::LiquidityContract},
         store_vault_server::server::store_vault_server::StoreVaultServer,
         withdrawal_aggregator::server::WithdrawalAggregatorServer,
     },
@@ -24,9 +25,8 @@ type V = BlockValidityProver;
 type B = LocalBalanceProver;
 type W = WithdrawalAggregatorServer;
 
-pub fn get_client() -> anyhow::Result<Client<BC, BB, S, V, B, W>> {
-    let contract = BC::new("".to_string(), 1, Address::zero());
-    let block_builder = BB::new("http://localhost:4000/v1".to_string());
+pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
+    let block_builder = BB::new();
     let store_vault_server = S::new("http://localhost:4000/v1/".to_string())?;
     let validity_prover = V::new("http://localhost:4000/v1/blockvalidity".to_string())?;
     let balance_prover = B::new()?;
@@ -39,8 +39,13 @@ pub fn get_client() -> anyhow::Result<Client<BC, BB, S, V, B, W>> {
         tx_query_interval: 1,
     };
 
-    let client: Client<LiquidityContract, BlockBuilder, StoreVaultServer, BlockValidityProver, LocalBalanceProver, WithdrawalAggregatorServer> = Client {
-        contract,
+    let client: Client<
+        BlockBuilder,
+        StoreVaultServer,
+        BlockValidityProver,
+        LocalBalanceProver,
+        WithdrawalAggregatorServer,
+    > = Client {
         block_builder,
         store_vault_server,
         validity_prover,
@@ -53,6 +58,7 @@ pub fn get_client() -> anyhow::Result<Client<BC, BB, S, V, B, W>> {
 }
 
 pub async fn deposit(
+    rpc_url: &str,
     eth_private_key: H256,
     private_key: H256,
     amount: U256,
@@ -60,13 +66,26 @@ pub async fn deposit(
 ) -> anyhow::Result<()> {
     let client = get_client()?;
     let key = h256_to_keyset(private_key);
-    client
-        .deposit(eth_private_key, key, token_index, amount)
+    let deposit_call = client.prepare_deposit(key, token_index, amount).await?;
+
+    let contract = BC::new(rpc_url.to_string(), 1, Address::zero());
+    contract
+        .deposit_native_token(
+            eth_private_key,
+            deposit_call.pubkey_salt_hash,
+            deposit_call.amount,
+        )
         .await?;
     Ok(())
 }
 
-pub async fn tx(private_key: H256, to: U256, amount: U256, token_index: u32) -> anyhow::Result<()> {
+pub async fn tx(
+    block_builder_url: &str,
+    private_key: H256,
+    to: U256,
+    amount: U256,
+    token_index: u32,
+) -> anyhow::Result<()> {
     let client = get_client()?;
     let key = h256_to_keyset(private_key);
 
@@ -78,12 +97,14 @@ pub async fn tx(private_key: H256, to: U256, amount: U256, token_index: u32) -> 
         token_index,
         salt,
     };
-    let memo = client.send_tx_request(key, vec![transfer]).await?;
+    let memo = client
+        .send_tx_request(block_builder_url, key, vec![transfer])
+        .await?;
 
     // sleep for a while to wait for the block builder to build the block
     tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
-    client.finalize_tx(key, &memo).await?;
+    client.finalize_tx(block_builder_url, key, &memo).await?;
 
     Ok(())
 }
