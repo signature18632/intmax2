@@ -1,41 +1,53 @@
 use client::{get_client, Config};
+use convert::{
+    bytes32_to_string, parse_h256, parse_u256, tx_request_memo_to_value, value_to_tx_request_memo,
+    JsUserData,
+};
 use ethers::types::H256;
-use intmax2_core_sdk::client::client::{DepositCall, TxRequestMemo};
-use intmax2_zkp::{
-    common::{
-        generic_address::GenericAddress, salt::Salt, signature::key_set::KeySet, transfer::Transfer,
-    },
-    ethereum_types::u256::U256,
-    mock::data::user_data::UserData,
+use intmax2_core_sdk::client::client::TxRequestMemo;
+use intmax2_zkp::common::{
+    generic_address::GenericAddress, salt::Salt, signature::key_set::KeySet, transfer::Transfer,
 };
 use num_bigint::BigUint;
+use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
 
 pub mod client;
+pub mod convert;
 
 // Function to take a backup before calling the deposit function of the liquidity contract.
 // You can also get the pubkey_salt_hash from the return value.
+#[wasm_bindgen]
 pub async fn prepare_deposit(
     config: Config,
-    private_key: H256,
-    amount: U256,
+    private_key: &str,
+    amount: &str,
     token_index: u32,
-) -> anyhow::Result<DepositCall> {
-    let client = get_client(config)?;
-    let key = h256_to_keyset(private_key);
+) -> Result<String, JsError> {
+    let private_key = parse_h256(private_key)?;
+    let amount = parse_u256(amount)?;
+
+    let client = get_client(config);
+    let key: KeySet = h256_to_keyset(private_key);
     let deposit_call = client.prepare_deposit(key, token_index, amount).await?;
-    Ok(deposit_call)
+    let pubkey_salt_hash = bytes32_to_string(deposit_call.pubkey_salt_hash);
+    Ok(pubkey_salt_hash)
 }
 
 // Function to send a tx request to the block builder. The return value contains information to take a backup.
+#[wasm_bindgen]
 pub async fn send_tx_request(
     config: Config,
     block_builder_url: &str,
-    private_key: H256,
-    to: U256,
-    amount: U256,
+    private_key: &str,
+    to: &str, // recipient hex string
+    amount: &str,
     token_index: u32,
-) -> anyhow::Result<TxRequestMemo> {
-    let client = get_client(config)?;
+) -> Result<JsValue, JsError> {
+    let private_key = parse_h256(private_key)?;
+    let to = parse_u256(to)?;
+    let amount = parse_u256(amount)?;
+
+    let client = get_client(config);
     let key = h256_to_keyset(private_key);
 
     let mut rng = rand::thread_rng();
@@ -48,22 +60,27 @@ pub async fn send_tx_request(
     };
     let memo = client
         .send_tx_request(block_builder_url, key, vec![transfer])
-        .await?;
-    // client.finalize_tx(block_builder_url, key, &memo).await?;
-    Ok(memo)
+        .await
+        .map_err(|e| JsError::new(&format!("failed to send tx request {}", e)))?;
+
+    Ok(tx_request_memo_to_value(&memo))
 }
 
 // In this function, query block proposal from the block builder,
 // and then send the signed tx tree root to the block builder.
 // A backup of the tx is also taken.
 // You need to call send_tx_request before calling this function.
+#[wasm_bindgen]
 pub async fn finalize_tx(
     config: Config,
     block_builder_url: &str,
-    private_key: H256,
-    tx_request_memo: TxRequestMemo,
-) -> anyhow::Result<()> {
-    let client = get_client(config)?;
+    private_key: &str,
+    tx_request_memo: &JsValue,
+) -> Result<(), JsError> {
+    let private_key = parse_h256(private_key)?;
+    let tx_request_memo: TxRequestMemo = value_to_tx_request_memo(tx_request_memo)?;
+
+    let client = get_client(config);
     let key = h256_to_keyset(private_key);
     client
         .finalize_tx(block_builder_url, key, &tx_request_memo)
@@ -72,8 +89,10 @@ pub async fn finalize_tx(
 }
 
 // Synchronize the user's balance proof. It may take a long time to generate ZKP.
-pub async fn sync(config: Config, private_key: H256) -> anyhow::Result<()> {
-    let client = get_client(config)?;
+#[wasm_bindgen]
+pub async fn sync(config: Config, private_key: &str) -> Result<(), JsError> {
+    let private_key = parse_h256(private_key)?;
+    let client = get_client(config);
     let key = h256_to_keyset(private_key);
     client.sync(key).await?;
     Ok(())
@@ -81,20 +100,23 @@ pub async fn sync(config: Config, private_key: H256) -> anyhow::Result<()> {
 
 // Synchronize the user's withdrawal proof, and send request to the withdrawal aggregator.
 // It may take a long time to generate ZKP.
-pub async fn sync_withdrawals(config: Config, private_key: H256) -> anyhow::Result<()> {
-    let client = get_client(config)?;
+#[wasm_bindgen]
+pub async fn sync_withdrawals(config: Config, private_key: &str) -> Result<(), JsError> {
+    let private_key = parse_h256(private_key)?;
+    let client = get_client(config);
     let key = h256_to_keyset(private_key);
     client.sync_withdrawals(key).await?;
     Ok(())
 }
 
 // Get the user's data. It is recommended to sync before calling this function.
-pub async fn get_user_data(config: Config, private_key: H256) -> anyhow::Result<UserData> {
-    let client = get_client(config)?;
+#[wasm_bindgen]
+pub async fn get_user_data(config: Config, private_key: &str) -> Result<JsUserData, JsError> {
+    let private_key = parse_h256(private_key)?;
+    let client = get_client(config);
     let key = h256_to_keyset(private_key);
-
     let user_data = client.get_user_data(key).await?;
-    Ok(user_data)
+    Ok(JsUserData::from_user_data(&user_data))
 }
 
 fn h256_to_keyset(h256: H256) -> KeySet {

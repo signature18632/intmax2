@@ -9,6 +9,7 @@ use intmax2_core_sdk::{
     },
 };
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::wasm_bindgen;
 
 type BB = BlockBuilder;
 type S = StoreVaultServer;
@@ -18,63 +19,38 @@ type W = WithdrawalAggregatorServer;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[wasm_bindgen(getter_with_clone)]
 pub struct Config {
-    store_vault_server_url: String,
-    block_validity_prover_url: String,
-    balance_prover_url: String,
-    withdrawal_aggregator_url: String,
-    config: ClientConfig,
+    pub store_vault_server_url: String,
+    pub block_validity_prover_url: String,
+    pub balance_prover_url: String,
+    pub withdrawal_aggregator_url: String,
+    pub deposit_timeout: u64,
+    pub tx_timeout: u64,
+    pub max_tx_query_times: usize,
+    pub tx_query_interval: u64,
 }
 
-impl Config {
-    pub fn new(
-        store_vault_server_url: String,
-        block_validity_prover_url: String,
-        balance_prover_url: String,
-        withdrawal_aggregator_url: String,
-        deposit_timeout: u64,
-        tx_timeout: u64,
-        max_tx_query_times: usize,
-        tx_query_interval: u64,
-    ) -> Self {
-        let config = ClientConfig {
-            deposit_timeout,
-            tx_timeout,
-            max_tx_query_times,
-            tx_query_interval,
-        };
-        Config {
-            store_vault_server_url,
-            block_validity_prover_url,
-            balance_prover_url,
-            withdrawal_aggregator_url,
-            config,
-        }
-    }
-}
-
-pub fn get_client(config: Config) -> anyhow::Result<Client<BB, S, V, B, W>> {
+pub fn get_client(config: Config) -> Client<BB, S, V, B, W> {
     let block_builder = BB::new();
-    let store_vault_server = S::new(config.store_vault_server_url)?;
-    let validity_prover = V::new(config.block_validity_prover_url)?;
+    let store_vault_server = S::new(config.store_vault_server_url);
+    let validity_prover = V::new(config.block_validity_prover_url);
     let balance_prover = B::new(config.balance_prover_url);
     let withdrawal_aggregator = W::new(config.withdrawal_aggregator_url);
 
-    let config = ClientConfig {
-        deposit_timeout: 3600,
-        tx_timeout: 60,
-        max_tx_query_times: 50,
-        tx_query_interval: 1,
+    let client_config = ClientConfig {
+        deposit_timeout: config.deposit_timeout,
+        tx_timeout: config.tx_timeout,
+        max_tx_query_times: config.max_tx_query_times,
+        tx_query_interval: config.tx_query_interval,
     };
 
-    let client = Client {
+    Client {
         block_builder,
         store_vault_server,
         validity_prover,
         balance_prover,
         withdrawal_aggregator,
-        config,
-    };
-
-    Ok(client)
+        config: client_config,
+    }
 }
