@@ -9,13 +9,34 @@ use intmax2_zkp::{
     common::{
         generic_address::GenericAddress, salt::Salt, signature::key_set::KeySet, transfer::Transfer,
     },
-    ethereum_types::u256::U256,
+    ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
 };
 use num_bigint::BigUint;
 use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
 
 pub mod client;
 pub mod convert;
+pub mod data_types;
+
+#[wasm_bindgen(getter_with_clone)]
+pub struct Key {
+    pub privkey: String,
+    pub pubkey: String,
+}
+
+/// Generate a new key pair from a provisional private key.
+#[wasm_bindgen]
+pub async fn generate_key_from_provisional(provisional_private_key: &str) -> Result<Key, JsError> {
+    let provisional_private_key = parse_h256(provisional_private_key)?;
+    let key_set = KeySet::generate_from_provisional(
+        BigUint::from_bytes_be(provisional_private_key.as_bytes()).into(),
+    );
+    let private_key: U256 = BigUint::from(key_set.privkey).try_into().unwrap();
+    Ok(Key {
+        privkey: private_key.to_hex(),
+        pubkey: key_set.pubkey.to_hex(),
+    })
+}
 
 /// Function to take a backup before calling the deposit function of the liquidity contract.
 /// You can also get the pubkey_salt_hash from the return value.
