@@ -6,12 +6,12 @@ use intmax2_core_sdk::external_api::{
 };
 
 pub struct State {
-    contract: LocalContract,
-    store_vault_server: LocalStoreVaultServer,
-    validity_prover: LocalBlockValidityProver,
-    block_builder: LocalBlockBuilder,
-    balance_prover: LocalBalanceProver,
-    withdrawal_aggregator: LocalWithdrawalAggregator,
+    pub contract: LocalContract,
+    pub store_vault_server: LocalStoreVaultServer,
+    pub validity_prover: LocalBlockValidityProver,
+    pub block_builder: LocalBlockBuilder,
+    pub balance_prover: LocalBalanceProver,
+    pub withdrawal_aggregator: LocalWithdrawalAggregator,
 }
 
 impl State {
