@@ -25,8 +25,10 @@ type V = TestBlockValidityProver;
 type B = TestBalanceProver;
 type W = TestWithdrawalAggregator;
 
+const BASE_URL: &str = "http://localhost:9563";
+
 pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
-    let base_url = "http://localhost:8080".to_string();
+    let base_url = BASE_URL.to_string();
     let block_builder = BB::new(base_url.clone());
     let store_vault_server = S::new(base_url.clone());
     let validity_prover = V::new(base_url.clone());
@@ -53,7 +55,7 @@ pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
 }
 
 pub fn get_contract() -> BC {
-    let base_url = "http://localhost:8080".to_string();
+    let base_url = BASE_URL.to_string();
     let contract = BC::new(base_url.clone());
     contract
 }
@@ -103,8 +105,9 @@ pub async fn tx(
         .await?;
 
     // sleep for a while to wait for the block builder to build the block
-    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
 
+    log::info!("Finalizing tx");
     client.finalize_tx(block_builder_url, key, &memo).await?;
 
     Ok(())

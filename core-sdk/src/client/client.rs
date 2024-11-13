@@ -112,6 +112,12 @@ where
         token_index: u32,
         amount: U256,
     ) -> Result<DepositCall, ClientError> {
+        log::info!(
+            "prepare_deposit: pubkey {}, token_index {}, amount {}",
+            key.pubkey,
+            token_index,
+            amount
+        );
         // todo: improve the way to choose deposit salt
         let deposit_salt = generate_salt(key, 0);
 
@@ -175,7 +181,7 @@ where
                 .get(&(transfer.token_index as usize))
                 .cloned()
                 .unwrap_or_default();
-            if !balance.is_insufficient {
+            if balance.is_insufficient {
                 return Err(ClientError::BalanceError(format!(
                     "Already insufficient: token index {}",
                     transfer.token_index

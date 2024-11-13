@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use cli::{balance, deposit, sync, tx};
 use ethers::types::{H256, U256};
+use intmax2_core_sdk::utils::init_logger;
 use intmax2_zkp::{
     common::signature::key_set::KeySet,
     ethereum_types::{bytes32::Bytes32, u32limb_trait::U32LimbTrait as _},
@@ -56,6 +57,7 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    init_logger::init_logger();
     let args = Args::parse();
 
     match &args.command {

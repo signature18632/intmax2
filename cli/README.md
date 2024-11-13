@@ -54,15 +54,19 @@ intmax2-cli <COMMAND> [OPTIONS]
 
 ## Examples
 
-1. Send a transaction:
+1. Make a deposit:
    ```
-   intmax2-cli tx --block_builder_url http://... --private-key 0x... --to 0x... --amount 1000000000000000000 --token-index 0
+   cargo run -r --  deposit --rpc-url "" --eth-private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c --private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c --amount 100000000 --token-index 0
+   ```
+2. Check your balance:
+   ```
+   cargo run -r -- balance --private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c
+   ```
+3. Send a transaction:
+   ```
+   cargo run -r -- tx --block_builder_url "" --private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c --to 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c --amount 100000000 --token-index 0
    ```
 
-2. Make a deposit:
-   ```
-   intmax2-cli deposit --rpc-url https://mainnet.infura.io/v3/YOUR-PROJECT-ID --eth-private-key 0x... --private-key 0x... --amount 1000000000000000000 --token-index 0
-   ```
 
 3. Sync your account:
    ```
