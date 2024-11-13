@@ -28,7 +28,7 @@ impl LocalWithdrawalAggregator {
     }
 
     // finalize the withdrawal
-    pub async fn wrap(&mut self) -> anyhow::Result<()> {
+    pub async fn wrap(&self) -> anyhow::Result<()> {
         let mut inner = self.0.lock().unwrap();
         let (_withdrawals, _wrap_proof) = inner
             .wrap(Address::default())
