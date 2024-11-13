@@ -1,7 +1,11 @@
 use clap::{Parser, Subcommand};
 use cli::{balance, deposit, sync, tx};
 use ethers::types::{H256, U256};
-use intmax2_zkp::ethereum_types::{bytes32::Bytes32, u32limb_trait::U32LimbTrait as _};
+use intmax2_zkp::{
+    common::signature::key_set::KeySet,
+    ethereum_types::{bytes32::Bytes32, u32limb_trait::U32LimbTrait as _},
+};
+use num_bigint::BigUint;
 
 pub mod cli;
 
@@ -47,6 +51,7 @@ enum Commands {
         #[clap(long)]
         private_key: H256,
     },
+    GenerateKey,
 }
 
 #[tokio::main]
@@ -80,8 +85,16 @@ async fn main() -> anyhow::Result<()> {
             sync(*private_key).await?;
         }
         Commands::Balance { private_key } => {
-            println!("Executing balance command");
             balance(*private_key).await?;
+        }
+        Commands::GenerateKey => {
+            println!("Generating key");
+            let mut rng = rand::thread_rng();
+            let key = KeySet::rand(&mut rng);
+            let private_key = BigUint::from(key.privkey);
+            let private_key_hex = format!("{:x}", private_key);
+            println!("Private key: {}", private_key_hex);
+            println!("Public key: {}", key.pubkey.to_hex());
         }
     }
 
