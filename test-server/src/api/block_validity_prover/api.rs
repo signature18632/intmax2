@@ -158,3 +158,17 @@ pub async fn get_deposit_merkle_proof(
         deposit_merkle_proof,
     }))
 }
+
+pub fn block_validity_prover_scope() -> actix_web::Scope {
+    actix_web::web::scope("/block-validity-prover")
+        .service(sync)
+        .service(get_block_number)
+        .service(get_account_id)
+        .service(get_update_witness)
+        .service(get_deposit_index_and_block_number)
+        .service(get_block_number_by_tx_tree_root)
+        .service(get_validity_pis)
+        .service(get_sender_leaves)
+        .service(get_block_merkle_proof)
+        .service(get_deposit_merkle_proof)
+}

@@ -189,3 +189,14 @@ pub async fn get_user_data(
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(GetUserDataResponse { data }))
 }
+
+pub fn store_vault_server_scope() -> actix_web::Scope {
+    actix_web::web::scope("/store-vault-server")
+        .service(save_balance_proof)
+        .service(get_balance_proof)
+        .service(save_data)
+        .service(get_data)
+        .service(get_data_all_after)
+        .service(save_user_data)
+        .service(get_user_data)
+}

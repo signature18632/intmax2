@@ -80,3 +80,13 @@ pub async fn post_signature(
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(()))
 }
+
+pub fn block_builder_scope() -> actix_web::Scope {
+    actix_web::web::scope("/block-builder")
+        .service(construct_block)
+        .service(post_block)
+        .service(post_empty_block)
+        .service(tx_request)
+        .service(query_proposal)
+        .service(post_signature)
+}

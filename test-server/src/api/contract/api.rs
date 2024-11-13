@@ -22,3 +22,7 @@ pub async fn deposit_native_token(
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(()))
 }
+
+pub fn contract_scope() -> actix_web::Scope {
+    actix_web::web::scope("/contract").service(deposit_native_token)
+}

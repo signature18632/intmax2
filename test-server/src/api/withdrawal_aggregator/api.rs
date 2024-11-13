@@ -29,3 +29,9 @@ pub async fn request_withdrawal(
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(()))
 }
+
+pub fn withdrawal_aggregator_scope() -> actix_web::Scope {
+    actix_web::web::scope("/withdrawal_aggregator")
+        .service(wrap)
+        .service(request_withdrawal)
+}
