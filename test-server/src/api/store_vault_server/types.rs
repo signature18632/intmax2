@@ -1,4 +1,7 @@
-use intmax2_zkp::{ethereum_types::u256::U256, utils::poseidon_hash_out::PoseidonHashOut};
+use intmax2_zkp::{
+    ethereum_types::u256::U256, mock::data::meta_data::MetaData,
+    utils::poseidon_hash_out::PoseidonHashOut,
+};
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
@@ -19,15 +22,15 @@ pub struct SaveBalanceProofRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetBalanceProofQuery {
-    pubkey: U256,
-    block_number: u32,
-    private_commitment: PoseidonHashOut,
+    pub pubkey: U256,
+    pub block_number: u32,
+    pub private_commitment: PoseidonHashOut,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetBalanceProofResponse {
-    pub balance_proof: ProofWithPublicInputs<F, C, D>,
+    pub balance_proof: Option<ProofWithPublicInputs<F, C, D>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,8 +48,14 @@ pub struct GetUserDataQuery {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct GetUserDataResponse {
+    pub data: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetDataResponse {
-    pub data: Vec<u8>,
+    pub data: Option<(MetaData, Vec<u8>)>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,4 +64,15 @@ pub struct GetDataQuery {
     pub uuid: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetDataAllAfterQuery {
+    pub pubkey: U256,
+    pub timestamp: u64,
+}
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetDataAllAfterResponse {
+    pub data: Vec<(MetaData, Vec<u8>)>,
+}
