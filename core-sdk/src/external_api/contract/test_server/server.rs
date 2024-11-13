@@ -51,7 +51,7 @@ impl TestContract {
 impl ContractInterface for TestContract {
     async fn deposit_native_token(
         &self,
-        signer_private_key: H256,
+        _signer_private_key: H256,
         pubkey_salt_hash: Bytes32,
         amount: U256,
     ) -> Result<(), BlockchainError> {

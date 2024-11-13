@@ -56,21 +56,19 @@ impl TestStoreVaultServer {
         }
     }
 
-    async fn get_request<T: serde::de::DeserializeOwned>(
-        &self,
-        endpoint: &str,
-        query: Option<Vec<(&str, String)>>,
-    ) -> Result<T, ServerError> {
+    async fn get_request<T, Q>(&self, endpoint: &str, query: Option<Q>) -> Result<T, ServerError>
+    where
+        T: serde::de::DeserializeOwned,
+        Q: serde::Serialize,
+    {
         let url = format!("{}{}", self.base_url, endpoint);
-        let mut request = self.client.get(&url);
-        if let Some(params) = query {
-            request = request.query(&params);
-        }
 
-        let response = request
-            .send()
-            .await
-            .map_err(|e| ServerError::NetworkError(e.to_string()))?;
+        let response = if let Some(params) = query {
+            self.client.get(&url).query(&params).send().await
+        } else {
+            self.client.get(&url).send().await
+        }
+        .map_err(|e| ServerError::NetworkError(e.to_string()))?;
 
         if response.status().is_success() {
             response
@@ -104,7 +102,11 @@ impl StoreVaultInterface for TestStoreVaultServer {
         block_number: u32,
         private_commitment: PoseidonHashOut,
     ) -> Result<Option<ProofWithPublicInputs<F, C, D>>, ServerError> {
-        let query = GetBalanceProofQuery
+        let query = GetBalanceProofQuery {
+            pubkey,
+            block_number,
+            private_commitment,
+        };
         let response: GetBalanceProofResponse = self
             .get_request("/store-vault-server/get-balance-proof", Some(query))
             .await?;
@@ -129,10 +131,7 @@ impl StoreVaultInterface for TestStoreVaultServer {
         pubkey: U256,
         timestamp: u64,
     ) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError> {
-        let query = vec![
-            ("pubkey", pubkey.to_string()),
-            ("timestamp", timestamp.to_string()),
-        ];
+        let query = GetDataAllAfterQuery { pubkey, timestamp };
         let response: GetDataAllAfterResponse = self
             .get_request("/store-vault-server/deposit/get-all-after", Some(query))
             .await?;
@@ -143,9 +142,118 @@ impl StoreVaultInterface for TestStoreVaultServer {
         &self,
         uuid: &str,
     ) -> Result<Option<(MetaData, Vec<u8>)>, ServerError> {
-        let query = vec![("uuid", uuid.to_string())];
+        let query = GetDataQuery {
+            uuid: uuid.to_string(),
+        };
         let response: GetDataResponse = self
             .get_request("/store-vault-server/deposit/get", Some(query))
+            .await?;
+        Ok(response.data)
+    }
+
+    async fn save_withdrawal_data(
+        &self,
+        pubkey: U256,
+        encrypted_data: Vec<u8>,
+    ) -> Result<(), ServerError> {
+        let request = SaveDataRequest {
+            pubkey,
+            data: encrypted_data,
+        };
+        self.post_request::<_, ()>("/store-vault-server/withdrawal/save", &request)
+            .await
+    }
+
+    async fn get_withdrawal_data_all_after(
+        &self,
+        pubkey: U256,
+        timestamp: u64,
+    ) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError> {
+        let query = GetDataAllAfterQuery { pubkey, timestamp };
+        let response: GetDataAllAfterResponse = self
+            .get_request("/store-vault-server/withdrawal/get-all-after", Some(query))
+            .await?;
+        Ok(response.data)
+    }
+
+    async fn get_withdrawal_data(
+        &self,
+        uuid: &str,
+    ) -> Result<Option<(MetaData, Vec<u8>)>, ServerError> {
+        let query = GetDataQuery {
+            uuid: uuid.to_string(),
+        };
+        let response: GetDataResponse = self
+            .get_request("/store-vault-server/withdrawal/get", Some(query))
+            .await?;
+        Ok(response.data)
+    }
+
+    async fn save_transfer_data(
+        &self,
+        pubkey: U256,
+        encrypted_data: Vec<u8>,
+    ) -> Result<(), ServerError> {
+        let request = SaveDataRequest {
+            pubkey,
+            data: encrypted_data,
+        };
+        self.post_request::<_, ()>("/store-vault-server/transfer/save", &request)
+            .await
+    }
+
+    async fn get_transfer_data_all_after(
+        &self,
+        pubkey: U256,
+        timestamp: u64,
+    ) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError> {
+        let query = GetDataAllAfterQuery { pubkey, timestamp };
+        let response: GetDataAllAfterResponse = self
+            .get_request("/store-vault-server/transfer/get-all-after", Some(query))
+            .await?;
+        Ok(response.data)
+    }
+
+    async fn get_transfer_data(
+        &self,
+        uuid: &str,
+    ) -> Result<Option<(MetaData, Vec<u8>)>, ServerError> {
+        let query = GetDataQuery {
+            uuid: uuid.to_string(),
+        };
+        let response: GetDataResponse = self
+            .get_request("/store-vault-server/transfer/get", Some(query))
+            .await?;
+        Ok(response.data)
+    }
+
+    async fn save_tx_data(&self, pubkey: U256, encrypted_data: Vec<u8>) -> Result<(), ServerError> {
+        let request = SaveDataRequest {
+            pubkey,
+            data: encrypted_data,
+        };
+        self.post_request::<_, ()>("/store-vault-server/tx/save", &request)
+            .await
+    }
+
+    async fn get_tx_data(&self, uuid: &str) -> Result<Option<(MetaData, Vec<u8>)>, ServerError> {
+        let query = GetDataQuery {
+            uuid: uuid.to_string(),
+        };
+        let response: GetDataResponse = self
+            .get_request("/store-vault-server/tx/get", Some(query))
+            .await?;
+        Ok(response.data)
+    }
+
+    async fn get_tx_data_all_after(
+        &self,
+        pubkey: U256,
+        timestamp: u64,
+    ) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError> {
+        let query = GetDataAllAfterQuery { pubkey, timestamp };
+        let response: GetDataAllAfterResponse = self
+            .get_request("/store-vault-server/tx/get-all-after", Some(query))
             .await?;
         Ok(response.data)
     }

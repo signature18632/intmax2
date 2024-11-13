@@ -37,12 +37,12 @@ impl TestBlockValidityProver {
         }
     }
 
-    async fn get_request<T: serde::de::DeserializeOwned>(
-        &self,
-        endpoint: &str,
-        query: Option<Vec<(&str, String)>>,
-    ) -> Result<T, ServerError> {
-        let mut url = format!("{}{}", self.base_url, endpoint);
+    async fn get_request<T, Q>(&self, endpoint: &str, query: Option<Q>) -> Result<T, ServerError>
+    where
+        T: serde::de::DeserializeOwned,
+        Q: serde::Serialize,
+    {
+        let url = format!("{}{}", self.base_url, endpoint);
 
         let response = if let Some(params) = query {
             self.client.get(&url).query(&params).send().await
@@ -62,8 +62,9 @@ impl TestBlockValidityProver {
     }
 
     pub async fn sync(&self) -> Result<(), ServerError> {
-        self.get_request::<()>("/block-validity-prover/sync", None)
-            .await
+        self.get_request::<(), ()>("/block-validity-prover/sync", None)
+            .await?;
+        Ok(())
     }
 }
 
@@ -71,13 +72,13 @@ impl TestBlockValidityProver {
 impl BlockValidityInterface for TestBlockValidityProver {
     async fn block_number(&self) -> Result<u32, ServerError> {
         let response: GetBlockNumberResponse = self
-            .get_request("/block-validity-prover/block-number", None)
+            .get_request::<_, ()>("/block-validity-prover/block-number", None)
             .await?;
         Ok(response.block_number)
     }
 
     async fn get_account_id(&self, pubkey: U256) -> Result<Option<usize>, ServerError> {
-        let query = vec![("pubkey", pubkey.to_string())];
+        let query = GetAccountIdQuery { pubkey };
         let response: GetAccountIdResponse = self
             .get_request("/block-validity-prover/get-account-id", Some(query))
             .await?;
@@ -91,12 +92,12 @@ impl BlockValidityInterface for TestBlockValidityProver {
         leaf_block_number: u32,
         is_prev_account_tree: bool,
     ) -> Result<UpdateWitness<F, C, D>, ServerError> {
-        let query = vec![
-            ("pubkey", pubkey.to_string()),
-            ("rootBlockNumber", root_block_number.to_string()),
-            ("leafBlockNumber", leaf_block_number.to_string()),
-            ("isPrevAccountTree", is_prev_account_tree.to_string()),
-        ];
+        let query = GetUpdateWitnessQuery {
+            pubkey,
+            root_block_number,
+            leaf_block_number,
+            is_prev_account_tree,
+        };
         let response: GetUpdateWitnessResponse = self
             .get_request("/block-validity-prover/get-update-witness", Some(query))
             .await?;
@@ -107,7 +108,7 @@ impl BlockValidityInterface for TestBlockValidityProver {
         &self,
         deposit_hash: Bytes32,
     ) -> Result<Option<(usize, u32)>, ServerError> {
-        let query = vec![("depositHash", deposit_hash.to_string())];
+        let query = GetDepositIndexAndBlockNumberQuery { deposit_hash };
         let response: GetDepositIndexAndBlockNumberResponse = self
             .get_request(
                 "/block-validity-prover/get-deposit-index-and-block-number",
@@ -121,7 +122,7 @@ impl BlockValidityInterface for TestBlockValidityProver {
         &self,
         tx_tree_root: Bytes32,
     ) -> Result<Option<u32>, ServerError> {
-        let query = vec![("txTreeRoot", tx_tree_root.to_string())];
+        let query = GetBlockNumberByTxTreeRootQuery { tx_tree_root };
         let response: GetBlockNumberByTxTreeRootResponse = self
             .get_request(
                 "/block-validity-prover/get-block-number-by-tx-tree-root",
@@ -135,7 +136,7 @@ impl BlockValidityInterface for TestBlockValidityProver {
         &self,
         block_number: u32,
     ) -> Result<Option<ValidityPublicInputs>, ServerError> {
-        let query = vec![("blockNumber", block_number.to_string())];
+        let query = GetValidityPisQuery { block_number };
         let response: GetValidityPisResponse = self
             .get_request("/block-validity-prover/get-validity-pis", Some(query))
             .await?;
@@ -146,7 +147,7 @@ impl BlockValidityInterface for TestBlockValidityProver {
         &self,
         block_number: u32,
     ) -> Result<Option<Vec<SenderLeaf>>, ServerError> {
-        let query = vec![("blockNumber", block_number.to_string())];
+        let query = GetSenderLeavesQuery { block_number };
         let response: GetSenderLeavesResponse = self
             .get_request("/block-validity-prover/get-sender-leaves", Some(query))
             .await?;
@@ -158,10 +159,10 @@ impl BlockValidityInterface for TestBlockValidityProver {
         root_block_number: u32,
         leaf_block_number: u32,
     ) -> Result<BlockHashMerkleProof, ServerError> {
-        let query = vec![
-            ("rootBlockNumber", root_block_number.to_string()),
-            ("leafBlockNumber", leaf_block_number.to_string()),
-        ];
+        let query = GetBlockMerkleProofQuery {
+            root_block_number,
+            leaf_block_number,
+        };
         let response: GetBlockMerkleProofResponse = self
             .get_request("/block-validity-prover/get-block-merkle-proof", Some(query))
             .await?;
@@ -173,10 +174,10 @@ impl BlockValidityInterface for TestBlockValidityProver {
         block_number: u32,
         deposit_index: usize,
     ) -> Result<DepositMerkleProof, ServerError> {
-        let query = vec![
-            ("blockNumber", block_number.to_string()),
-            ("depositIndex", deposit_index.to_string()),
-        ];
+        let query = GetDepositMerkleProofQuery {
+            block_number,
+            deposit_index,
+        };
         let response: GetDepositMerkleProofResponse = self
             .get_request(
                 "/block-validity-prover/get-deposit-merkle-proof",
