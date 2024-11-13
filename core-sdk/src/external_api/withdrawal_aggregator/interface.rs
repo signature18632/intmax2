@@ -3,6 +3,7 @@ use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
+use serde::{Deserialize, Serialize};
 
 use crate::external_api::common::error::ServerError;
 
@@ -10,7 +11,8 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Fee {
     pub native_fee: u64,
     pub erc20_fee: u64,

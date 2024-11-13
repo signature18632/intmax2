@@ -3,11 +3,14 @@ use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
-use reqwest::Client;
-use serde_json::json;
+use reqwest_wasm::Client;
 
-use crate::api::withdrawal_aggregator::types::RequestWithdrawalRequest;
-use crate::external_api::common::error::ServerError;
+use crate::external_api::withdrawal_aggregator::{
+    interface::Fee, test_server::types::RequestWithdrawalRequest,
+};
+use crate::external_api::{
+    common::error::ServerError, withdrawal_aggregator::interface::WithdrawalAggregatorInterface,
+};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -47,7 +50,7 @@ impl TestWithdrawalAggregator {
                 .await
                 .map_err(|e| ServerError::DeserializationError(e.to_string()))
         } else {
-            Err(ServerError::ApiError(response.status().to_string()))
+            Err(ServerError::ServerError(response.status().to_string()))
         }
     }
 
@@ -69,7 +72,7 @@ impl TestWithdrawalAggregator {
                 .await
                 .map_err(|e| ServerError::DeserializationError(e.to_string()))
         } else {
-            Err(ServerError::ApiError(response.status().to_string()))
+            Err(ServerError::ServerError(response.status().to_string()))
         }
     }
 }
