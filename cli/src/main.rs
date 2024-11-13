@@ -93,7 +93,7 @@ async fn main() -> anyhow::Result<()> {
             let key = KeySet::rand(&mut rng);
             let private_key = BigUint::from(key.privkey);
             let private_key_hex = format!("{:x}", private_key);
-            println!("Private key: {}", private_key_hex);
+            println!("Private key: 0x{}", private_key_hex);
             println!("Public key: {}", key.pubkey.to_hex());
         }
     }
