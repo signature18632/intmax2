@@ -19,6 +19,6 @@ pub async fn deposit_native_token(
     data.contract
         .deposit_native_token(H256::zero(), request.pubkey_salt_hash, request.amount)
         .await
-        .is_ok();
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(()))
 }
