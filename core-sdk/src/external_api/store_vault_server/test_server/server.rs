@@ -9,8 +9,10 @@ use plonky2::{
 };
 use reqwest_wasm::Client;
 
-use crate::external_api::{common::error::ServerError, store_vault_server::interface::StoreVaultInterface};
 use crate::external_api::store_vault_server::test_server::types::*;
+use crate::external_api::{
+    common::error::ServerError, store_vault_server::interface::StoreVaultInterface,
+};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -102,11 +104,7 @@ impl StoreVaultInterface for TestStoreVaultServer {
         block_number: u32,
         private_commitment: PoseidonHashOut,
     ) -> Result<Option<ProofWithPublicInputs<F, C, D>>, ServerError> {
-        let query = vec![
-            ("pubkey", pubkey.to_string()),
-            ("blockNumber", block_number.to_string()),
-            ("privateCommitment", private_commitment.to_string()),
-        ];
+        let query = GetBalanceProofQuery
         let response: GetBalanceProofResponse = self
             .get_request("/store-vault-server/get-balance-proof", Some(query))
             .await?;
@@ -151,8 +149,6 @@ impl StoreVaultInterface for TestStoreVaultServer {
             .await?;
         Ok(response.data)
     }
-
-    // Implement other methods similarly...
 
     async fn save_user_data(
         &self,
