@@ -14,6 +14,8 @@ pub mod log;
 async fn main() -> std::io::Result<()> {
     init_logger()?;
 
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+
     HttpServer::new(|| {
         App::new()
             .wrap(Logger::default())
@@ -26,7 +28,7 @@ async fn main() -> std::io::Result<()> {
             .service(store_vault_server_scope())
             .service(withdrawal_aggregator_scope())
     })
-    .bind("127.0.0.1:8080")?
+    .bind(format!("127.0.0.1:{}", port))?
     .run()
     .await
 }
