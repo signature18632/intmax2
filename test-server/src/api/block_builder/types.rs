@@ -27,7 +27,7 @@ pub struct QueryProposalRequest {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryProposalResponse {
-    pub block_proposal: BlockProposal,
+    pub block_proposal: Option<BlockProposal>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
