@@ -1,3 +1,5 @@
+use std::io;
+
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
 use api::{
     balance_prover::api::balance_prover_scope, block_builder::api::block_builder_scope,
@@ -15,11 +17,12 @@ async fn main() -> std::io::Result<()> {
     init_logger()?;
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
-
-    HttpServer::new(|| {
+    let state = State::new().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    let state = Data::new(state);
+    HttpServer::new(move || {
         App::new()
             .wrap(Logger::default())
-            .app_data(Data::new(State::new()))
+            .app_data(state.clone())
             .service(health_check)
             .service(balance_prover_scope())
             .service(block_builder_scope())
