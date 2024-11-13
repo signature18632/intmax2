@@ -16,15 +16,28 @@ pub struct State {
 
 impl State {
     pub fn new() -> anyhow::Result<Self> {
+        log::info!("Initializing contract");
         let contract = LocalContract::new();
+
+        log::info!("Initializing store_vault_server");
         let store_vault_server = LocalStoreVaultServer::new();
+
+        log::info!("Initializing validity_prover");
         let validity_prover = LocalBlockValidityProver::new(contract.0.clone());
+
+        log::info!("Initializing block_builder");
         let block_builder = LocalBlockBuilder::new(
             contract.0.clone(),
             validity_prover.inner_block_validity_prover.clone(),
         );
+
+        log::info!("Initializing balance_prover");
         let balance_prover = LocalBalanceProver::new()?;
+
+        log::info!("Initializing withdrawal_aggregator");
         let withdrawal_aggregator = LocalWithdrawalAggregator::new()?;
+
+        log::info!("State initialized");
         Ok(Self {
             contract,
             store_vault_server,
