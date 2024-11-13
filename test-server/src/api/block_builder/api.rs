@@ -6,13 +6,11 @@ use actix_web::{
 use intmax2_core_sdk::external_api::block_builder::interface::BlockBuilderInterface;
 
 use crate::api::{
-    block_builder::types::{
-        PostSignatureRequest, PostSignatureResponse, QueryProposalRequest, QueryProposalResponse,
-    },
+    block_builder::types::{PostSignatureRequest, QueryProposalRequest, QueryProposalResponse},
     state::State,
 };
 
-use super::types::{TxRequestRequest, TxRequestResponse};
+use super::types::TxRequestRequest;
 
 #[get("/construct-block")]
 pub async fn construct_block(state: Data<State>) -> Result<Json<()>, Error> {
@@ -45,14 +43,14 @@ pub async fn post_empty_block(state: Data<State>) -> Result<Json<()>, Error> {
 pub async fn tx_request(
     state: Data<State>,
     request: Json<TxRequestRequest>,
-) -> Result<Json<TxRequestResponse>, Error> {
+) -> Result<Json<()>, Error> {
     let request = request.into_inner();
     state
         .block_builder
         .send_tx_request("", request.pubkey, request.tx, None)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
-    Ok(Json(TxRequestResponse { success: true }))
+    Ok(Json(()))
 }
 
 #[post("/query-proposal")]
@@ -73,12 +71,12 @@ pub async fn query_proposal(
 pub async fn post_signature(
     state: Data<State>,
     request: Json<PostSignatureRequest>,
-) -> Result<Json<PostSignatureResponse>, Error> {
+) -> Result<Json<()>, Error> {
     let request = request.into_inner();
     state
         .block_builder
         .post_signature("", request.pubkey, request.tx, request.signature)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
-    Ok(Json(PostSignatureResponse { success: true }))
+    Ok(Json(()))
 }

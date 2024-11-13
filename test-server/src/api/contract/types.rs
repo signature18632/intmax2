@@ -19,9 +19,3 @@ pub struct DepositNativeTokenRequest {
     pub pubkey_salt_hash: Bytes32,
     pub amount: U256,
 }
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DepositNativeTokenResponse {
-    pub success: bool,
-}

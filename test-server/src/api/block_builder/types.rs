@@ -13,12 +13,6 @@ pub struct TxRequestRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TxRequestResponse {
-    pub success: bool,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct QueryProposalRequest {
     pub pubkey: U256,
     pub tx: Tx,
@@ -36,10 +30,4 @@ pub struct PostSignatureRequest {
     pub pubkey: U256,
     pub tx: Tx,
     pub signature: FlatG2,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PostSignatureResponse {
-    pub success: bool,
 }
