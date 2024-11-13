@@ -1,13 +1,13 @@
-use ethers::types::{Address, H256};
+use ethers::types::H256;
 use intmax2_core_sdk::{
     client::{client::Client, config::ClientConfig},
     external_api::{
-        balance_prover::local::LocalBalanceProver,
-        block_builder::server::server::BlockBuilder,
-        block_validity_prover::server::block_validity_prover::BlockValidityProver,
-        contract::{interface::ContractInterface, liquidity_contract::LiquidityContract},
-        store_vault_server::server::store_vault_server::StoreVaultServer,
-        withdrawal_aggregator::server::WithdrawalAggregatorServer,
+        balance_prover::test_server::server::TestBalanceProver,
+        block_builder::test_server::server::TestBlockBuilder,
+        block_validity_prover::test_server::server::TestBlockValidityProver,
+        contract::{interface::ContractInterface, test_server::server::TestContract},
+        store_vault_server::test_server::server::TestStoreVaultServer,
+        withdrawal_aggregator::test_server::server::TestWithdrawalAggregator,
     },
 };
 use intmax2_zkp::{
@@ -18,19 +18,20 @@ use intmax2_zkp::{
 };
 use num_bigint::BigUint;
 
-type BC = LiquidityContract;
-type BB = BlockBuilder;
-type S = StoreVaultServer;
-type V = BlockValidityProver;
-type B = LocalBalanceProver;
-type W = WithdrawalAggregatorServer;
+type BC = TestContract;
+type BB = TestBlockBuilder;
+type S = TestStoreVaultServer;
+type V = TestBlockValidityProver;
+type B = TestBalanceProver;
+type W = TestWithdrawalAggregator;
 
 pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
-    let block_builder = BB::new();
-    let store_vault_server = S::new("http://localhost:4000/v1/".to_string())?;
-    let validity_prover = V::new("http://localhost:4000/v1/blockvalidity".to_string())?;
-    let balance_prover = B::new()?;
-    let withdrawal_aggregator = W::new();
+    let base_url = "http://localhost:8080".to_string();
+    let block_builder = BB::new(base_url.clone());
+    let store_vault_server = S::new(base_url.clone());
+    let validity_prover = V::new(base_url.clone());
+    let balance_prover = B::new(base_url.clone());
+    let withdrawal_aggregator = W::new(base_url.clone());
 
     let config = ClientConfig {
         deposit_timeout: 3600,
@@ -39,13 +40,7 @@ pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
         tx_query_interval: 1,
     };
 
-    let client: Client<
-        BlockBuilder,
-        StoreVaultServer,
-        BlockValidityProver,
-        LocalBalanceProver,
-        WithdrawalAggregatorServer,
-    > = Client {
+    let client = Client {
         block_builder,
         store_vault_server,
         validity_prover,
@@ -57,8 +52,14 @@ pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
     Ok(client)
 }
 
+pub fn get_contract() -> BC {
+    let base_url = "http://localhost:8080".to_string();
+    let contract = BC::new(base_url.clone());
+    contract
+}
+
 pub async fn deposit(
-    rpc_url: &str,
+    _rpc_url: &str,
     eth_private_key: H256,
     private_key: H256,
     amount: U256,
@@ -68,7 +69,7 @@ pub async fn deposit(
     let key = h256_to_keyset(private_key);
     let deposit_call = client.prepare_deposit(key, token_index, amount).await?;
 
-    let contract = BC::new(rpc_url.to_string(), 1, Address::zero());
+    let contract = get_contract();
     contract
         .deposit_native_token(
             eth_private_key,
