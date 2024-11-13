@@ -1,0 +1,93 @@
+use async_trait::async_trait;
+use plonky2::{
+    field::goldilocks_field::GoldilocksField,
+    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
+};
+use reqwest::Client;
+use serde_json::json;
+
+use crate::api::withdrawal_aggregator::types::RequestWithdrawalRequest;
+use crate::external_api::common::error::ServerError;
+
+type F = GoldilocksField;
+type C = PoseidonGoldilocksConfig;
+const D: usize = 2;
+
+#[derive(Debug, Clone)]
+pub struct TestWithdrawalAggregator {
+    base_url: String,
+    client: Client,
+}
+
+impl TestWithdrawalAggregator {
+    pub fn new(base_url: String) -> Self {
+        TestWithdrawalAggregator {
+            base_url,
+            client: Client::new(),
+        }
+    }
+
+    async fn post_request<T: serde::Serialize, U: serde::de::DeserializeOwned>(
+        &self,
+        endpoint: &str,
+        body: &T,
+    ) -> Result<U, ServerError> {
+        let url = format!("{}{}", self.base_url, endpoint);
+        let response = self
+            .client
+            .post(&url)
+            .json(body)
+            .send()
+            .await
+            .map_err(|e| ServerError::NetworkError(e.to_string()))?;
+
+        if response.status().is_success() {
+            response
+                .json::<U>()
+                .await
+                .map_err(|e| ServerError::DeserializationError(e.to_string()))
+        } else {
+            Err(ServerError::ApiError(response.status().to_string()))
+        }
+    }
+
+    async fn get_request<T: serde::de::DeserializeOwned>(
+        &self,
+        endpoint: &str,
+    ) -> Result<T, ServerError> {
+        let url = format!("{}{}", self.base_url, endpoint);
+        let response = self
+            .client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| ServerError::NetworkError(e.to_string()))?;
+
+        if response.status().is_success() {
+            response
+                .json::<T>()
+                .await
+                .map_err(|e| ServerError::DeserializationError(e.to_string()))
+        } else {
+            Err(ServerError::ApiError(response.status().to_string()))
+        }
+    }
+}
+
+#[async_trait(?Send)]
+impl WithdrawalAggregatorInterface for TestWithdrawalAggregator {
+    async fn fee(&self) -> Result<Fee, ServerError> {
+        self.get_request::<Fee>("/withdrawal_aggregator/fee").await
+    }
+
+    async fn request_withdrawal(
+        &self,
+        single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
+    ) -> Result<(), ServerError> {
+        let request = RequestWithdrawalRequest {
+            single_withdrawal_proof: single_withdrawal_proof.clone(),
+        };
+        self.post_request::<_, ()>("/withdrawal_aggregator/request_withdrawal", &request)
+            .await
+    }
+}

@@ -66,10 +66,10 @@ impl ContractInterface for TestContract {
         self.post_request::<_, ()>("/contract/deposit-native-token", &request)
             .await
             .map_err(|e| match e {
-                ServerError::ApiError(msg) if msg.contains("Insufficient funds") => {
+                ServerError::ServerError(msg) if msg.contains("Insufficient funds") => {
                     BlockchainError::InsufficientFunds(msg)
                 }
-                ServerError::ApiError(msg) => BlockchainError::TransactionFailed(msg),
+                ServerError::ServerError(msg) => BlockchainError::TransactionFailed(msg),
                 _ => BlockchainError::InternalError(e.to_string()),
             })
     }
