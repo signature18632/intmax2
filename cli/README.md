@@ -64,16 +64,9 @@ intmax2-cli <COMMAND> [OPTIONS]
    ```
 3. Send a transaction:
    ```
-   cargo run -r -- tx --block_builder_url "" --private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c --to 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c --amount 100000000 --token-index 0
+   cargo run -r -- tx --private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c --to 0x2cba397f839b10e62cce4ef49dcea6edac416fa1b97e24405ca3e1a5313dce1b --amount 1 --token-index 0 --block-builder-url "http://localhost:9563"
    ```
 
-
-3. Sync your account:
+4. Check receiver's balance:
    ```
-   intmax2-cli sync --private-key 0x...
-   ```
-
-4. Check your balance:
-   ```
-   intmax2-cli balance --private-key 0x...
-   ```
+   cargo run -r -- balance --private-key 0xc8790b509975a7fa4a0ebf2dfbd75e7eea2b44789a48cac629567bbaf680646

@@ -103,6 +103,7 @@ pub async fn tx(
     let memo = client
         .send_tx_request(block_builder_url, key, vec![transfer])
         .await?;
+    log::info!("Waiting for block builder to build the block");
 
     // sleep for a while to wait for the block builder to build the block
     tokio::time::sleep(std::time::Duration::from_secs(30)).await;
