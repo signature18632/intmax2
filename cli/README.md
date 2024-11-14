@@ -56,8 +56,11 @@ intmax2-cli <COMMAND> [OPTIONS]
 
 1. Make a deposit:
    ```
-   cargo run -r --  deposit --rpc-url "" --eth-private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c --private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c --amount 100000000 --token-index 0
+   cargo run -r --  deposit --rpc-url "" --eth-private-key 0x000000000000000000000000000000000000000000000000000000000000000000000000 --private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c --amount 100000000 --token-index 0
    ```
+
+NOTE: `rpc-url` and `eth-private-key` are dummy.
+
 2. Check your balance:
    ```
    cargo run -r -- balance --private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c
@@ -69,4 +72,4 @@ intmax2-cli <COMMAND> [OPTIONS]
 
 4. Check receiver's balance:
    ```
-   cargo run -r -- balance --private-key 0xc8790b509975a7fa4a0ebf2dfbd75e7eea2b44789a48cac629567bbaf680646
+   cargo run -r -- balance --private-key 0x0c8790b509975a7fa4a0ebf2dfbd75e7eea2b44789a48cac629567bbaf680646
