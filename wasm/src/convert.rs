@@ -63,6 +63,12 @@ pub struct JsUserData {
     pub transfer_lpt: u64,
     pub tx_lpt: u64,
     pub withdrawal_lpt: u64,
+
+    // Uuids of actions that has already been incorporated into the balance proof
+    pub processed_deposit_uuids: Vec<String>,
+    pub processed_transfer_uuids: Vec<String>,
+    pub processed_tx_uuids: Vec<String>,
+    pub processed_withdrawal_uuids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,8 +76,8 @@ pub struct JsUserData {
 #[wasm_bindgen(getter_with_clone)]
 pub struct TokenBalance {
     token_index: u32,
-    amount: String,
-    is_insufficient: bool,
+    amount: String,        // 10 base string
+    is_insufficient: bool, // insufficient balance flag
 }
 
 impl JsUserData {
@@ -104,8 +110,10 @@ impl JsUserData {
             transfer_lpt: user_data.transfer_lpt,
             tx_lpt: user_data.tx_lpt,
             withdrawal_lpt: user_data.withdrawal_lpt,
+            processed_deposit_uuids: user_data.processed_deposit_uuids.clone(),
+            processed_transfer_uuids: user_data.processed_transfer_uuids.clone(),
+            processed_tx_uuids: user_data.processed_tx_uuids.clone(),
+            processed_withdrawal_uuids: user_data.processed_withdrawal_uuids.clone(),
         }
     }
 }
-
-

@@ -99,3 +99,7 @@ pub fn get_client(config: Config) -> Client<BB, S, V, B, W> {
         config: client_config,
     }
 }
+
+pub fn get_mock_contract(contract_server_url: &str) -> BC {
+    BC::new(contract_server_url.to_string())
+}

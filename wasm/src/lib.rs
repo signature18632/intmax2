@@ -1,15 +1,19 @@
-use client::{get_client, Config};
+use client::{get_client, get_mock_contract, Config};
 use convert::{
     bytes32_to_string, parse_address, parse_h256, parse_u256, tx_request_memo_to_value,
     value_to_tx_request_memo, JsUserData,
 };
+use data_types::{JsDepositData, JsTransferData, JsTxData};
 use ethers::types::H256;
-use intmax2_core_sdk::client::client::TxRequestMemo;
+use intmax2_core_sdk::{
+    client::client::TxRequestMemo, external_api::contract::interface::ContractInterface,
+};
 use intmax2_zkp::{
     common::{
         generic_address::GenericAddress, salt::Salt, signature::key_set::KeySet, transfer::Transfer,
     },
-    ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
+    ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
+    mock::data::{deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData},
 };
 use num_bigint::BigUint;
 use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
@@ -151,18 +155,59 @@ pub async fn get_user_data(config: Config, private_key: &str) -> Result<JsUserDa
     Ok(JsUserData::from_user_data(&user_data))
 }
 
+#[wasm_bindgen]
+pub async fn decryt_deposit_data(private_key: &str, data: &[u8]) -> Result<JsDepositData, JsError> {
+    let private_key = parse_h256(private_key)?;
+    let key = h256_to_keyset(private_key);
+    let deposit_data =
+        DepositData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
+    Ok(JsDepositData::from_deposit_data(&deposit_data))
+}
+
+#[wasm_bindgen]
+pub async fn decrypt_transfer_data(
+    private_key: &str,
+    data: &[u8],
+) -> Result<JsTransferData, JsError> {
+    let private_key = parse_h256(private_key)?;
+    let key = h256_to_keyset(private_key);
+    let transfer_data =
+        TransferData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
+    Ok(JsTransferData::from_transfer_data(&transfer_data))
+}
+
+#[wasm_bindgen]
+pub async fn decrypt_tx_data(private_key: &str, data: &[u8]) -> Result<JsTxData, JsError> {
+    let private_key = parse_h256(private_key)?;
+    let key = h256_to_keyset(private_key);
+    let tx_data = TxData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
+    Ok(JsTxData::from_tx_data(&tx_data))
+}
+
 /// Function to mimic the deposit call of the contract. For development purposes only.
 #[wasm_bindgen]
 pub async fn mimic_deposit(
-    _token_index: u32,
-    _pubkey_salt_hash: &str,
-    _amount: &str,
+    contract_server_url: &str,
+    pubkey_salt_hash: &str,
+    amount: &str,
 ) -> Result<(), JsError> {
-    todo!()
+    let pubkey_salt_hash = parse_h256(pubkey_salt_hash)?;
+    let pubkey_salt_hash = h256_to_bytes32(pubkey_salt_hash);
+    let amount = parse_u256(amount)?;
+
+    let contract = get_mock_contract(contract_server_url);
+    contract
+        .deposit_native_token(H256::default(), pubkey_salt_hash, amount)
+        .await?;
+    Ok(())
 }
 
 fn h256_to_u256(h256: H256) -> U256 {
     BigUint::from_bytes_be(h256.as_bytes()).try_into().unwrap()
+}
+
+fn h256_to_bytes32(h256: H256) -> Bytes32 {
+    Bytes32::from_bytes_be(h256.as_bytes())
 }
 
 fn h256_to_keyset(h256: H256) -> KeySet {
