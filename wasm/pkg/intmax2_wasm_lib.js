@@ -183,7 +183,7 @@ function makeMutClosure(arg0, arg1, dtor, f) {
     return real;
 }
 function __wbg_adapter_50(arg0, arg1, arg2) {
-    wasm.closure534_externref_shim(arg0, arg1, arg2);
+    wasm.closure533_externref_shim(arg0, arg1, arg2);
 }
 
 function _assertClass(instance, klass) {
@@ -191,33 +191,6 @@ function _assertClass(instance, klass) {
         throw new Error(`expected instance of ${klass.name}`);
     }
     return instance.ptr;
-}
-
-function getArrayJsValueFromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    const mem = getDataViewMemory0();
-    const result = [];
-    for (let i = ptr; i < ptr + 4 * len; i += 4) {
-        result.push(wasm.__wbindgen_export_2.get(mem.getUint32(i, true)));
-    }
-    wasm.__externref_drop_slice(ptr, len);
-    return result;
-}
-
-function addToExternrefTable0(obj) {
-    const idx = wasm.__externref_table_alloc();
-    wasm.__wbindgen_export_2.set(idx, obj);
-    return idx;
-}
-
-function passArrayJsValueToWasm0(array, malloc) {
-    const ptr = malloc(array.length * 4, 4) >>> 0;
-    const mem = getDataViewMemory0();
-    for (let i = 0; i < array.length; i++) {
-        mem.setUint32(ptr + 4 * i, addToExternrefTable0(array[i]), true);
-    }
-    WASM_VECTOR_LEN = array.length;
-    return ptr;
 }
 /**
  * Generate a new key pair from a provisional private key.
@@ -251,6 +224,21 @@ export function prepare_deposit(config, private_key, amount, token_index) {
     return ret;
 }
 
+function addToExternrefTable0(obj) {
+    const idx = wasm.__externref_table_alloc();
+    wasm.__wbindgen_export_2.set(idx, obj);
+    return idx;
+}
+
+function passArrayJsValueToWasm0(array, malloc) {
+    const ptr = malloc(array.length * 4, 4) >>> 0;
+    const mem = getDataViewMemory0();
+    for (let i = 0; i < array.length; i++) {
+        mem.setUint32(ptr + 4 * i, addToExternrefTable0(array[i]), true);
+    }
+    WASM_VECTOR_LEN = array.length;
+    return ptr;
+}
 /**
  * Function to send a tx request to the block builder. The return value contains information to take a backup.
  * @param {Config} config
@@ -433,6 +421,17 @@ export function mimic_deposit(contract_server_url, pubkey_salt_hash, amount) {
     return ret;
 }
 
+function getArrayJsValueFromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    const mem = getDataViewMemory0();
+    const result = [];
+    for (let i = ptr; i < ptr + 4 * len; i += 4) {
+        result.push(wasm.__wbindgen_export_2.get(mem.getUint32(i, true)));
+    }
+    wasm.__externref_drop_slice(ptr, len);
+    return result;
+}
+
 function notDefined(what) { return () => { throw new Error(`${what} is not defined`); }; }
 
 function handleError(f, args) {
@@ -444,7 +443,7 @@ function handleError(f, args) {
     }
 }
 function __wbg_adapter_260(arg0, arg1, arg2, arg3) {
-    wasm.closure651_externref_shim(arg0, arg1, arg2, arg3);
+    wasm.closure650_externref_shim(arg0, arg1, arg2, arg3);
 }
 
 const __wbindgen_enum_BinaryType = ["blob", "arraybuffer"];
@@ -1682,12 +1681,12 @@ function __wbg_get_imports() {
         const ret = +arg0;
         return ret;
     };
-    imports.wbg.__wbg_jstransfer_unwrap = function(arg0) {
-        const ret = JsTransfer.__unwrap(arg0);
-        return ret;
-    };
     imports.wbg.__wbg_tokenbalance_unwrap = function(arg0) {
         const ret = TokenBalance.__unwrap(arg0);
+        return ret;
+    };
+    imports.wbg.__wbg_jstransfer_unwrap = function(arg0) {
+        const ret = JsTransfer.__unwrap(arg0);
         return ret;
     };
     imports.wbg.__wbindgen_jsval_loose_eq = function(arg0, arg1) {
@@ -2022,8 +2021,8 @@ function __wbg_get_imports() {
         const ret = wasm.memory;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper1879 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 535, __wbg_adapter_50);
+    imports.wbg.__wbindgen_closure_wrapper1871 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 534, __wbg_adapter_50);
         return ret;
     };
     imports.wbg.__wbindgen_init_externref_table = function() {

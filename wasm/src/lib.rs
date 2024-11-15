@@ -11,10 +11,11 @@ use intmax2_zkp::{
 use js_types::{
     common::JsTransfer,
     data::{JsDepositData, JsTransferData, JsTxData, JsUserData},
+    utils::parse_u256,
 };
 use num_bigint::BigUint;
 use utils::{
-    h256_to_bytes32, h256_to_keyset, parse_h256, parse_u256, tx_request_memo_to_value,
+    h256_to_bytes32, parse_h256, str_privkey_to_keyset, tx_request_memo_to_value,
     value_to_block_proposal, value_to_tx_request_memo,
 };
 use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
@@ -23,12 +24,14 @@ pub mod client;
 pub mod js_types;
 pub mod utils;
 
+#[derive(Debug, Clone)]
 #[wasm_bindgen(getter_with_clone)]
 pub struct Key {
     pub privkey: String,
     pub pubkey: String,
 }
 
+#[derive(Debug, Clone)]
 #[wasm_bindgen(getter_with_clone)]
 pub struct TxRequestResult {
     pub tx: JsTx,
@@ -58,11 +61,10 @@ pub async fn prepare_deposit(
     amount: &str,
     token_index: u32,
 ) -> Result<String, JsError> {
-    let private_key = parse_h256(private_key)?;
+    let key = str_privkey_to_keyset(private_key)?;
     let amount = parse_u256(amount)?;
 
     let client = get_client(config);
-    let key: KeySet = h256_to_keyset(private_key);
     let deposit_call = client.prepare_deposit(key, token_index, amount).await?;
     Ok(deposit_call.pubkey_salt_hash.to_string())
 }
@@ -81,14 +83,13 @@ pub async fn send_tx_request(
             NUM_TRANSFERS_IN_TX
         )));
     }
-    let private_key = parse_h256(private_key)?;
+    let key = str_privkey_to_keyset(private_key)?;
     let transfers: Vec<Transfer> = transfers
         .iter()
         .map(|transfer| transfer.to_transfer())
         .collect::<Result<Vec<_>, JsError>>()?;
 
     let client = get_client(config);
-    let key = h256_to_keyset(private_key);
     let memo = client
         .send_tx_request(block_builder_url, key, transfers)
         .await
@@ -110,11 +111,10 @@ pub async fn query_proposal(
     private_key: &str,
     tx: &JsTx,
 ) -> Result<JsValue, JsError> {
-    let private_key = parse_h256(private_key)?;
+    let key = str_privkey_to_keyset(private_key)?;
     let tx = tx.to_tx()?;
 
     let client = get_client(config);
-    let key = h256_to_keyset(private_key);
     let proposal = client.query_proposal(block_builder_url, key, tx).await?;
 
     if proposal.is_none() {
@@ -141,12 +141,11 @@ pub async fn finalize_tx(
     tx_request_memo: &JsValue,
     proposal: &JsValue,
 ) -> Result<String, JsError> {
-    let private_key = parse_h256(private_key)?;
+    let key = str_privkey_to_keyset(private_key)?;
     let tx_request_memo = value_to_tx_request_memo(tx_request_memo)?;
     let proposal = value_to_block_proposal(proposal)?;
 
     let client = get_client(config);
-    let key = h256_to_keyset(private_key);
     let tx_tree_root = client
         .finalize_tx(block_builder_url, key, &tx_request_memo, &proposal)
         .await?;
@@ -156,9 +155,8 @@ pub async fn finalize_tx(
 /// Synchronize the user's balance proof. It may take a long time to generate ZKP.
 #[wasm_bindgen]
 pub async fn sync(config: Config, private_key: &str) -> Result<(), JsError> {
-    let private_key = parse_h256(private_key)?;
+    let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
-    let key = h256_to_keyset(private_key);
     client.sync(key).await?;
     Ok(())
 }
@@ -167,9 +165,8 @@ pub async fn sync(config: Config, private_key: &str) -> Result<(), JsError> {
 /// It may take a long time to generate ZKP.
 #[wasm_bindgen]
 pub async fn sync_withdrawals(config: Config, private_key: &str) -> Result<(), JsError> {
-    let private_key = parse_h256(private_key)?;
+    let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
-    let key = h256_to_keyset(private_key);
     client.sync_withdrawals(key).await?;
     Ok(())
 }
@@ -177,9 +174,8 @@ pub async fn sync_withdrawals(config: Config, private_key: &str) -> Result<(), J
 /// Get the user's data. It is recommended to sync before calling this function.
 #[wasm_bindgen]
 pub async fn get_user_data(config: Config, private_key: &str) -> Result<JsUserData, JsError> {
-    let private_key = parse_h256(private_key)?;
+    let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
-    let key = h256_to_keyset(private_key);
     let user_data = client.get_user_data(key).await?;
     Ok(JsUserData::from_user_data(&user_data))
 }
@@ -190,8 +186,7 @@ pub async fn decrypt_deposit_data(
     private_key: &str,
     data: &[u8],
 ) -> Result<JsDepositData, JsError> {
-    let private_key = parse_h256(private_key)?;
-    let key = h256_to_keyset(private_key);
+    let key = str_privkey_to_keyset(private_key)?;
     let deposit_data =
         DepositData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
     Ok(JsDepositData::from_deposit_data(&deposit_data))
@@ -203,8 +198,7 @@ pub async fn decrypt_transfer_data(
     private_key: &str,
     data: &[u8],
 ) -> Result<JsTransferData, JsError> {
-    let private_key = parse_h256(private_key)?;
-    let key = h256_to_keyset(private_key);
+    let key = str_privkey_to_keyset(private_key)?;
     let transfer_data =
         TransferData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
     Ok(JsTransferData::from_transfer_data(&transfer_data))
@@ -213,8 +207,7 @@ pub async fn decrypt_transfer_data(
 /// Decrypt the tx data.
 #[wasm_bindgen]
 pub async fn decrypt_tx_data(private_key: &str, data: &[u8]) -> Result<JsTxData, JsError> {
-    let private_key = parse_h256(private_key)?;
-    let key = h256_to_keyset(private_key);
+    let key = str_privkey_to_keyset(private_key)?;
     let tx_data = TxData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
     Ok(JsTxData::from_tx_data(&tx_data))
 }
