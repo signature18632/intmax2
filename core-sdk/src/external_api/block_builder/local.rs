@@ -80,6 +80,11 @@ impl LocalBlockBuilder {
             })?;
         Ok(())
     }
+
+    pub fn reset(&self) -> Result<(), ServerError> {
+        self.inner_block_builder.lock().unwrap().reset();
+        Ok(())
+    }
 }
 
 #[async_trait(?Send)]

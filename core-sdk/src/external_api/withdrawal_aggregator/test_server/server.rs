@@ -80,7 +80,7 @@ impl TestWithdrawalAggregator {
 #[async_trait(?Send)]
 impl WithdrawalAggregatorInterface for TestWithdrawalAggregator {
     async fn fee(&self) -> Result<Fee, ServerError> {
-        self.get_request::<Fee>("/withdrawal_aggregator/fee").await
+        self.get_request::<Fee>("/withdrawal-aggregator/fee").await
     }
 
     async fn request_withdrawal(
@@ -90,7 +90,7 @@ impl WithdrawalAggregatorInterface for TestWithdrawalAggregator {
         let request = RequestWithdrawalRequest {
             single_withdrawal_proof: single_withdrawal_proof.clone(),
         };
-        self.post_request::<_, ()>("/withdrawal_aggregator/request_withdrawal", &request)
+        self.post_request::<_, ()>("/withdrawal-aggregator/request-withdrawal", &request)
             .await
     }
 }
