@@ -1,9 +1,8 @@
 use client::{get_client, get_mock_contract, Config};
 use convert::{
     bytes32_to_string, parse_address, parse_h256, parse_u256, tx_request_memo_to_value,
-    value_to_tx_request_memo, JsUserData,
+    value_to_tx_request_memo,
 };
-use data_types::{JsDepositData, JsTransferData, JsTxData};
 use ethers::types::H256;
 use intmax2_core_sdk::{
     client::client::TxRequestMemo, external_api::contract::interface::ContractInterface,
@@ -15,12 +14,13 @@ use intmax2_zkp::{
     ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
     mock::data::{deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData},
 };
+use js_types::data::{JsDepositData, JsTransferData, JsTxData};
 use num_bigint::BigUint;
 use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
 
 pub mod client;
 pub mod convert;
-pub mod data_types;
+pub mod js_types;
 
 #[wasm_bindgen(getter_with_clone)]
 pub struct Key {

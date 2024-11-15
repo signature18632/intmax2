@@ -42,12 +42,6 @@ pub struct Config {
     /// Time to reach the rollup contract after sending a tx request
     /// If this time is exceeded, the tx request will be ignored
     pub tx_timeout: u64,
-
-    /// Maximum number of times to query a block proposal of the block builder
-    pub max_tx_query_times: usize,
-
-    /// Interval between each query of a block proposal of the block builder
-    pub tx_query_interval: u64,
 }
 
 #[wasm_bindgen]
@@ -60,8 +54,6 @@ impl Config {
         withdrawal_aggregator_url: String,
         deposit_timeout: u64,
         tx_timeout: u64,
-        max_query_times: usize,
-        query_interval: u64,
     ) -> Config {
         Config {
             store_vault_server_url,
@@ -70,8 +62,6 @@ impl Config {
             withdrawal_aggregator_url,
             deposit_timeout,
             tx_timeout,
-            max_tx_query_times: max_query_times,
-            tx_query_interval: query_interval,
         }
     }
 }
@@ -86,8 +76,6 @@ pub fn get_client(config: Config) -> Client<BB, S, V, B, W> {
     let client_config = ClientConfig {
         deposit_timeout: config.deposit_timeout,
         tx_timeout: config.tx_timeout,
-        max_tx_query_times: config.max_tx_query_times,
-        tx_query_interval: config.tx_query_interval,
     };
 
     Client {
