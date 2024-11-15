@@ -434,6 +434,7 @@ where
         // update user data
         user_data.block_number = meta.block_number.unwrap();
         user_data.deposit_lpt = meta.timestamp;
+        user_data.processed_deposit_uuids.push(meta.uuid.clone());
 
         // save proof and user data
         self.store_vault_server
@@ -490,6 +491,7 @@ where
         // update user data
         user_data.block_number = meta.block_number.unwrap();
         user_data.transfer_lpt = meta.timestamp;
+        user_data.processed_transfer_uuids.push(meta.uuid.clone());
 
         // save proof and user data
         self.store_vault_server
@@ -525,6 +527,7 @@ where
         // update user data
         user_data.block_number = meta.block_number.unwrap();
         user_data.tx_lpt = meta.timestamp;
+        user_data.processed_tx_uuids.push(meta.uuid.clone());
         tx_data
             .spent_witness
             .update_private_state(&mut user_data.full_private_state)
@@ -591,6 +594,7 @@ where
         // update user data
         user_data.block_number = meta.block_number.unwrap();
         user_data.withdrawal_lpt = meta.timestamp;
+        user_data.processed_withdrawal_uuids.push(meta.uuid.clone());
 
         // save user data
         self.store_vault_server
