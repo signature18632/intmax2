@@ -155,6 +155,7 @@ pub async fn get_user_data(config: Config, private_key: &str) -> Result<JsUserDa
     Ok(JsUserData::from_user_data(&user_data))
 }
 
+/// Decrypt the deposit data.
 #[wasm_bindgen]
 pub async fn decryt_deposit_data(private_key: &str, data: &[u8]) -> Result<JsDepositData, JsError> {
     let private_key = parse_h256(private_key)?;
@@ -164,6 +165,7 @@ pub async fn decryt_deposit_data(private_key: &str, data: &[u8]) -> Result<JsDep
     Ok(JsDepositData::from_deposit_data(&deposit_data))
 }
 
+/// Decrypt the transfer data. This is also used to decrypt the withdrawal data.
 #[wasm_bindgen]
 pub async fn decrypt_transfer_data(
     private_key: &str,
@@ -176,6 +178,7 @@ pub async fn decrypt_transfer_data(
     Ok(JsTransferData::from_transfer_data(&transfer_data))
 }
 
+/// Decrypt the tx data.
 #[wasm_bindgen]
 pub async fn decrypt_tx_data(private_key: &str, data: &[u8]) -> Result<JsTxData, JsError> {
     let private_key = parse_h256(private_key)?;
