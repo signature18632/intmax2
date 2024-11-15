@@ -2267,6 +2267,7 @@ dependencies = [
  "anyhow",
  "ethers",
  "getrandom",
+ "hex",
  "intmax2-core-sdk",
  "intmax2-zkp",
  "num-bigint 0.4.6",

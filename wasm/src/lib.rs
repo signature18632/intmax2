@@ -1,8 +1,4 @@
 use client::{get_client, get_mock_contract, Config};
-use convert::{
-    bytes32_to_string, parse_address, parse_h256, parse_u256, tx_request_memo_to_value,
-    value_to_tx_request_memo,
-};
 use ethers::types::H256;
 use intmax2_core_sdk::{
     client::client::TxRequestMemo, external_api::contract::interface::ContractInterface,
@@ -11,16 +7,23 @@ use intmax2_zkp::{
     common::{
         generic_address::GenericAddress, salt::Salt, signature::key_set::KeySet, transfer::Transfer,
     },
+    constants::NUM_TRANSFERS_IN_TX,
     ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
     mock::data::{deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData},
 };
-use js_types::data::{JsDepositData, JsTransferData, JsTxData};
+use js_types::{
+    common::JsTransfer,
+    data::{JsDepositData, JsTransferData, JsTxData},
+};
 use num_bigint::BigUint;
+use utils::{
+    bytes32_to_string, parse_h256, parse_u256, tx_request_memo_to_value, value_to_tx_request_memo,
+};
 use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
 
 pub mod client;
-pub mod convert;
 pub mod js_types;
+pub mod utils;
 
 #[wasm_bindgen(getter_with_clone)]
 pub struct Key {
@@ -67,37 +70,25 @@ pub async fn send_tx_request(
     config: Config,
     block_builder_url: &str,
     private_key: &str,
-    is_withdrawal: bool,
-    to: &str, // intmax2 public key (is_withdrawal=false) or ethereum address (is_withdrawal=true)
-    amount: &str,
-    token_index: u32,
+    transfers: Vec<JsTransfer>,
 ) -> Result<JsValue, JsError> {
+    if transfers.len() > NUM_TRANSFERS_IN_TX {
+        return Err(JsError::new(&format!(
+            "Number of transfers in a tx must be less than or equal to {}",
+            NUM_TRANSFERS_IN_TX
+        )));
+    }
     let private_key = parse_h256(private_key)?;
-    let amount = parse_u256(amount)?;
-    let recipient = if is_withdrawal {
-        let to = parse_address(to)?;
-        GenericAddress::from_address(to)
-    } else {
-        let to = h256_to_u256(parse_h256(to)?);
-        GenericAddress::from_pubkey(to)
-    };
-
+    let transfers: Vec<Transfer> = transfers
+        .iter()
+        .map(|transfer| transfer.to_transfer())
+        .collect::<Result<Vec<_>, JsError>>()?;
     let client = get_client(config);
     let key = h256_to_keyset(private_key);
-
-    let mut rng = rand::thread_rng();
-    let salt = Salt::rand(&mut rng);
-    let transfer = Transfer {
-        recipient,
-        amount,
-        token_index,
-        salt,
-    };
     let memo = client
-        .send_tx_request(block_builder_url, key, vec![transfer])
+        .send_tx_request(block_builder_url, key, transfers)
         .await
         .map_err(|e| JsError::new(&format!("failed to send tx request {}", e)))?;
-
     Ok(tx_request_memo_to_value(&memo))
 }
 
