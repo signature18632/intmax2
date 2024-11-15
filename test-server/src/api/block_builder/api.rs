@@ -12,6 +12,16 @@ use crate::api::{
 
 use super::types::TxRequestRequest;
 
+#[get("/reset")]
+pub async fn reset(state: Data<State>) -> Result<Json<()>, Error> {
+    state
+        .block_builder
+        .reset()
+        .await
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e))
+        .unwrap();
+}
+
 #[get("/construct-block")]
 pub async fn construct_block(state: Data<State>) -> Result<Json<()>, Error> {
     state

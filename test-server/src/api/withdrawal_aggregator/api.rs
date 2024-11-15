@@ -18,7 +18,7 @@ pub async fn wrap(data: Data<State>) -> Result<Json<()>, Error> {
     Ok(Json(()))
 }
 
-#[post("/request_withdrawal")]
+#[post("/request-withdrawal")]
 pub async fn request_withdrawal(
     data: Data<State>,
     request: Json<RequestWithdrawalRequest>,
@@ -31,7 +31,7 @@ pub async fn request_withdrawal(
 }
 
 pub fn withdrawal_aggregator_scope() -> actix_web::Scope {
-    actix_web::web::scope("/withdrawal_aggregator")
+    actix_web::web::scope("/withdrawal-aggregator")
         .service(wrap)
         .service(request_withdrawal)
 }
