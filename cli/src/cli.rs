@@ -29,7 +29,7 @@ const BASE_URL: &str = "http://localhost:9563";
 
 pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
     let base_url = BASE_URL.to_string();
-    let block_builder = BB::new(base_url.clone());
+    let block_builder = BB::new();
     let store_vault_server = S::new(base_url.clone());
     let validity_prover = V::new(base_url.clone());
     let balance_prover = B::new(base_url.clone());

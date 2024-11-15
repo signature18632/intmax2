@@ -101,22 +101,23 @@ pub async fn send_tx_request(
 /// and then send the signed tx tree root to the block builder.
 /// A backup of the tx is also taken.
 /// You need to call send_tx_request before calling this function.
+/// The return value is the tx tree root.
 #[wasm_bindgen]
 pub async fn finalize_tx(
     config: Config,
     block_builder_url: &str,
     private_key: &str,
     tx_request_memo: &JsValue,
-) -> Result<(), JsError> {
+) -> Result<String, JsError> {
     let private_key = parse_h256(private_key)?;
     let tx_request_memo: TxRequestMemo = value_to_tx_request_memo(tx_request_memo)?;
 
     let client = get_client(config);
     let key = h256_to_keyset(private_key);
-    client
+    let tx_tree_root = client
         .finalize_tx(block_builder_url, key, &tx_request_memo)
         .await?;
-    Ok(())
+    Ok(tx_tree_root.to_string())
 }
 
 /// Synchronize the user's balance proof. It may take a long time to generate ZKP.

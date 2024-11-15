@@ -1,21 +1,23 @@
 use intmax2_core_sdk::{
     client::{client::Client, config::ClientConfig},
     external_api::{
-        balance_prover::server::balance_prover::BalanceProver,
-        block_builder::server::server::BlockBuilder,
-        block_validity_prover::server::block_validity_prover::BlockValidityProver,
-        store_vault_server::server::store_vault_server::StoreVaultServer,
-        withdrawal_aggregator::server::WithdrawalAggregatorServer,
+        balance_prover::test_server::server::TestBalanceProver,
+        block_builder::test_server::server::TestBlockBuilder,
+        block_validity_prover::test_server::server::TestBlockValidityProver,
+        contract::test_server::server::TestContract,
+        store_vault_server::test_server::server::TestStoreVaultServer,
+        withdrawal_aggregator::test_server::server::TestWithdrawalAggregator,
     },
 };
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::wasm_bindgen;
 
-type BB = BlockBuilder;
-type S = StoreVaultServer;
-type V = BlockValidityProver;
-type B = BalanceProver;
-type W = WithdrawalAggregatorServer;
+type BC = TestContract;
+type BB = TestBlockBuilder;
+type S = TestStoreVaultServer;
+type V = TestBlockValidityProver;
+type B = TestBalanceProver;
+type W = TestWithdrawalAggregator;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
