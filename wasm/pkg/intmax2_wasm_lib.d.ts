@@ -21,13 +21,21 @@ export function prepare_deposit(config: Config, private_key: string, amount: str
  * @param {Config} config
  * @param {string} block_builder_url
  * @param {string} private_key
- * @param {boolean} is_withdrawal
- * @param {string} to
- * @param {string} amount
- * @param {number} token_index
+ * @param {(JsTransfer)[]} transfers
+ * @returns {Promise<TxRequestResult>}
+ */
+export function send_tx_request(config: Config, block_builder_url: string, private_key: string, transfers: (JsTransfer)[]): Promise<TxRequestResult>;
+/**
+ * Function to query the block proposal from the block builder.
+ * The return value is the block proposal or null if the proposal is not found.
+ * If got an invalid proposal, it will return an error.
+ * @param {Config} config
+ * @param {string} block_builder_url
+ * @param {string} private_key
+ * @param {JsTx} tx
  * @returns {Promise<any>}
  */
-export function send_tx_request(config: Config, block_builder_url: string, private_key: string, is_withdrawal: boolean, to: string, amount: string, token_index: number): Promise<any>;
+export function query_proposal(config: Config, block_builder_url: string, private_key: string, tx: JsTx): Promise<any>;
 /**
  * In this function, query block proposal from the block builder,
  * and then send the signed tx tree root to the block builder.
@@ -38,9 +46,10 @@ export function send_tx_request(config: Config, block_builder_url: string, priva
  * @param {string} block_builder_url
  * @param {string} private_key
  * @param {any} tx_request_memo
+ * @param {any} proposal
  * @returns {Promise<string>}
  */
-export function finalize_tx(config: Config, block_builder_url: string, private_key: string, tx_request_memo: any): Promise<string>;
+export function finalize_tx(config: Config, block_builder_url: string, private_key: string, tx_request_memo: any, proposal: any): Promise<string>;
 /**
  * Synchronize the user's balance proof. It may take a long time to generate ZKP.
  * @param {Config} config
@@ -64,20 +73,34 @@ export function sync_withdrawals(config: Config, private_key: string): Promise<v
  */
 export function get_user_data(config: Config, private_key: string): Promise<JsUserData>;
 /**
- * @param {Config} config
+ * Decrypt the deposit data.
  * @param {string} private_key
  * @param {Uint8Array} data
  * @returns {Promise<JsDepositData>}
  */
-export function decryt_deposit_data(config: Config, private_key: string, data: Uint8Array): Promise<JsDepositData>;
+export function decrypt_deposit_data(private_key: string, data: Uint8Array): Promise<JsDepositData>;
+/**
+ * Decrypt the transfer data. This is also used to decrypt the withdrawal data.
+ * @param {string} private_key
+ * @param {Uint8Array} data
+ * @returns {Promise<JsTransferData>}
+ */
+export function decrypt_transfer_data(private_key: string, data: Uint8Array): Promise<JsTransferData>;
+/**
+ * Decrypt the tx data.
+ * @param {string} private_key
+ * @param {Uint8Array} data
+ * @returns {Promise<JsTxData>}
+ */
+export function decrypt_tx_data(private_key: string, data: Uint8Array): Promise<JsTxData>;
 /**
  * Function to mimic the deposit call of the contract. For development purposes only.
- * @param {number} _token_index
- * @param {string} _pubkey_salt_hash
- * @param {string} _amount
+ * @param {string} contract_server_url
+ * @param {string} pubkey_salt_hash
+ * @param {string} amount
  * @returns {Promise<void>}
  */
-export function mimic_deposit(_token_index: number, _pubkey_salt_hash: string, _amount: string): Promise<void>;
+export function mimic_deposit(contract_server_url: string, pubkey_salt_hash: string, amount: string): Promise<void>;
 export class Config {
   free(): void;
   /**
@@ -87,11 +110,9 @@ export class Config {
    * @param {string} withdrawal_aggregator_url
    * @param {bigint} deposit_timeout
    * @param {bigint} tx_timeout
-   * @param {number} max_query_times
-   * @param {bigint} query_interval
    * @returns {Config}
    */
-  static new(store_vault_server_url: string, block_validity_prover_url: string, balance_prover_url: string, withdrawal_aggregator_url: string, deposit_timeout: bigint, tx_timeout: bigint, max_query_times: number, query_interval: bigint): Config;
+  static new(store_vault_server_url: string, block_validity_prover_url: string, balance_prover_url: string, withdrawal_aggregator_url: string, deposit_timeout: bigint, tx_timeout: bigint): Config;
 /**
  * URL of the balance prover
  */
@@ -106,17 +127,9 @@ export class Config {
  */
   deposit_timeout: bigint;
 /**
- * Maximum number of times to query a block proposal of the block builder
- */
-  max_tx_query_times: number;
-/**
  * URL of the store vault server
  */
   store_vault_server_url: string;
-/**
- * Interval between each query of a block proposal of the block builder
- */
-  tx_query_interval: bigint;
 /**
  * Time to reach the rollup contract after sending a tx request
  * If this time is exceeded, the tx request will be ignored
@@ -134,11 +147,27 @@ export class JsDepositData {
   pubkey_salt_hash: string;
   token_index: number;
 }
+export class JsGenericAddress {
+  free(): void;
+  /**
+   * @param {boolean} is_pubkey
+   * @param {string} data
+   */
+  constructor(is_pubkey: boolean, data: string);
+  data: string;
+  is_pubkey: boolean;
+}
 export class JsTransfer {
   free(): void;
+  /**
+   * @param {JsGenericAddress} recipient
+   * @param {number} token_index
+   * @param {string} amount
+   * @param {string} salt
+   */
+  constructor(recipient: JsGenericAddress, token_index: number, amount: string, salt: string);
   amount: string;
-  is_withdrawal: boolean;
-  recipient: string;
+  recipient: JsGenericAddress;
   salt: string;
   token_index: number;
 }
@@ -179,26 +208,52 @@ export class Key {
 }
 export class TokenBalance {
   free(): void;
+  amount: string;
+  is_insufficient: boolean;
+  token_index: number;
+}
+export class TxRequestResult {
+  free(): void;
+  memo: any;
+  tx: JsTx;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly __wbg_key_free: (a: number, b: number) => void;
-  readonly __wbg_get_key_privkey: (a: number) => Array;
-  readonly __wbg_set_key_privkey: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_key_pubkey: (a: number) => Array;
-  readonly __wbg_set_key_pubkey: (a: number, b: number, c: number) => void;
-  readonly generate_key_from_provisional: (a: number, b: number) => number;
-  readonly prepare_deposit: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
-  readonly send_tx_request: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => number;
-  readonly finalize_tx: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
-  readonly sync: (a: number, b: number, c: number) => number;
-  readonly sync_withdrawals: (a: number, b: number, c: number) => number;
-  readonly get_user_data: (a: number, b: number, c: number) => number;
-  readonly decryt_deposit_data: (a: number, b: number, c: number, d: number, e: number) => number;
-  readonly mimic_deposit: (a: number, b: number, c: number, d: number, e: number) => number;
+  readonly __wbg_jsgenericaddress_free: (a: number, b: number) => void;
+  readonly __wbg_get_jsgenericaddress_is_pubkey: (a: number) => number;
+  readonly __wbg_set_jsgenericaddress_is_pubkey: (a: number, b: number) => void;
+  readonly jsgenericaddress_new: (a: number, b: number, c: number) => number;
+  readonly __wbg_jstransfer_free: (a: number, b: number) => void;
+  readonly __wbg_get_jstransfer_recipient: (a: number) => number;
+  readonly __wbg_set_jstransfer_recipient: (a: number, b: number) => void;
+  readonly __wbg_get_jstransfer_token_index: (a: number) => number;
+  readonly __wbg_set_jstransfer_token_index: (a: number, b: number) => void;
+  readonly __wbg_get_jstransfer_amount: (a: number) => Array;
+  readonly __wbg_set_jstransfer_amount: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_jstransfer_salt: (a: number) => Array;
+  readonly __wbg_set_jstransfer_salt: (a: number, b: number, c: number) => void;
+  readonly jstransfer_new: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
+  readonly __wbg_get_jstx_nonce: (a: number) => number;
+  readonly __wbg_set_jstx_nonce: (a: number, b: number) => void;
+  readonly __wbg_jsdepositdata_free: (a: number, b: number) => void;
+  readonly __wbg_get_jsdepositdata_deposit_salt: (a: number) => Array;
+  readonly __wbg_set_jsdepositdata_deposit_salt: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_jsdepositdata_pubkey_salt_hash: (a: number) => Array;
+  readonly __wbg_set_jsdepositdata_pubkey_salt_hash: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_jsdepositdata_token_index: (a: number) => number;
+  readonly __wbg_set_jsdepositdata_token_index: (a: number, b: number) => void;
+  readonly __wbg_get_jsdepositdata_amount: (a: number) => Array;
+  readonly __wbg_set_jsdepositdata_amount: (a: number, b: number, c: number) => void;
+  readonly __wbg_jstransferdata_free: (a: number, b: number) => void;
+  readonly __wbg_get_jstransferdata_transfer: (a: number) => number;
+  readonly __wbg_set_jstransferdata_transfer: (a: number, b: number) => void;
+  readonly __wbg_jstxdata_free: (a: number, b: number) => void;
+  readonly __wbg_get_jstxdata_tx: (a: number) => number;
+  readonly __wbg_get_jstxdata_transfers: (a: number) => Array;
+  readonly __wbg_set_jstxdata_transfers: (a: number, b: number, c: number) => void;
   readonly __wbg_jsuserdata_free: (a: number, b: number) => void;
   readonly __wbg_get_jsuserdata_pubkey: (a: number) => Array;
   readonly __wbg_set_jsuserdata_pubkey: (a: number, b: number, c: number) => void;
@@ -225,6 +280,20 @@ export interface InitOutput {
   readonly __wbg_get_jsuserdata_processed_withdrawal_uuids: (a: number) => Array;
   readonly __wbg_set_jsuserdata_processed_withdrawal_uuids: (a: number, b: number, c: number) => void;
   readonly __wbg_tokenbalance_free: (a: number, b: number) => void;
+  readonly __wbg_get_tokenbalance_is_insufficient: (a: number) => number;
+  readonly __wbg_set_tokenbalance_is_insufficient: (a: number, b: number) => void;
+  readonly __wbg_jstx_free: (a: number, b: number) => void;
+  readonly __wbg_get_tokenbalance_token_index: (a: number) => number;
+  readonly __wbg_set_jstx_transfer_tree_root: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_jsgenericaddress_data: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_jstransferdata_sender: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_tokenbalance_amount: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_jstxdata_tx: (a: number, b: number) => void;
+  readonly __wbg_set_tokenbalance_token_index: (a: number, b: number) => void;
+  readonly __wbg_get_jstx_transfer_tree_root: (a: number) => Array;
+  readonly __wbg_get_jsgenericaddress_data: (a: number) => Array;
+  readonly __wbg_get_jstransferdata_sender: (a: number) => Array;
+  readonly __wbg_get_tokenbalance_amount: (a: number) => Array;
   readonly __wbg_config_free: (a: number, b: number) => void;
   readonly __wbg_get_config_store_vault_server_url: (a: number) => Array;
   readonly __wbg_set_config_store_vault_server_url: (a: number, b: number, c: number) => void;
@@ -238,56 +307,39 @@ export interface InitOutput {
   readonly __wbg_set_config_deposit_timeout: (a: number, b: number) => void;
   readonly __wbg_get_config_tx_timeout: (a: number) => number;
   readonly __wbg_set_config_tx_timeout: (a: number, b: number) => void;
-  readonly __wbg_get_config_max_tx_query_times: (a: number) => number;
-  readonly __wbg_set_config_max_tx_query_times: (a: number, b: number) => void;
-  readonly __wbg_get_config_tx_query_interval: (a: number) => number;
-  readonly __wbg_set_config_tx_query_interval: (a: number, b: number) => void;
-  readonly config_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number) => number;
-  readonly __wbg_jsdepositdata_free: (a: number, b: number) => void;
-  readonly __wbg_get_jsdepositdata_deposit_salt: (a: number) => Array;
-  readonly __wbg_set_jsdepositdata_deposit_salt: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_jsdepositdata_pubkey_salt_hash: (a: number) => Array;
-  readonly __wbg_set_jsdepositdata_pubkey_salt_hash: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_jsdepositdata_token_index: (a: number) => number;
-  readonly __wbg_set_jsdepositdata_token_index: (a: number, b: number) => void;
-  readonly __wbg_get_jsdepositdata_amount: (a: number) => Array;
-  readonly __wbg_set_jsdepositdata_amount: (a: number, b: number, c: number) => void;
-  readonly __wbg_jstransfer_free: (a: number, b: number) => void;
-  readonly __wbg_get_jstransfer_is_withdrawal: (a: number) => number;
-  readonly __wbg_set_jstransfer_is_withdrawal: (a: number, b: number) => void;
-  readonly __wbg_jstransferdata_free: (a: number, b: number) => void;
-  readonly __wbg_get_jstransferdata_transfer: (a: number) => number;
-  readonly __wbg_set_jstransferdata_transfer: (a: number, b: number) => void;
-  readonly __wbg_jstx_free: (a: number, b: number) => void;
-  readonly __wbg_get_jstx_nonce: (a: number) => number;
-  readonly __wbg_set_jstx_nonce: (a: number, b: number) => void;
-  readonly __wbg_jstxdata_free: (a: number, b: number) => void;
-  readonly __wbg_get_jstxdata_tx: (a: number) => number;
-  readonly __wbg_set_jstxdata_tx: (a: number, b: number) => void;
-  readonly __wbg_get_jstxdata_transfers: (a: number) => Array;
-  readonly __wbg_set_jstxdata_transfers: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_jstransfer_token_index: (a: number) => number;
-  readonly __wbg_set_jstransfer_recipient: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_jstransfer_amount: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_jstransfer_salt: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_jstransferdata_sender: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_jstx_transfer_tree_root: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_jstransfer_token_index: (a: number, b: number) => void;
-  readonly __wbg_get_jstransfer_recipient: (a: number) => Array;
-  readonly __wbg_get_jstransfer_amount: (a: number) => Array;
-  readonly __wbg_get_jstransfer_salt: (a: number) => Array;
-  readonly __wbg_get_jstransferdata_sender: (a: number) => Array;
-  readonly __wbg_get_jstx_transfer_tree_root: (a: number) => Array;
+  readonly config_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => number;
+  readonly __wbg_key_free: (a: number, b: number) => void;
+  readonly __wbg_get_key_privkey: (a: number) => Array;
+  readonly __wbg_set_key_privkey: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_key_pubkey: (a: number) => Array;
+  readonly __wbg_set_key_pubkey: (a: number, b: number, c: number) => void;
+  readonly __wbg_txrequestresult_free: (a: number, b: number) => void;
+  readonly __wbg_get_txrequestresult_tx: (a: number) => number;
+  readonly __wbg_set_txrequestresult_tx: (a: number, b: number) => void;
+  readonly __wbg_get_txrequestresult_memo: (a: number) => number;
+  readonly __wbg_set_txrequestresult_memo: (a: number, b: number) => void;
+  readonly generate_key_from_provisional: (a: number, b: number) => number;
+  readonly prepare_deposit: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
+  readonly send_tx_request: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+  readonly query_proposal: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
+  readonly finalize_tx: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+  readonly sync: (a: number, b: number, c: number) => number;
+  readonly sync_withdrawals: (a: number, b: number, c: number) => number;
+  readonly get_user_data: (a: number, b: number, c: number) => number;
+  readonly decrypt_deposit_data: (a: number, b: number, c: number, d: number) => number;
+  readonly decrypt_transfer_data: (a: number, b: number, c: number, d: number) => number;
+  readonly decrypt_tx_data: (a: number, b: number, c: number, d: number) => number;
+  readonly mimic_deposit: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_export_2: WebAssembly.Table;
   readonly __wbindgen_export_3: WebAssembly.Table;
-  readonly closure528_externref_shim: (a: number, b: number, c: number) => void;
+  readonly closure534_externref_shim: (a: number, b: number, c: number) => void;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __externref_drop_slice: (a: number, b: number) => void;
   readonly __externref_table_alloc: () => number;
   readonly __wbindgen_exn_store: (a: number) => void;
-  readonly closure645_externref_shim: (a: number, b: number, c: number, d: number) => void;
+  readonly closure651_externref_shim: (a: number, b: number, c: number, d: number) => void;
   readonly __wbindgen_start: () => void;
 }
 

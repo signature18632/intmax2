@@ -186,7 +186,10 @@ pub async fn get_user_data(config: Config, private_key: &str) -> Result<JsUserDa
 
 /// Decrypt the deposit data.
 #[wasm_bindgen]
-pub async fn decryt_deposit_data(private_key: &str, data: &[u8]) -> Result<JsDepositData, JsError> {
+pub async fn decrypt_deposit_data(
+    private_key: &str,
+    data: &[u8],
+) -> Result<JsDepositData, JsError> {
     let private_key = parse_h256(private_key)?;
     let key = h256_to_keyset(private_key);
     let deposit_data =
