@@ -1,8 +1,14 @@
+import init, { add } from '../pkg';
 
 async function main() {
-    console.log('Hello World');
+
+
+  try {
+    const result = await add(5, 3);
+    console.log('Result:', result); 
+  } catch (error) {
+    console.error('Error:', error);
+  }
 }
 
-main().then(() => {
-    console.log('Done');
-});
+main();
