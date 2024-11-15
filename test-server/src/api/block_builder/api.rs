@@ -17,9 +17,8 @@ pub async fn reset(state: Data<State>) -> Result<Json<()>, Error> {
     state
         .block_builder
         .reset()
-        .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))
-        .unwrap();
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+    Ok(Json(()))
 }
 
 #[get("/construct-block")]
