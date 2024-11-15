@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "run": "ts-node src/main.ts"
+    "main": "ts-node src/main.ts"
   },
   "keywords": [],
   "author": "",
