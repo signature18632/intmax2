@@ -1,5 +1,5 @@
 # Build
 
 ```
-wasm-pack build --target web
+wasm-pack build --target nodejs --out-dir js-test/pkg
 ```
