@@ -31,7 +31,7 @@ async fn main() -> std::io::Result<()> {
             .service(store_vault_server_scope())
             .service(withdrawal_aggregator_scope())
     })
-    .bind(format!("127.0.0.1:{}", port))?
+    .bind(format!("0.0.0.0:{}", port))?
     .run()
     .await
 }
