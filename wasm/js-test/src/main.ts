@@ -1,14 +1,18 @@
-import init, { add } from '../pkg';
+import { add } from '../pkg';
 
 async function main() {
-
-
   try {
-    const result = await add(5, 3);
-    console.log('Result:', result); 
-  } catch (error) {
-    console.error('Error:', error);
+    const result = await add(3, 2);
+    console.log(result);
+  } catch (err) {
+    console.log(err);
+    console.log('Error calling add');
   }
 }
 
-main();
+main().then(() => {
+  process.exit(0);
+}).catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
