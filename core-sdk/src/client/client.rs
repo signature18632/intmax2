@@ -1,6 +1,7 @@
 use intmax2_zkp::{
     circuits::balance::{balance_pis::BalancePublicInputs, send::spent_circuit::SpentPublicInputs},
     common::{
+        block_builder::BlockProposal,
         deposit::{get_pubkey_salt_hash, Deposit},
         signature::key_set::KeySet,
         transfer::Transfer,
@@ -229,40 +230,27 @@ where
         Ok(memo)
     }
 
-    /// Get proposal from the block builder, verify it, and send the signature to the block builder
+    pub async fn query_proposal(
+        &self,
+        block_builder_url: &str,
+        key: KeySet,
+        tx: Tx,
+    ) -> Result<Option<BlockProposal>, ClientError> {
+        let proposal = self
+            .block_builder
+            .query_proposal(block_builder_url, key.pubkey, tx)
+            .await?;
+        Ok(proposal)
+    }
+
+    /// Verify the proposal, and send the signature to the block builder
     pub async fn finalize_tx(
         &self,
         block_builder_url: &str,
         key: KeySet,
         memo: &TxRequestMemo,
+        proposal: &BlockProposal,
     ) -> Result<Bytes32, ClientError> {
-        // get proposal
-        let mut proposal = None;
-        let mut tries = 0;
-        while proposal.is_none() {
-            if tries >= self.config.max_tx_query_times {
-                return Err(ClientError::TxQueryTimeOut(
-                    "max tx query times reached".to_string(),
-                ));
-            }
-            proposal = self
-                .block_builder
-                .query_proposal(block_builder_url, key.pubkey, memo.tx)
-                .await?;
-            if proposal.is_none() {
-                log::warn!(
-                    "tx query failed, retrying after {} seconds",
-                    self.config.tx_query_interval
-                );
-                tokio::time::sleep(tokio::time::Duration::from_secs(
-                    self.config.tx_query_interval,
-                ))
-                .await;
-            }
-            tries += 1;
-        }
-        let proposal = proposal.unwrap();
-
         // verify proposal
         proposal
             .verify(memo.tx)
