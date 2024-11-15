@@ -327,7 +327,7 @@ where
             sync_status = self.sync_single(key).await?;
         }
         if sync_status == SyncStatus::Pending {
-            todo!("handle pending actions")
+            return Err(ClientError::InternalError("pending actions".to_string()));
         }
         Ok(())
     }
