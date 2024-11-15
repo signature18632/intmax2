@@ -38,8 +38,6 @@ pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
     let config = ClientConfig {
         deposit_timeout: 3600,
         tx_timeout: 60,
-        max_tx_query_times: 50,
-        tx_query_interval: 1,
     };
 
     let client = Client {
@@ -108,8 +106,25 @@ pub async fn tx(
     // sleep for a while to wait for the block builder to build the block
     tokio::time::sleep(std::time::Duration::from_secs(30)).await;
 
+    let mut tries = 0;
+    let proposal = loop {
+        let proposal = client
+            .query_proposal(block_builder_url, key, memo.tx.clone())
+            .await?;
+        if proposal.is_some() {
+            break proposal.unwrap();
+        }
+        if tries > 5 {
+            anyhow::bail!("Failed to get proposal");
+        }
+        tries += 1;
+        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+    };
+
     log::info!("Finalizing tx");
-    client.finalize_tx(block_builder_url, key, &memo).await?;
+    client
+        .finalize_tx(block_builder_url, key, &memo, &proposal)
+        .await?;
 
     Ok(())
 }
