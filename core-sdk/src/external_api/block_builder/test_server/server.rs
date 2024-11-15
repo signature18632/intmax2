@@ -15,50 +15,27 @@ use crate::external_api::common::error::ServerError;
 
 #[derive(Debug, Clone)]
 pub struct TestBlockBuilder {
-    base_url: String,
     client: Client,
 }
 
 impl TestBlockBuilder {
-    pub fn new(base_url: String) -> Self {
+    pub fn new() -> Self {
         TestBlockBuilder {
-            base_url,
             client: Client::new(),
         }
     }
 
     async fn post_request<T: serde::Serialize, U: serde::de::DeserializeOwned>(
         &self,
+        base_url: &str,
         endpoint: &str,
         body: &T,
     ) -> Result<U, ServerError> {
-        let url = format!("{}{}", self.base_url, endpoint);
+        let url = format!("{}{}", base_url, endpoint);
         let response = self
             .client
             .post(&url)
             .json(body)
-            .send()
-            .await
-            .map_err(|e| ServerError::NetworkError(e.to_string()))?;
-
-        if response.status().is_success() {
-            response
-                .json::<U>()
-                .await
-                .map_err(|e| ServerError::DeserializationError(e.to_string()))
-        } else {
-            Err(ServerError::ServerError(response.status().to_string()))
-        }
-    }
-
-    async fn get_request<U: serde::de::DeserializeOwned>(
-        &self,
-        endpoint: &str,
-    ) -> Result<U, ServerError> {
-        let url = format!("{}{}", self.base_url, endpoint);
-        let response = self
-            .client
-            .get(&url)
             .send()
             .await
             .map_err(|e| ServerError::NetworkError(e.to_string()))?;
@@ -78,32 +55,32 @@ impl TestBlockBuilder {
 impl BlockBuilderInterface for TestBlockBuilder {
     async fn send_tx_request(
         &self,
-        _block_builder_url: &str,
+        block_builder_url: &str,
         pubkey: U256,
         tx: Tx,
         _fee_proof: Option<FeeProof>,
     ) -> Result<(), ServerError> {
         let request = TxRequestRequest { pubkey, tx };
-        self.post_request::<_, ()>("/block-builder/tx-request", &request)
+        self.post_request::<_, ()>(block_builder_url, "/block-builder/tx-request", &request)
             .await
     }
 
     async fn query_proposal(
         &self,
-        _block_builder_url: &str,
+        block_builder_url: &str,
         pubkey: U256,
         tx: Tx,
     ) -> Result<Option<BlockProposal>, ServerError> {
         let request = QueryProposalRequest { pubkey, tx };
         let response: QueryProposalResponse = self
-            .post_request("/block-builder/query-proposal", &request)
+            .post_request(block_builder_url, "/block-builder/query-proposal", &request)
             .await?;
         Ok(response.block_proposal)
     }
 
     async fn post_signature(
         &self,
-        _block_builder_url: &str,
+        block_builder_url: &str,
         pubkey: U256,
         tx: Tx,
         signature: FlatG2,
@@ -113,23 +90,7 @@ impl BlockBuilderInterface for TestBlockBuilder {
             tx,
             signature,
         };
-        self.post_request::<_, ()>("/block-builder/post-signature", &request)
-            .await
-    }
-}
-
-impl TestBlockBuilder {
-    pub async fn construct_block(&self) -> Result<(), ServerError> {
-        self.get_request::<()>("/block-builder/construct-block")
-            .await
-    }
-
-    pub async fn post_block(&self) -> Result<(), ServerError> {
-        self.get_request::<()>("/block-builder/post-block").await
-    }
-
-    pub async fn post_empty_block(&self) -> Result<(), ServerError> {
-        self.get_request::<()>("/block-builder/post-empty-block")
+        self.post_request::<_, ()>(block_builder_url, "/block-builder/post-signature", &request)
             .await
     }
 }

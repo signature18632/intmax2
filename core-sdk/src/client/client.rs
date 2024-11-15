@@ -235,7 +235,7 @@ where
         block_builder_url: &str,
         key: KeySet,
         memo: &TxRequestMemo,
-    ) -> Result<(), ClientError> {
+    ) -> Result<Bytes32, ClientError> {
         // get proposal
         let mut proposal = None;
         let mut tries = 0;
@@ -328,7 +328,8 @@ where
                 signature.signature,
             )
             .await?;
-        Ok(())
+
+        Ok(proposal.tx_tree_root)
     }
 
     /// Sync the client's balance proof with the latest block
