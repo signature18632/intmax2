@@ -131,7 +131,7 @@ pub async fn balance(private_key: H256) -> anyhow::Result<()> {
     for (i, leaf) in balances.iter() {
         println!("Token {}: {}", i, leaf.amount);
     }
-    println!("end");
+    println!("-----------------------------------------------");
     Ok(())
 }
 
