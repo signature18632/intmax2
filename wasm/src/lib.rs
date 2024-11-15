@@ -1,23 +1,21 @@
+use crate::js_types::common::JsTx;
 use client::{get_client, get_mock_contract, Config};
 use ethers::types::H256;
-use intmax2_core_sdk::{
-    client::client::TxRequestMemo, external_api::contract::interface::ContractInterface,
-};
+use intmax2_core_sdk::external_api::contract::interface::ContractInterface;
 use intmax2_zkp::{
-    common::{
-        generic_address::GenericAddress, salt::Salt, signature::key_set::KeySet, transfer::Transfer,
-    },
+    common::{signature::key_set::KeySet, transfer::Transfer},
     constants::NUM_TRANSFERS_IN_TX,
-    ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
+    ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
     mock::data::{deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData},
 };
 use js_types::{
     common::JsTransfer,
-    data::{JsDepositData, JsTransferData, JsTxData},
+    data::{JsDepositData, JsTransferData, JsTxData, JsUserData},
 };
 use num_bigint::BigUint;
 use utils::{
-    bytes32_to_string, parse_h256, parse_u256, tx_request_memo_to_value, value_to_tx_request_memo,
+    h256_to_bytes32, h256_to_keyset, parse_h256, parse_u256, tx_request_memo_to_value,
+    value_to_block_proposal, value_to_tx_request_memo,
 };
 use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
 
@@ -29,6 +27,12 @@ pub mod utils;
 pub struct Key {
     pub privkey: String,
     pub pubkey: String,
+}
+
+#[wasm_bindgen(getter_with_clone)]
+pub struct TxRequestResult {
+    pub tx: JsTx,
+    pub memo: JsValue,
 }
 
 /// Generate a new key pair from a provisional private key.
@@ -60,8 +64,7 @@ pub async fn prepare_deposit(
     let client = get_client(config);
     let key: KeySet = h256_to_keyset(private_key);
     let deposit_call = client.prepare_deposit(key, token_index, amount).await?;
-    let pubkey_salt_hash = bytes32_to_string(deposit_call.pubkey_salt_hash);
-    Ok(pubkey_salt_hash)
+    Ok(deposit_call.pubkey_salt_hash.to_string())
 }
 
 /// Function to send a tx request to the block builder. The return value contains information to take a backup.
@@ -71,7 +74,7 @@ pub async fn send_tx_request(
     block_builder_url: &str,
     private_key: &str,
     transfers: Vec<JsTransfer>,
-) -> Result<JsValue, JsError> {
+) -> Result<TxRequestResult, JsError> {
     if transfers.len() > NUM_TRANSFERS_IN_TX {
         return Err(JsError::new(&format!(
             "Number of transfers in a tx must be less than or equal to {}",
@@ -83,13 +86,46 @@ pub async fn send_tx_request(
         .iter()
         .map(|transfer| transfer.to_transfer())
         .collect::<Result<Vec<_>, JsError>>()?;
+
     let client = get_client(config);
     let key = h256_to_keyset(private_key);
     let memo = client
         .send_tx_request(block_builder_url, key, transfers)
         .await
         .map_err(|e| JsError::new(&format!("failed to send tx request {}", e)))?;
-    Ok(tx_request_memo_to_value(&memo))
+
+    Ok(TxRequestResult {
+        tx: JsTx::from_tx(&memo.tx),
+        memo: tx_request_memo_to_value(&memo),
+    })
+}
+
+/// Function to query the block proposal from the block builder.
+/// The return value is the block proposal or null if the proposal is not found.
+/// If got an invalid proposal, it will return an error.
+#[wasm_bindgen]
+pub async fn query_proposal(
+    config: Config,
+    block_builder_url: &str,
+    private_key: &str,
+    tx: &JsTx,
+) -> Result<JsValue, JsError> {
+    let private_key = parse_h256(private_key)?;
+    let tx = tx.to_tx()?;
+
+    let client = get_client(config);
+    let key = h256_to_keyset(private_key);
+    let proposal = client.query_proposal(block_builder_url, key, tx).await?;
+
+    if proposal.is_none() {
+        return Ok(JsValue::NULL);
+    } else {
+        let proposal = proposal.unwrap();
+        if proposal.verify(tx).is_err() {
+            return Err(JsError::new("Got invalid proposal"));
+        }
+        return Ok(utils::block_proposal_to_value(&proposal));
+    }
 }
 
 /// In this function, query block proposal from the block builder,
@@ -103,14 +139,16 @@ pub async fn finalize_tx(
     block_builder_url: &str,
     private_key: &str,
     tx_request_memo: &JsValue,
+    proposal: &JsValue,
 ) -> Result<String, JsError> {
     let private_key = parse_h256(private_key)?;
-    let tx_request_memo: TxRequestMemo = value_to_tx_request_memo(tx_request_memo)?;
+    let tx_request_memo = value_to_tx_request_memo(tx_request_memo)?;
+    let proposal = value_to_block_proposal(proposal)?;
 
     let client = get_client(config);
     let key = h256_to_keyset(private_key);
     let tx_tree_root = client
-        .finalize_tx(block_builder_url, key, &tx_request_memo)
+        .finalize_tx(block_builder_url, key, &tx_request_memo, &proposal)
         .await?;
     Ok(tx_tree_root.to_string())
 }
@@ -194,16 +232,4 @@ pub async fn mimic_deposit(
         .deposit_native_token(H256::default(), pubkey_salt_hash, amount)
         .await?;
     Ok(())
-}
-
-fn h256_to_u256(h256: H256) -> U256 {
-    BigUint::from_bytes_be(h256.as_bytes()).try_into().unwrap()
-}
-
-fn h256_to_bytes32(h256: H256) -> Bytes32 {
-    Bytes32::from_bytes_be(h256.as_bytes())
-}
-
-fn h256_to_keyset(h256: H256) -> KeySet {
-    KeySet::new(BigUint::from_bytes_be(h256.as_bytes()).into())
 }

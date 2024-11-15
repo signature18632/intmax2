@@ -3,6 +3,7 @@ use std::str::FromStr;
 use intmax2_zkp::{
     common::salt::Salt,
     ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
+    utils::poseidon_hash_out::PoseidonHashOut,
 };
 use num_bigint::BigUint;
 use wasm_bindgen::JsError;
@@ -15,7 +16,12 @@ pub fn parse_u256(input: &str) -> Result<U256, JsError> {
     Ok(input)
 }
 
-pub fn parse_salt(input: &str) -> Result<Salt, JsError> {
+pub fn parse_poseidon_hashout(input: &str) -> Result<PoseidonHashOut, JsError> {
     let input = Bytes32::from_hex(input).map_err(|_| JsError::new("Failed to parse as Bytes32"))?;
-    Ok(Salt(input.reduce_to_hash_out()))
+    Ok(input.reduce_to_hash_out())
+}
+
+pub fn parse_salt(input: &str) -> Result<Salt, JsError> {
+    let input = parse_poseidon_hashout(input)?;
+    Ok(Salt(input))
 }

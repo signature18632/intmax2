@@ -97,9 +97,9 @@ pub struct JsUserData {
 #[derive(Debug, Clone)]
 #[wasm_bindgen(getter_with_clone)]
 pub struct TokenBalance {
-    token_index: u32,
-    amount: String,        // 10 base string
-    is_insufficient: bool, // insufficient balance flag
+    pub token_index: u32,
+    pub amount: String,        // 10 base string
+    pub is_insufficient: bool, // insufficient balance flag
 }
 
 impl JsUserData {
