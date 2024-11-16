@@ -54,6 +54,8 @@ intmax2-cli <COMMAND> [OPTIONS]
 
 ## Examples
 
+Please set `BASE_URL` environment variable.
+
 1. Make a deposit:
    ```
    cargo run -r --  deposit --rpc-url "" --eth-private-key 0x0000000000000000000000000000000000000000000000000000000000000000 --private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c --amount 100000000 --token-index 0
@@ -61,15 +63,38 @@ intmax2-cli <COMMAND> [OPTIONS]
 
 NOTE: `rpc-url` and `eth-private-key` are dummy.
 
+1.1. Post an empty block (This is not used in production):
+   ```
+   cargo run -r -- post-empty-block
+   ```
+1.2. Sync validity proof  (This is not used in production):
+   ```
+   cargo run -r -- sync-validity-proof
+   ```
+
 2. Check your balance:
    ```
    cargo run -r -- balance --private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c
    ```
 3. Send a transaction:
    ```
-   cargo run -r -- tx --private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c --to 0x2cba397f839b10e62cce4ef49dcea6edac416fa1b97e24405ca3e1a5313dce1b --amount 1 --token-index 0 --block-builder-url "http://localhost:9563"
+   cargo run -r -- tx --private-key 0x186aab4d91978e03f84890147e0e4bc114c8188588deb2c58bd877f5911ad78c --to 0x2cba397f839b10e62cce4ef49dcea6edac416fa1b97e24405ca3e1a5313dce1b --amount 1 --token-index 0 --block-builder-url $BASE_URL
+   ```
+
+3.1. Construct a block **during** the tx command (This is not used in production):
+   ```
+   cargo run -r -- construct-block
+   ```
+3.2. Post a block **after** the tx command (This is not used in production):
+   ```
+   cargo run -r -- post-block
+   ```
+3.3. Sync validity proof  (This is not used in production):
+   ```
+   cargo run -r -- sync-validity-proof
    ```
 
 4. Check receiver's balance:
    ```
    cargo run -r -- balance --private-key 0x0c8790b509975a7fa4a0ebf2dfbd75e7eea2b44789a48cac629567bbaf680646
+   ```
