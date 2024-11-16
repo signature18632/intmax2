@@ -19,17 +19,21 @@ async function main() {
   const amount = "123";
   const pubkeySaltHash = await prepare_deposit(config, privateKey, amount, tokenIndex);
   console.log("pubkeySaltHash: ", pubkeySaltHash);
-  await mimic_deposit(baseUrl, publicKey, amount);
+  await mimic_deposit(baseUrl, pubkeySaltHash, amount);
 
   // !The following two functions are not used in production.
   await postEmptyBlock(baseUrl); // block builder post empty block
   await syncValidityProof(baseUrl); // block validity prover sync validity proof
-  console.log("Deposit successfuly synced");
+  console.log("validity proof synced");
 
   await new Promise((resolve) => setTimeout(resolve, 5000));
 
   // sync the account's balance proof 
   await sync(config, privateKey);
+
+  console.log("Sync successful");
+
+  await new Promise((resolve) => setTimeout(resolve, 5000));
 
   // get the account's balance
   const userData = await get_user_data(config, privateKey);
