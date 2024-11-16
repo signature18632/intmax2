@@ -92,6 +92,7 @@ pub async fn post_signature(
 
 pub fn block_builder_scope() -> actix_web::Scope {
     actix_web::web::scope("/block-builder")
+        .service(reset)
         .service(construct_block)
         .service(post_block)
         .service(post_empty_block)
