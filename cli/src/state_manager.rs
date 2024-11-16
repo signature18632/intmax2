@@ -4,26 +4,6 @@ async fn send_get_request(url: &str) -> anyhow::Result<reqwest::Response> {
     Ok(response)
 }
 
-// export async function syncValidityProof(baseUrl: string,): Promise<void> {
-//     const url = `${baseUrl}/block-validity-prover/sync`;
-//     await callServer(url);
-// }
-
-// export async function postEmptyBlock(baseUrl: string,): Promise<void> {
-//     const url = `${baseUrl}/block-builder/post-empty-block`;
-//     await callServer(url);
-// }
-
-// export async function constructBlock(baseUrl: string,): Promise<void> {
-//     const url = `${baseUrl}/block-builder/construct-block`;
-//     await callServer(url);
-// }
-
-// export async function postBlock(baseUrl: string,): Promise<void> {
-//     const url = `${baseUrl}/block-builder/post-block`;
-//     await callServer(url);
-// }
-
 pub async fn sync_validity_proof(base_url: &str) -> anyhow::Result<()> {
     let url = format!("{}/block-validity-prover/sync", base_url);
     send_get_request(&url).await?;
