@@ -1,5 +1,5 @@
-import { Config, generate_key_from_provisional, get_user_data, mimic_deposit, prepare_deposit, send_tx_request, sync, } from '../pkg';
-import { postEmptyBlock, syncValidityProof } from './state-manager';
+import { Config, finalize_tx, generate_key_from_provisional, get_user_data, JsGenericAddress, JsTransfer, mimic_deposit, prepare_deposit, query_proposal, send_tx_request, sync, } from '../pkg';
+import { constructBlock, postBlock, postEmptyBlock, syncValidityProof } from './state-manager';
 import { generateRandom32Bytes } from './utils';
 
 async function main() {
@@ -36,20 +36,47 @@ async function main() {
   await new Promise((resolve) => setTimeout(resolve, 5000));
 
   // get the account's balance
-  const userData = await get_user_data(config, privateKey);
-  const balances = userData.balances;
+  let userData = await get_user_data(config, privateKey);
+  let balances = userData.balances;
   for (let i = 0; i < balances.length; i++) {
     const balance = balances[i];
     console.log(`Token ${balance.token_index}: ${balance.amount}`);
   }
 
-  // // send a tx 
-  // const genericAddress = new JsGenericAddress(true, publicKey);
-  // const salt = generateRandom32Bytes();
-  // const transfer = new JsTransfer(genericAddress, 0, "1", salt);
-  // const result = await send_tx_request(config, baseUrl, privateKey, [transfer]);
-  // const tx = result.tx;
-  // console.log("transfer tree root", tx.transfer_tree_root);
+  // send a tx 
+  const genericAddress = new JsGenericAddress(true, publicKey);
+  const salt = generateRandom32Bytes();
+  const transfer = new JsTransfer(genericAddress, 0, "1", salt);
+  const result = await send_tx_request(config, baseUrl, privateKey, [transfer]);
+  const tx = result.tx;
+  console.log("transfer tree root", tx.transfer_tree_root);
+
+  //! The following function is not used in production.
+  await constructBlock(baseUrl); // block builder construct block
+
+  const proposal = await query_proposal(config, baseUrl, privateKey, tx);
+  if (proposal === null) {
+    throw new Error("No proposal found");
+  }
+  const tx_memo = result.memo;
+  await finalize_tx(config, baseUrl, privateKey, tx_memo, proposal);
+
+  // !The following function is not used in production.
+  await postBlock(baseUrl); // block builder post block
+  console.log("Tx successful");
+  
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+
+  // sync the account's balance proof
+  await sync(config, privateKey);
+  console.log("Sync successful");
+
+  userData = await get_user_data(config, privateKey);
+  balances = userData.balances;
+  for (let i = 0; i < balances.length; i++) {
+    const balance = balances[i];
+    console.log(`Token ${balance.token_index}: ${balance.amount}`);
+  }
 }
 
 main().then(() => {
