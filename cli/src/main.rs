@@ -1,5 +1,5 @@
 use clap::{Parser, Subcommand};
-use cli::{balance, deposit, sync, tx};
+use cli::{balance, deposit, get_base_url, sync, tx};
 use ethers::types::H256;
 use intmax2_core_sdk::utils::init_logger;
 use intmax2_zkp::{
@@ -9,6 +9,7 @@ use intmax2_zkp::{
 use num_bigint::BigUint;
 
 pub mod cli;
+pub mod state_manager;
 
 #[derive(Parser)]
 #[clap(name = "intmax2_cli")]
@@ -52,6 +53,10 @@ enum Commands {
         #[clap(long)]
         private_key: H256,
     },
+    SyncValidityProof,
+    PostEmptyBlock,
+    ConstructBlock,
+    PostBlock,
     GenerateKey,
 }
 
@@ -97,6 +102,18 @@ async fn main() -> anyhow::Result<()> {
             let private_key: U256 = private_key.try_into().unwrap();
             println!("Private key: {}", private_key.to_hex());
             println!("Public key: {}", key.pubkey.to_hex());
+        }
+        Commands::SyncValidityProof => {
+            state_manager::sync_validity_proof(&get_base_url()).await?;
+        }
+        Commands::PostEmptyBlock => {
+            state_manager::post_empty_block(&get_base_url()).await?;
+        }
+        Commands::ConstructBlock => {
+            state_manager::construct_block(&get_base_url()).await?;
+        }
+        Commands::PostBlock => {
+            state_manager::post_block(&get_base_url()).await?;
         }
     }
 

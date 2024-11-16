@@ -1,3 +1,5 @@
+use std::env;
+
 use ethers::types::H256;
 use intmax2_core_sdk::{
     client::{client::Client, config::ClientConfig},
@@ -25,10 +27,12 @@ type V = TestBlockValidityProver;
 type B = TestBalanceProver;
 type W = TestWithdrawalAggregator;
 
-const BASE_URL: &str = "http://localhost:9563";
+pub fn get_base_url() -> String {
+    env::var("BASE_URL").expect("BASE_URL must be set")
+}
 
 pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
-    let base_url = BASE_URL.to_string();
+    let base_url = get_base_url();
     let block_builder = BB::new();
     let store_vault_server = S::new(base_url.clone());
     let validity_prover = V::new(base_url.clone());
@@ -53,7 +57,7 @@ pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
 }
 
 pub fn get_contract() -> BC {
-    let base_url = BASE_URL.to_string();
+    let base_url = get_base_url();
     let contract = BC::new(base_url.clone());
     contract
 }
