@@ -66,12 +66,12 @@ impl Config {
     }
 }
 
-pub fn get_client(config: Config) -> Client<BB, S, V, B, W> {
+pub fn get_client(config: &Config) -> Client<BB, S, V, B, W> {
     let block_builder = BB::new();
-    let store_vault_server = S::new(config.store_vault_server_url);
-    let validity_prover = V::new(config.block_validity_prover_url);
-    let balance_prover = B::new(config.balance_prover_url);
-    let withdrawal_aggregator = W::new(config.withdrawal_aggregator_url);
+    let store_vault_server = S::new(config.store_vault_server_url.clone());
+    let validity_prover = V::new(config.block_validity_prover_url.clone());
+    let balance_prover = B::new(config.balance_prover_url.clone());
+    let withdrawal_aggregator = W::new(config.withdrawal_aggregator_url.clone());
 
     let client_config = ClientConfig {
         deposit_timeout: config.deposit_timeout,

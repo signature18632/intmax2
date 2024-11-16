@@ -56,7 +56,7 @@ pub async fn generate_key_from_provisional(provisional_private_key: &str) -> Res
 /// You can also get the pubkey_salt_hash from the return value.
 #[wasm_bindgen]
 pub async fn prepare_deposit(
-    config: Config,
+    config: &Config,
     private_key: &str,
     amount: &str,
     token_index: u32,
@@ -72,7 +72,7 @@ pub async fn prepare_deposit(
 /// Function to send a tx request to the block builder. The return value contains information to take a backup.
 #[wasm_bindgen]
 pub async fn send_tx_request(
-    config: Config,
+    config: &Config,
     block_builder_url: &str,
     private_key: &str,
     transfers: Vec<JsTransfer>,
@@ -106,7 +106,7 @@ pub async fn send_tx_request(
 /// If got an invalid proposal, it will return an error.
 #[wasm_bindgen]
 pub async fn query_proposal(
-    config: Config,
+    config: &Config,
     block_builder_url: &str,
     private_key: &str,
     tx: &JsTx,
@@ -135,7 +135,7 @@ pub async fn query_proposal(
 /// The return value is the tx tree root.
 #[wasm_bindgen]
 pub async fn finalize_tx(
-    config: Config,
+    config: &Config,
     block_builder_url: &str,
     private_key: &str,
     tx_request_memo: &JsValue,
@@ -154,7 +154,7 @@ pub async fn finalize_tx(
 
 /// Synchronize the user's balance proof. It may take a long time to generate ZKP.
 #[wasm_bindgen]
-pub async fn sync(config: Config, private_key: &str) -> Result<(), JsError> {
+pub async fn sync(config: &Config, private_key: &str) -> Result<(), JsError> {
     let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
     client.sync_single(key).await?;
@@ -164,7 +164,7 @@ pub async fn sync(config: Config, private_key: &str) -> Result<(), JsError> {
 /// Synchronize the user's withdrawal proof, and send request to the withdrawal aggregator.
 /// It may take a long time to generate ZKP.
 #[wasm_bindgen]
-pub async fn sync_withdrawals(config: Config, private_key: &str) -> Result<(), JsError> {
+pub async fn sync_withdrawals(config: &Config, private_key: &str) -> Result<(), JsError> {
     let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
     client.sync_withdrawals(key).await?;
@@ -173,7 +173,7 @@ pub async fn sync_withdrawals(config: Config, private_key: &str) -> Result<(), J
 
 /// Get the user's data. It is recommended to sync before calling this function.
 #[wasm_bindgen]
-pub async fn get_user_data(config: Config, private_key: &str) -> Result<JsUserData, JsError> {
+pub async fn get_user_data(config: &Config, private_key: &str) -> Result<JsUserData, JsError> {
     let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
     let user_data = client.get_user_data(key).await?;
