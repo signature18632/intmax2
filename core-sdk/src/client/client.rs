@@ -179,7 +179,7 @@ where
         let balances = user_data.balances();
         for transfer in &transfers {
             let balance = balances
-                .get(&(transfer.token_index as usize))
+                .get(&(transfer.token_index as u64))
                 .cloned()
                 .unwrap_or_default();
             if balance.is_insufficient {
@@ -281,14 +281,14 @@ where
             transfer_tree.push(transfer.clone());
         }
         for (i, transfer) in memo.transfers.iter().enumerate() {
-            let transfer_merkle_proof = transfer_tree.prove(i);
+            let transfer_merkle_proof = transfer_tree.prove(i as u64);
             let transfer_data = TransferData {
                 sender: key.pubkey,
                 prev_block_number: memo.prev_block_number,
                 prev_private_commitment: memo.prev_private_commitment,
                 tx_data: common_tx_data.clone(),
                 transfer: transfer.clone(),
-                transfer_index: i,
+                transfer_index: i as u32,
                 transfer_merkle_proof,
             };
             if transfer.recipient.is_pubkey {

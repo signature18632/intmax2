@@ -54,7 +54,7 @@ impl ConvertedUpdateWitness {
 pub struct ConvertedMembershipProof {
     pub is_included: bool,
     pub leaf_proof: IndexedMerkleProof,
-    pub leaf_index: usize,
+    pub leaf_index: u64,
     pub leaf: ConvertedIndexedMerkleLeaf,
 }
 
@@ -72,7 +72,7 @@ impl From<ConvertedMembershipProof> for AccountMembershipProof {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConvertedIndexedMerkleLeaf {
-    pub next_index: usize,
+    pub next_index: u64,
     pub key: Bytes32,
     pub next_key: Bytes32,
     pub value: u64,

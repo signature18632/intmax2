@@ -70,7 +70,7 @@ pub async fn process_deposit<V: BlockValidityInterface, B: BalanceProverInterfac
         .await?;
     let deposit_witness = DepositWitness {
         deposit_salt: deposit_data.deposit_salt,
-        deposit_index: deposit_index as usize,
+        deposit_index: deposit_index as u32,
         deposit: deposit_data.deposit.clone(),
         deposit_merkle_proof,
     };

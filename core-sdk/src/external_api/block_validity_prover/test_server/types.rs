@@ -31,7 +31,7 @@ pub struct GetAccountIdQuery {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAccountIdResponse {
-    pub account_id: Option<usize>,
+    pub account_id: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,7 +58,7 @@ pub struct GetDepositIndexAndBlockNumberQuery {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetDepositIndexAndBlockNumberResponse {
-    pub deposit_index_and_block_number: Option<(usize, u32)>,
+    pub deposit_index_and_block_number: Option<(u32, u32)>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -114,7 +114,7 @@ pub struct GetBlockMerkleProofResponse {
 #[serde(rename_all = "camelCase")]
 pub struct GetDepositMerkleProofQuery {
     pub block_number: u32,
-    pub deposit_index: usize,
+    pub deposit_index: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

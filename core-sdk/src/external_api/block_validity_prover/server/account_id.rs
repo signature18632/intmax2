@@ -13,13 +13,13 @@ use crate::external_api::{
 #[serde(rename_all = "camelCase")]
 struct GetAccountIdResponse {
     is_registered: bool,
-    account_id: usize,
+    account_id: u64,
 }
 
 pub async fn get_account_id(
     server_base_url: &str,
     pubkey: Bytes32,
-) -> Result<Option<usize>, ServerError> {
+) -> Result<Option<u64>, ServerError> {
     let url = format!("{}/account/{}", server_base_url, pubkey);
     let response = with_retry(|| async { reqwest_wasm::get(&url).await })
         .await

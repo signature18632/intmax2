@@ -23,7 +23,7 @@ pub trait BlockValidityInterface {
     // Returns the latest block number which the block validity prover synced to.
     async fn block_number(&self) -> Result<u32, ServerError>;
 
-    async fn get_account_id(&self, pubkey: U256) -> Result<Option<usize>, ServerError>;
+    async fn get_account_id(&self, pubkey: U256) -> Result<Option<u64>, ServerError>;
 
     async fn get_update_witness(
         &self,
@@ -36,7 +36,7 @@ pub trait BlockValidityInterface {
     async fn get_deposit_index_and_block_number(
         &self,
         deposit_hash: Bytes32,
-    ) -> Result<Option<(usize, u32)>, ServerError>;
+    ) -> Result<Option<(u32, u32)>, ServerError>;
 
     async fn get_block_number_by_tx_tree_root(
         &self,
@@ -62,6 +62,6 @@ pub trait BlockValidityInterface {
     async fn get_deposit_merkle_proof(
         &self,
         block_number: u32,
-        deposit_index: usize,
+        deposit_index: u32,
     ) -> Result<DepositMerkleProof, ServerError>;
 }

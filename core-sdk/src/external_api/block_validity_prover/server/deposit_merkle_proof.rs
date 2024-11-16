@@ -23,7 +23,7 @@ pub struct DepositMerkleProofRespnse {
 pub async fn get_deposit_merkle_proof(
     server_base_url: &str,
     block_number: u32,
-    deposit_index: usize,
+    deposit_index: u32,
 ) -> Result<DepositMerkleProof, ServerError> {
     let url = format!(
         "{}/deposit-tree-proof/{}/{}",

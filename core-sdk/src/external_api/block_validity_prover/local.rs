@@ -63,7 +63,7 @@ impl BlockValidityInterface for LocalBlockValidityProver {
         Ok(b)
     }
 
-    async fn get_account_id(&self, pubkey: U256) -> Result<Option<usize>, ServerError> {
+    async fn get_account_id(&self, pubkey: U256) -> Result<Option<u64>, ServerError> {
         let account_id = self
             .inner_block_validity_prover
             .lock()
@@ -96,7 +96,7 @@ impl BlockValidityInterface for LocalBlockValidityProver {
     async fn get_deposit_index_and_block_number(
         &self,
         deposit_hash: Bytes32,
-    ) -> Result<Option<(usize, u32)>, ServerError> {
+    ) -> Result<Option<(u32, u32)>, ServerError> {
         let deposit_index_and_block_number = self
             .inner_block_validity_prover
             .lock()
@@ -158,7 +158,7 @@ impl BlockValidityInterface for LocalBlockValidityProver {
     async fn get_deposit_merkle_proof(
         &self,
         block_number: u32,
-        deposit_index: usize,
+        deposit_index: u32,
     ) -> Result<DepositMerkleProof, ServerError> {
         let deposit_merkle_proof = self
             .inner_block_validity_prover

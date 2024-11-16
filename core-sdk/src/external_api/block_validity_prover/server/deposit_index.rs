@@ -19,8 +19,8 @@ pub struct GetDepositsResponse {
 #[serde(rename_all = "camelCase")]
 pub struct DepositInfo {
     pub deposit_hash: Bytes32,
-    pub deposit_id: usize,
-    pub deposit_index: usize,
+    pub deposit_id: u32,
+    pub deposit_index: u32,
     pub block_number: u32,
     pub is_synchronized: bool,
     pub deposit_tx_hash: Bytes32,
@@ -40,7 +40,7 @@ pub struct DepositLeaf {
 pub async fn get_deposit_index_and_block_number(
     server_base_url: &str,
     deposit_hash: Bytes32,
-) -> Result<Option<(usize, u32)>, ServerError> {
+) -> Result<Option<(u32, u32)>, ServerError> {
     let url = format!(
         "{}/deposits?depositHashes={}",
         server_base_url, deposit_hash

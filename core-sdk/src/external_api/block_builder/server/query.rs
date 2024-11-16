@@ -22,7 +22,7 @@ use crate::external_api::{
 #[serde(rename_all = "camelCase")]
 struct QueryResponse {
     tx_root: Bytes32,
-    tx_index: usize,
+    tx_index: u32,
     tx_tree_merkle_proof: Vec<PoseidonHashOut>,
     public_keys: Vec<Bytes32>,
 }

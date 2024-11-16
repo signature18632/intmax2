@@ -60,7 +60,7 @@ impl BlockValidityInterface for BlockValidityProver {
         Ok(block_number)
     }
 
-    async fn get_account_id(&self, pubkey: U256) -> Result<Option<usize>, ServerError> {
+    async fn get_account_id(&self, pubkey: U256) -> Result<Option<u64>, ServerError> {
         log::info!("Getting account_id");
         let account_id = get_account_id(&self.server_base_url, pubkey.into()).await?;
         Ok(account_id)
@@ -88,7 +88,7 @@ impl BlockValidityInterface for BlockValidityProver {
     async fn get_deposit_index_and_block_number(
         &self,
         deposit_hash: Bytes32,
-    ) -> Result<Option<(usize, u32)>, ServerError> {
+    ) -> Result<Option<(u32, u32)>, ServerError> {
         log::info!("Getting deposit_index_and_block_number");
         let deposit_index_and_block_number =
             get_deposit_index_and_block_number(&self.server_base_url, deposit_hash).await?;
@@ -146,7 +146,7 @@ impl BlockValidityInterface for BlockValidityProver {
     async fn get_deposit_merkle_proof(
         &self,
         block_number: u32,
-        deposit_index: usize,
+        deposit_index: u32,
     ) -> Result<DepositMerkleProof, ServerError> {
         log::info!("Getting deposit_merkle_proof");
         let deposit_merkle_proof =

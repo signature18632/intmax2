@@ -77,7 +77,7 @@ impl BlockValidityInterface for TestBlockValidityProver {
         Ok(response.block_number)
     }
 
-    async fn get_account_id(&self, pubkey: U256) -> Result<Option<usize>, ServerError> {
+    async fn get_account_id(&self, pubkey: U256) -> Result<Option<u64>, ServerError> {
         let query = GetAccountIdQuery { pubkey };
         let response: GetAccountIdResponse = self
             .get_request("/block-validity-prover/get-account-id", Some(query))
@@ -107,7 +107,7 @@ impl BlockValidityInterface for TestBlockValidityProver {
     async fn get_deposit_index_and_block_number(
         &self,
         deposit_hash: Bytes32,
-    ) -> Result<Option<(usize, u32)>, ServerError> {
+    ) -> Result<Option<(u32, u32)>, ServerError> {
         let query = GetDepositIndexAndBlockNumberQuery { deposit_hash };
         let response: GetDepositIndexAndBlockNumberResponse = self
             .get_request(
@@ -172,7 +172,7 @@ impl BlockValidityInterface for TestBlockValidityProver {
     async fn get_deposit_merkle_proof(
         &self,
         block_number: u32,
-        deposit_index: usize,
+        deposit_index: u32,
     ) -> Result<DepositMerkleProof, ServerError> {
         let query = GetDepositMerkleProofQuery {
             block_number,
