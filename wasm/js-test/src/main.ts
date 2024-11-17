@@ -1,14 +1,13 @@
-import { Config, finalize_tx, generate_key_from_provisional, get_user_data, JsGenericAddress, JsTransfer, mimic_deposit, prepare_deposit, query_proposal, send_tx_request, sync, } from '../pkg';
+import { Config, finalize_tx, generate_key_from_provisional, get_user_data, JsGenericAddress, JsTransfer, mimic_deposit, prepare_deposit, query_proposal, send_tx_request, sync, sync_withdrawals, } from '../pkg';
 import { constructBlock, postBlock, postEmptyBlock, syncValidityProof } from './state-manager';
-import { generateRandom32Bytes } from './utils';
+import { generateRandomHex } from './utils';
 
 async function main() {
   const baseUrl = "http://localhost:9563";
   const config = Config.new(baseUrl, baseUrl, baseUrl, baseUrl, 3600n, 500n);
 
   // generate key
-  const provisionalPrivateKey = generateRandom32Bytes();
-  const key = await generate_key_from_provisional(provisionalPrivateKey);
+  const key = await generate_key_from_provisional(generateRandomHex(32));
   const publicKey = key.pubkey;
   const privateKey = key.privkey;
   console.log("privateKey: ", privateKey);
@@ -21,19 +20,12 @@ async function main() {
   console.log("pubkeySaltHash: ", pubkeySaltHash);
   await mimic_deposit(baseUrl, pubkeySaltHash, amount);
 
-  // !The following two functions are not used in production.
-  await postEmptyBlock(baseUrl); // block builder post empty block
-  await syncValidityProof(baseUrl); // block validity prover sync validity proof
-  console.log("validity proof synced");
-
-  await new Promise((resolve) => setTimeout(resolve, 5000));
+  await postEmptyBlock(baseUrl); // block builder post empty block (this is not used in production)
+  await syncValidityProof(baseUrl); // block validity prover sync validity proof (this is not used in production)
 
   // sync the account's balance proof 
   await sync(config, privateKey);
-
-  console.log("Sync successful");
-
-  await new Promise((resolve) => setTimeout(resolve, 5000));
+  console.log("balance proof synced");
 
   // get the account's balance
   let userData = await get_user_data(config, privateKey);
@@ -43,42 +35,69 @@ async function main() {
     console.log(`Token ${balance.token_index}: ${balance.amount}`);
   }
 
-  // send a tx 
-  const genericAddress = new JsGenericAddress(true, publicKey);
-  const salt = generateRandom32Bytes();
+  // construct a transfer tx
+  const someonesKey = await generate_key_from_provisional(generateRandomHex(32));
+  const genericAddress = new JsGenericAddress(true, someonesKey.pubkey);
+  const salt = generateRandomHex(32);
   const transfer = new JsTransfer(genericAddress, 0, "1", salt);
-  const transfers = new Array<JsTransfer>();
-  transfers.push(transfer);
-  const memo = await send_tx_request(config, baseUrl, privateKey, transfers);
+
+  // send the tx request
+  const memo = await send_tx_request(config, baseUrl, privateKey, [transfer]
+  );
   const tx = memo.tx();
   console.log("tx.nonce", tx.nonce);
   console.log("tx.transfer_tree_root", tx.transfer_tree_root);
 
-  //! The following function is not used in production.
-  await constructBlock(baseUrl); // block builder construct block
+  await constructBlock(baseUrl); // block builder construct block (this is not used in production)
 
+  // query the block proposal
   const proposal = await query_proposal(config, baseUrl, privateKey, tx);
   if (proposal === undefined) {
     throw new Error("No proposal found");
   }
+  // finalize the tx
   await finalize_tx(config, baseUrl, privateKey, memo, proposal);
 
-  // !The following function is not used in production.
-  await postBlock(baseUrl); // block builder post block
-  console.log("Tx successful");
+  await postBlock(baseUrl); // block builder post block (this is not used in production)
+  await syncValidityProof(baseUrl); // block validity prover sync validity proof (this is not used in production)
+  console.log("Transfer successful");
 
-  await new Promise((resolve) => setTimeout(resolve, 5000));
-
-  // sync the account's balance proof
-  await sync(config, privateKey);
-  console.log("Sync successful");
-
-  userData = await get_user_data(config, privateKey);
+  // get the receiver's balance
+  await sync(config, someonesKey.privkey);
+  userData = await get_user_data(config, someonesKey.privkey);
   balances = userData.balances;
   for (let i = 0; i < balances.length; i++) {
     const balance = balances[i];
     console.log(`Token ${balance.token_index}: ${balance.amount}`);
   }
+
+  // Withdrawal 
+  const withdrawalEthAddress = generateRandomHex(20);
+  const withdrawalTokenIndex = 0;
+  const withdrawalAmount = "1";
+  const withdrawalSalt = generateRandomHex(32);
+  const withdrawalTransfer = new JsTransfer(new JsGenericAddress(false, withdrawalEthAddress), withdrawalTokenIndex, withdrawalAmount, withdrawalSalt);
+
+  const withdrawalMemo = await send_tx_request(config, baseUrl, privateKey, [withdrawalTransfer]);
+  console.log("withdrawalMemo.tx().nonce", withdrawalMemo.tx().nonce);
+  console.log("withdrawalMemo.tx().transfer_tree_root", withdrawalMemo.tx().transfer_tree_root);
+
+  await constructBlock(baseUrl); // block builder construct block (this is not used in production)
+
+  const proposal2 = await query_proposal(config, baseUrl, privateKey, withdrawalMemo.tx());
+  if (proposal2 === undefined) {
+    throw new Error("No proposal found");
+  }
+  await finalize_tx(config, baseUrl, privateKey, withdrawalMemo, proposal2);
+
+  await postBlock(baseUrl); // block builder post block (this is not used in production)
+  await syncValidityProof(baseUrl); // block validity prover sync validity proof (this is not used in production)
+
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+
+  // sync withdrawals 
+  await sync_withdrawals(config, privateKey);
+  console.log("Withdrawal successful");
 }
 
 main().then(() => {

@@ -1,6 +1,7 @@
 import { randomBytes } from 'crypto';
 
-export function generateRandom32Bytes(): string {
-  const bytes = randomBytes(32);
+export function generateRandomHex(size: number): string {
+  const bytes = randomBytes(size);
   return '0x' + bytes.toString('hex');
 }
+
