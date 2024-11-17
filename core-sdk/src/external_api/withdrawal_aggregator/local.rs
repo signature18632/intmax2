@@ -35,6 +35,10 @@ impl LocalWithdrawalAggregator {
             .map_err(|e| anyhow::anyhow!("Failed to wrap {}", e))?;
         Ok(())
     }
+
+    pub fn reset(&self) {
+        self.0.lock().unwrap().reset();
+    }
 }
 
 #[async_trait(?Send)]

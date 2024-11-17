@@ -42,6 +42,10 @@ impl LocalBlockValidityProver {
         }
     }
 
+    pub fn reset(&self) {
+        self.inner_block_validity_prover.lock().unwrap().reset();
+    }
+
     pub fn sync(&self) -> anyhow::Result<()> {
         let contract = self.contract.lock().unwrap();
         self.inner_block_validity_prover

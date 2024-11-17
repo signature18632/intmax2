@@ -81,9 +81,8 @@ impl LocalBlockBuilder {
         Ok(())
     }
 
-    pub fn reset(&self) -> Result<(), ServerError> {
+    pub fn reset(&self) {
         self.inner_block_builder.lock().unwrap().reset();
-        Ok(())
     }
 }
 

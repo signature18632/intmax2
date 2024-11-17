@@ -15,6 +15,10 @@ impl LocalContract {
     pub fn new() -> Self {
         Self(Arc::new(Mutex::new(MockContract::new())))
     }
+
+    pub fn reset(&self) {
+        self.0.lock().unwrap().reset();
+    }
 }
 
 #[async_trait(?Send)]

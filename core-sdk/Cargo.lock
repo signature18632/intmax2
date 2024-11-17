@@ -2277,7 +2277,7 @@ dependencies = [
 [[package]]
 name = "intmax2-zkp"
 version = "0.1.0"
-source = "git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli#0f0aa525e4d000d99e348a91df817b83148f7642"
+source = "git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli#c4fe93d75aa5d796c1535dcd5c73379f58faaa62"
 dependencies = [
  "anyhow",
  "ark-bn254",
@@ -3863,9 +3863,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.132"
+version = "1.0.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d726bfaff4b320266d395898905d0eba0345aae23b54aee3a737e260fd46db03"
+checksum = "c7fceb2473b9166b2294ef05efcb65a3db80803f0b03ef86a5fc88a2b85ee377"
 dependencies = [
  "itoa",
  "memchr",
