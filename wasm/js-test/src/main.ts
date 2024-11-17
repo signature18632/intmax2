@@ -22,6 +22,7 @@ async function main() {
 
   await postEmptyBlock(baseUrl); // block builder post empty block (this is not used in production)
   await syncValidityProof(baseUrl); // block validity prover sync validity proof (this is not used in production)
+  console.log("validity proof synced");
 
   // sync the account's balance proof 
   await sync(config, privateKey);
@@ -60,10 +61,11 @@ async function main() {
 
   await postBlock(baseUrl); // block builder post block (this is not used in production)
   await syncValidityProof(baseUrl); // block validity prover sync validity proof (this is not used in production)
-  console.log("Transfer successful");
+  console.log("validity proof synced");
 
   // get the receiver's balance
   await sync(config, someonesKey.privkey);
+  console.log("balance proof synced");
   userData = await get_user_data(config, someonesKey.privkey);
   balances = userData.balances;
   for (let i = 0; i < balances.length; i++) {
@@ -92,12 +94,13 @@ async function main() {
 
   await postBlock(baseUrl); // block builder post block (this is not used in production)
   await syncValidityProof(baseUrl); // block validity prover sync validity proof (this is not used in production)
+  console.log("validity proof synced");
 
   await new Promise((resolve) => setTimeout(resolve, 5000));
 
   // sync withdrawals 
   await sync_withdrawals(config, privateKey);
-  console.log("Withdrawal successful");
+  console.log("Withdrawal synced");
 }
 
 main().then(() => {
