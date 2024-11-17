@@ -5,12 +5,12 @@ use intmax2_zkp::{
 };
 use reqwest_wasm::Client;
 
-use crate::external_api::block_builder::{
+use crate::external_api::{block_builder::{
     interface::{BlockBuilderInterface, FeeProof},
     test_server::types::{
         PostSignatureRequest, QueryProposalRequest, QueryProposalResponse, TxRequestRequest,
     },
-};
+}, utils::retry::with_retry};
 use crate::external_api::common::error::ServerError;
 
 #[derive(Debug, Clone)]
@@ -32,11 +32,7 @@ impl TestBlockBuilder {
         body: &T,
     ) -> Result<U, ServerError> {
         let url = format!("{}{}", base_url, endpoint);
-        let response = self
-            .client
-            .post(&url)
-            .json(body)
-            .send()
+        let response = with_retry(|| async { self.client.post(&url).json(body).send().await })
             .await
             .map_err(|e| ServerError::NetworkError(e.to_string()))?;
 

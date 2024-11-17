@@ -5,11 +5,12 @@ use plonky2::{
 };
 use reqwest_wasm::Client;
 
-use crate::external_api::withdrawal_aggregator::{
-    interface::Fee, test_server::types::RequestWithdrawalRequest,
-};
 use crate::external_api::{
     common::error::ServerError, withdrawal_aggregator::interface::WithdrawalAggregatorInterface,
+};
+use crate::external_api::{
+    utils::retry::with_retry,
+    withdrawal_aggregator::{interface::Fee, test_server::types::RequestWithdrawalRequest},
 };
 
 type F = GoldilocksField;
@@ -36,11 +37,7 @@ impl TestWithdrawalAggregator {
         body: &T,
     ) -> Result<U, ServerError> {
         let url = format!("{}{}", self.base_url, endpoint);
-        let response = self
-            .client
-            .post(&url)
-            .json(body)
-            .send()
+        let response = with_retry(|| async { self.client.post(&url).json(body).send().await })
             .await
             .map_err(|e| ServerError::NetworkError(e.to_string()))?;
 

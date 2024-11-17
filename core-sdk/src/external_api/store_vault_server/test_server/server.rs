@@ -9,10 +9,10 @@ use plonky2::{
 };
 use reqwest_wasm::Client;
 
-use crate::external_api::store_vault_server::test_server::types::*;
 use crate::external_api::{
     common::error::ServerError, store_vault_server::interface::StoreVaultInterface,
 };
+use crate::external_api::{store_vault_server::test_server::types::*, utils::retry::with_retry};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -38,14 +38,9 @@ impl TestStoreVaultServer {
         body: &T,
     ) -> Result<U, ServerError> {
         let url = format!("{}{}", self.base_url, endpoint);
-        let response = self
-            .client
-            .post(&url)
-            .json(body)
-            .send()
+        let response = with_retry(|| async { self.client.post(&url).json(body).send().await })
             .await
             .map_err(|e| ServerError::NetworkError(e.to_string()))?;
-
         if response.status().is_success() {
             response
                 .json::<U>()
@@ -64,9 +59,9 @@ impl TestStoreVaultServer {
         let url = format!("{}{}", self.base_url, endpoint);
 
         let response = if let Some(params) = query {
-            self.client.get(&url).query(&params).send().await
+            with_retry(|| async { self.client.get(&url).query(&params).send().await }).await
         } else {
-            self.client.get(&url).send().await
+            with_retry(|| async { self.client.get(&url).send().await }).await
         }
         .map_err(|e| ServerError::NetworkError(e.to_string()))?;
 

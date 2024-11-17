@@ -14,14 +14,17 @@ use plonky2::{
 };
 use reqwest_wasm::Client;
 
-use crate::external_api::balance_prover::{
-    interface::BalanceProverInterface,
-    test_server::types::{
-        ProveReceiveDepositRequest, ProveReceiveTransferRequest, ProveResponse, ProveSendRequest,
-        ProveSingleWithdrawalRequest, ProveSpentRequest, ProveUpdateRequest,
-    },
-};
 use crate::external_api::common::error::ServerError;
+use crate::external_api::{
+    balance_prover::{
+        interface::BalanceProverInterface,
+        test_server::types::{
+            ProveReceiveDepositRequest, ProveReceiveTransferRequest, ProveResponse,
+            ProveSendRequest, ProveSingleWithdrawalRequest, ProveSpentRequest, ProveUpdateRequest,
+        },
+    },
+    utils::retry::with_retry,
+};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -47,11 +50,7 @@ impl TestBalanceProver {
         body: &T,
     ) -> Result<U, ServerError> {
         let url = format!("{}{}", self.base_url, endpoint);
-        let response = self
-            .client
-            .post(&url)
-            .json(body)
-            .send()
+        let response = with_retry(|| async { self.client.post(&url).json(body).send().await })
             .await
             .map_err(|e| ServerError::NetworkError(e.to_string()))?;
 

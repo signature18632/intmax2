@@ -14,10 +14,11 @@ use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonG
 use reqwest_wasm::Client;
 
 use super::types::GetDepositMerkleProofResponse;
-use crate::external_api::block_validity_prover::{
-    interface::BlockValidityInterface, test_server::types::*,
-};
 use crate::external_api::common::error::ServerError;
+use crate::external_api::{
+    block_validity_prover::{interface::BlockValidityInterface, test_server::types::*},
+    utils::retry::with_retry,
+};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -45,9 +46,9 @@ impl TestBlockValidityProver {
         let url = format!("{}{}", self.base_url, endpoint);
 
         let response = if let Some(params) = query {
-            self.client.get(&url).query(&params).send().await
+            with_retry(|| async { self.client.get(&url).query(&params).send().await }).await
         } else {
-            self.client.get(&url).send().await
+            with_retry(|| async { self.client.get(&url).send().await }).await
         }
         .map_err(|e| ServerError::NetworkError(e.to_string()))?;
 

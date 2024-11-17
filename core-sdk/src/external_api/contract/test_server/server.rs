@@ -5,6 +5,7 @@ use reqwest_wasm::Client;
 
 use crate::external_api::common::error::ServerError;
 use crate::external_api::contract::interface::{BlockchainError, ContractInterface};
+use crate::external_api::utils::retry::with_retry;
 
 use super::types::DepositNativeTokenRequest;
 
@@ -28,11 +29,7 @@ impl TestContract {
         body: &T,
     ) -> Result<U, ServerError> {
         let url = format!("{}{}", self.base_url, endpoint);
-        let response = self
-            .client
-            .post(&url)
-            .json(body)
-            .send()
+        let response = with_retry(|| async { self.client.post(&url).json(body).send().await })
             .await
             .map_err(|e| ServerError::NetworkError(e.to_string()))?;
 
