@@ -12,13 +12,11 @@ use js_types::{
     common::JsTransfer,
     data::{JsDepositData, JsTransferData, JsTxData, JsUserData},
     utils::parse_u256,
+    wrapper::{JsBlockProposal, JsTxRequestMemo},
 };
 use num_bigint::BigUint;
-use utils::{
-    h256_to_bytes32, parse_h256, str_privkey_to_keyset, tx_request_memo_to_value,
-    value_to_block_proposal, value_to_tx_request_memo,
-};
-use wasm_bindgen::{prelude::wasm_bindgen, JsError, JsValue};
+use utils::{h256_to_bytes32, parse_h256, str_privkey_to_keyset};
+use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 
 pub mod client;
 pub mod js_types;
@@ -29,13 +27,6 @@ pub mod utils;
 pub struct Key {
     pub privkey: String,
     pub pubkey: String,
-}
-
-#[derive(Debug, Clone)]
-#[wasm_bindgen(getter_with_clone)]
-pub struct TxRequestResult {
-    pub tx: JsTx,
-    pub memo: JsValue,
 }
 
 /// Generate a new key pair from a provisional private key.
@@ -65,7 +56,15 @@ pub async fn prepare_deposit(
     let amount = parse_u256(amount)?;
 
     let client = get_client(config);
-    let deposit_call = client.prepare_deposit(key, token_index, amount).await?;
+    let deposit_call = client
+        .prepare_deposit(key, token_index, amount)
+        .await
+        .map_err(|e| {
+            JsError::new(&format!(
+                "failed to prepare deposit call: {}",
+                e.to_string()
+            ))
+        })?;
     Ok(deposit_call.pubkey_salt_hash.to_string())
 }
 
@@ -76,7 +75,7 @@ pub async fn send_tx_request(
     block_builder_url: &str,
     private_key: &str,
     transfers: Vec<JsTransfer>,
-) -> Result<TxRequestResult, JsError> {
+) -> Result<JsTxRequestMemo, JsError> {
     if transfers.len() > NUM_TRANSFERS_IN_TX {
         return Err(JsError::new(&format!(
             "Number of transfers in a tx must be less than or equal to {}",
@@ -95,10 +94,7 @@ pub async fn send_tx_request(
         .await
         .map_err(|e| JsError::new(&format!("failed to send tx request {}", e)))?;
 
-    Ok(TxRequestResult {
-        tx: JsTx::from_tx(&memo.tx),
-        memo: tx_request_memo_to_value(&memo),
-    })
+    Ok(JsTxRequestMemo::from_tx_request_memo(&memo))
 }
 
 /// Function to query the block proposal from the block builder.
@@ -110,22 +106,14 @@ pub async fn query_proposal(
     block_builder_url: &str,
     private_key: &str,
     tx: &JsTx,
-) -> Result<JsValue, JsError> {
+) -> Result<Option<JsBlockProposal>, JsError> {
     let key = str_privkey_to_keyset(private_key)?;
     let tx = tx.to_tx()?;
 
     let client = get_client(config);
     let proposal = client.query_proposal(block_builder_url, key, tx).await?;
-
-    if proposal.is_none() {
-        return Ok(JsValue::NULL);
-    } else {
-        let proposal = proposal.unwrap();
-        if proposal.verify(tx).is_err() {
-            return Err(JsError::new("Got invalid proposal"));
-        }
-        return Ok(utils::block_proposal_to_value(&proposal));
-    }
+    let proposal = proposal.map(|proposal| JsBlockProposal::from_block_proposal(&proposal));
+    Ok(proposal)
 }
 
 /// In this function, query block proposal from the block builder,
@@ -138,13 +126,12 @@ pub async fn finalize_tx(
     config: &Config,
     block_builder_url: &str,
     private_key: &str,
-    tx_request_memo: &JsValue,
-    proposal: &JsValue,
+    tx_request_memo: &JsTxRequestMemo,
+    proposal: &JsBlockProposal,
 ) -> Result<String, JsError> {
     let key = str_privkey_to_keyset(private_key)?;
-    let tx_request_memo = value_to_tx_request_memo(tx_request_memo)?;
-    let proposal = value_to_block_proposal(proposal)?;
-
+    let tx_request_memo = tx_request_memo.to_tx_request_memo()?;
+    let proposal = proposal.to_block_proposal()?;
     let client = get_client(config);
     let tx_tree_root = client
         .finalize_tx(block_builder_url, key, &tx_request_memo, &proposal)
@@ -236,4 +223,44 @@ pub async fn add(a: i32, b: i32) -> Result<i32, JsError> {
         return Err(JsError::new("a is 3"));
     }
     Ok(a + b)
+}
+
+#[cfg(test)]
+mod tests {
+    use intmax2_zkp::common::transfer::Transfer;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    use crate::send_tx_request;
+
+    fn get_config() -> super::Config {
+        super::Config {
+            store_vault_server_url: "http://localhost:9563".to_string(),
+            block_validity_prover_url: "http://localhost:9563".to_string(),
+            balance_prover_url: "http://localhost:9563".to_string(),
+            withdrawal_aggregator_url: "http://localhost:9563".to_string(),
+            deposit_timeout: 1000,
+            tx_timeout: 1000,
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn test_request() {
+        let config = get_config();
+        let privkey = "0x0ad9acdeb9930c6dcbe034284f45c348f45dc723ed67399d6931d135f3fab6b6";
+        let block_builder_url = "http://localhost:9563";
+
+        let mut rng = rand::thread_rng();
+        let mut transfer = Transfer::rand(&mut rng);
+        transfer.token_index = 0;
+        transfer.amount = 1.into();
+
+        send_tx_request(
+            &config,
+            block_builder_url,
+            privkey,
+            vec![super::JsTransfer::from_transfer(&transfer)],
+        )
+        .await
+        .unwrap();
+    }
 }
