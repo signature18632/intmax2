@@ -3,7 +3,7 @@ import { constructBlock, postBlock, postEmptyBlock, syncValidityProof } from './
 import { generateRandomHex } from './utils';
 
 async function main() {
-  const baseUrl = "http://localhost:9563";
+  const baseUrl = "https://local.test-server.intmax.xyz";
   const config = Config.new(baseUrl, baseUrl, baseUrl, baseUrl, 3600n, 500n);
 
   // generate key
