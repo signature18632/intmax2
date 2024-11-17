@@ -14,10 +14,7 @@ use super::types::TxRequestRequest;
 
 #[get("/reset")]
 pub async fn reset(state: Data<State>) -> Result<Json<()>, Error> {
-    state
-        .block_builder
-        .reset()
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+    state.block_builder.reset();
     Ok(Json(()))
 }
 

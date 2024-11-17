@@ -37,6 +37,18 @@ impl State {
         log::info!("Initializing withdrawal_aggregator");
         let withdrawal_aggregator = LocalWithdrawalAggregator::new()?;
 
+        log::info!("Initializing provers");
+        validity_prover
+            .inner_block_validity_prover
+            .lock()
+            .unwrap()
+            .validity_processor();
+        withdrawal_aggregator
+            .0
+            .lock()
+            .unwrap()
+            .withdrawal_processor();
+
         log::info!("State initialized");
         Ok(Self {
             contract,
@@ -46,5 +58,13 @@ impl State {
             balance_prover,
             withdrawal_aggregator,
         })
+    }
+
+    pub fn reset(&self) {
+        self.contract.reset();
+        self.store_vault_server.reset();
+        self.validity_prover.reset();
+        self.block_builder.reset();
+        self.withdrawal_aggregator.reset();
     }
 }
