@@ -29,7 +29,7 @@ where
                     e.to_string(),
                     delay
                 );
-                sleep_for(delay.as_secs());
+                sleep_for(delay.as_secs()).await;
                 retries += 1;
                 delay *= 2; // Exponential backoff
             }
