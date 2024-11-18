@@ -9,13 +9,17 @@ use api::{
     withdrawal_aggregator::api::withdrawal_aggregator_scope,
 };
 use log::init_logger;
+use monitor::monitor_memory;
 
 pub mod api;
 pub mod log;
+pub mod monitor;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     init_logger()?;
+
+    tokio::spawn(monitor_memory());
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
     let state = State::new().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
