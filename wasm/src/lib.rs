@@ -144,7 +144,7 @@ pub async fn finalize_tx(
 pub async fn sync(config: &Config, private_key: &str) -> Result<(), JsError> {
     let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
-    client.sync_single(key).await?;
+    client.sync(key).await?;
     Ok(())
 }
 
@@ -215,12 +215,4 @@ pub async fn mimic_deposit(
         .deposit_native_token(H256::default(), pubkey_salt_hash, amount)
         .await?;
     Ok(())
-}
-
-#[wasm_bindgen]
-pub async fn add(a: i32, b: i32) -> Result<i32, JsError> {
-    if a == 3 {
-        return Err(JsError::new("a is 3"));
-    }
-    Ok(a + b)
 }

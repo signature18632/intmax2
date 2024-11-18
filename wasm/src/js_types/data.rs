@@ -37,7 +37,7 @@ impl JsDepositData {
 #[derive(Debug, Clone)]
 #[wasm_bindgen(getter_with_clone)]
 pub struct JsTransferData {
-    pub sender: String, // hex string
+    pub sender: String,
     pub transfer: JsTransfer,
 }
 
@@ -73,33 +73,55 @@ impl JsTxData {
 #[derive(Debug, Clone)]
 #[wasm_bindgen(getter_with_clone)]
 pub struct JsUserData {
-    pub pubkey: String, // hex string of the user public key
+    /// The user public key
+    pub pubkey: String,
 
+    /// The block number of the user data
     pub block_number: u32,
 
-    pub balances: Vec<TokenBalance>, // token index and balance amount
-    pub private_commitment: String,  // hex string of the private commitment
+    /// The token balances of the user
+    pub balances: Vec<TokenBalance>,
 
-    // The latest unix timestamp of processed (incorporated into the balance proof or rejected)
-    // actions
+    /// The private commitment of the user
+    pub private_commitment: String,
+
+    /// The last unix timestamp of processed deposits
     pub deposit_lpt: u64,
+
+    /// The last unix timestamp of processed transfers
     pub transfer_lpt: u64,
+
+    /// The last unix timestamp of processed txs
     pub tx_lpt: u64,
+
+    /// The last unix timestamp of processed withdrawals
     pub withdrawal_lpt: u64,
 
-    // Uuids of actions that has already been incorporated into the balance proof
+    /// Uuids of processed deposits
     pub processed_deposit_uuids: Vec<String>,
+
+    /// Uuids of processed transfers
     pub processed_transfer_uuids: Vec<String>,
+
+    /// Uuids of processed txs
     pub processed_tx_uuids: Vec<String>,
+
+    /// Uuids of processed withdrawals
     pub processed_withdrawal_uuids: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
 #[wasm_bindgen(getter_with_clone)]
 pub struct TokenBalance {
+    /// Token index of the balance
     pub token_index: u32,
-    pub amount: String,        // 10 base string
-    pub is_insufficient: bool, // insufficient balance flag
+
+    /// The amount of the token. 10 base string
+    pub amount: String,
+
+    /// Flag indicating whether the balance is insufficient for that token index.
+    /// If true, subsequent transfers or withdrawals for that token index will be impossible.
+    pub is_insufficient: bool,
 }
 
 impl JsUserData {

@@ -9,8 +9,10 @@ use super::utils::{parse_poseidon_hashout, parse_salt, parse_u256};
 #[derive(Debug, Clone)]
 #[wasm_bindgen(getter_with_clone)]
 pub struct JsGenericAddress {
+    /// true if pubkey, false if ethereum address
     pub is_pubkey: bool,
-    pub data: String, // hex string of 32 bytes (pubkey) or 20 bytes (ethereum address)
+    /// hex string of 32 bytes (pubkey) or 20 bytes (ethereum address)
+    pub data: String,
 }
 
 impl JsGenericAddress {
@@ -40,8 +42,14 @@ impl JsGenericAddress {
 #[wasm_bindgen]
 impl JsGenericAddress {
     #[wasm_bindgen(constructor)]
-    pub fn new(is_pubkey: bool, data: String) -> Self {
-        Self { is_pubkey, data }
+    pub fn new(is_pubkey: bool, data: String) -> Result<Self, JsError> {
+        // validation
+        if is_pubkey {
+            U256::from_hex(&data).map_err(|_| JsError::new("Invalid pubkey"))?;
+        } else {
+            Address::from_hex(&data).map_err(|_| JsError::new("Invalid address"))?;
+        }
+        Ok(Self { is_pubkey, data })
     }
 }
 

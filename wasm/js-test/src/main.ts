@@ -4,7 +4,7 @@ import { generateRandomHex } from './utils';
 
 async function main() {
   const baseUrl = "https://local.test-server.intmax.xyz";
-  const config = Config.new(baseUrl, baseUrl, baseUrl, baseUrl, 3600n, 500n);
+  const config = Config.new(baseUrl, baseUrl, baseUrl, baseUrl, 7200n, 300n);
 
   // generate key
   const key = await generate_key_from_provisional(generateRandomHex(32));
