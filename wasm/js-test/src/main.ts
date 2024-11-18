@@ -1,10 +1,14 @@
+import { cleanEnv, url } from 'envalid';
 import { Config, finalize_tx, generate_key_from_provisional, get_user_data, JsGenericAddress, JsTransfer, mimic_deposit, prepare_deposit, query_proposal, send_tx_request, sync, sync_withdrawals, } from '../pkg';
 import { constructBlock, postBlock, postEmptyBlock, syncValidityProof } from './state-manager';
 import { generateRandomHex } from './utils';
 
+const env = cleanEnv(process.env, {
+  BASE_URL: url(),
+});
+
 async function main() {
-  const baseUrl = "https://local.test-server.intmax.xyz";
-  // const baseUrl = "http://localhost:9563";
+  const baseUrl = env.BASE_URL;
   const config = Config.new(baseUrl, baseUrl, baseUrl, baseUrl, 7200n, 300n);
 
   // generate key
