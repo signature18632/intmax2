@@ -26,6 +26,9 @@ async fn main() -> std::io::Result<()> {
     let state = Data::new(state);
     HttpServer::new(move || {
         App::new()
+            .wrap(Logger::new(
+                "Path: %P | Query: %{query}q | Status: %s | Duration: %Ts",
+            ))
             .wrap(Logger::default())
             .app_data(state.clone())
             .service(reset)
