@@ -12,7 +12,6 @@ cargo install wasm-pack
 ## Build
 
 ```bash
-cd ../
 wasm-pack build --target nodejs --out-dir js-test/pkg
 ```
 
