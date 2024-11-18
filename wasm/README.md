@@ -1,5 +1,11 @@
 # Intmax2 WASM Client
 
+## Install wasm-pack
+
+```
+cargo install wasm-pack
+```
+
 ## Build for web
 
 ```
