@@ -4,6 +4,7 @@ import { generateRandomHex } from './utils';
 
 async function main() {
   const baseUrl = "https://local.test-server.intmax.xyz";
+  // const baseUrl = "http://localhost:9563";
   const config = Config.new(baseUrl, baseUrl, baseUrl, baseUrl, 7200n, 300n);
 
   // generate key
