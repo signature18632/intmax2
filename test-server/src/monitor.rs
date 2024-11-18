@@ -10,14 +10,14 @@ pub async fn monitor_memory() {
         interval.tick().await;
         sys.refresh_all();
 
-        let total_memory = sys.total_memory(); // KB
-        let used_memory = sys.used_memory(); // KB
+        let total_memory = sys.total_memory() as f64 / (1 << 30) as f64; // GB
+        let used_memory = sys.used_memory() as f64 / (1 << 30) as f64; // GB
 
         log::info!(
-            "Memory Usage - Total: {:.2} MB, Used: {:.2} MB, Free: {:.2} MB",
-            total_memory as f64 / 1024.0,
-            used_memory as f64 / 1024.0,
-            (total_memory - used_memory) as f64 / 1024.0
+            "Memory Usage - Total: {:.2} GB, Used: {:.2} GB, Free: {:.2} GB",
+            total_memory,
+            used_memory,
+            total_memory - used_memory
         );
     }
 }
