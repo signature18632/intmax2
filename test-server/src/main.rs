@@ -1,3 +1,4 @@
+use actix_cors::Cors;
 use std::io;
 
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
@@ -25,7 +26,9 @@ async fn main() -> std::io::Result<()> {
     let state = State::new().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
     let state = Data::new(state);
     HttpServer::new(move || {
+        let cors = Cors::permissive();
         App::new()
+            .wrap(cors)
             .wrap(Logger::new("Request: %r | Status: %s | Duration: %Ts"))
             .wrap(Logger::default())
             .app_data(state.clone())
