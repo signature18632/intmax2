@@ -18,7 +18,8 @@ use intmax2_zkp::{
     },
     ethereum_types::u256::U256,
 };
-use num_bigint::BigUint;
+
+use crate::{external_api::indexer::api::IndexerApi, state_manager::construct_block};
 
 type BC = TestContract;
 type BB = TestBlockBuilder;
@@ -29,6 +30,11 @@ type W = TestWithdrawalAggregator;
 
 pub fn get_base_url() -> String {
     env::var("BASE_URL").expect("BASE_URL must be set")
+}
+
+pub fn get_indexer_url() -> String {
+    // todo: remove this line in production
+    "https://dev.builder.indexer.intmax.xyz".to_string()
 }
 
 pub fn get_client() -> anyhow::Result<Client<BB, S, V, B, W>> {
@@ -62,21 +68,14 @@ pub fn get_contract() -> BC {
     contract
 }
 
-pub async fn deposit(
-    _rpc_url: &str,
-    eth_private_key: H256,
-    private_key: H256,
-    amount: U256,
-    token_index: u32,
-) -> anyhow::Result<()> {
+pub async fn deposit(key: KeySet, amount: U256, token_index: u32) -> anyhow::Result<()> {
     let client = get_client()?;
-    let key = h256_to_keyset(private_key);
     let deposit_call = client.prepare_deposit(key, token_index, amount).await?;
 
     let contract = get_contract();
     contract
         .deposit(
-            eth_private_key,
+            H256::default(),
             deposit_call.pubkey_salt_hash,
             deposit_call.token_index,
             deposit_call.amount,
@@ -86,19 +85,26 @@ pub async fn deposit(
 }
 
 pub async fn tx(
-    block_builder_url: &str,
-    private_key: H256,
-    to: U256,
+    key: KeySet,
+    to: GenericAddress,
     amount: U256,
     token_index: u32,
 ) -> anyhow::Result<()> {
     let client = get_client()?;
-    let key = h256_to_keyset(private_key);
+
+    // get block builder info
+    let indexer = IndexerApi::new(&&get_indexer_url());
+    let block_builder_info = indexer.get_block_builder_info().await?;
+    if block_builder_info.is_empty() {
+        anyhow::bail!("No block builder available");
+    }
+    let _block_builder_url = block_builder_info.first().unwrap().url.clone();
+    let block_builder_url = &get_base_url(); // todo: remove this line in production
 
     let mut rng = rand::thread_rng();
     let salt = Salt::rand(&mut rng);
     let transfer = Transfer {
-        recipient: GenericAddress::from_pubkey(to),
+        recipient: to,
         amount,
         token_index,
         salt,
@@ -109,7 +115,8 @@ pub async fn tx(
     log::info!("Waiting for block builder to build the block");
 
     // sleep for a while to wait for the block builder to build the block
-    tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    construct_block(block_builder_url).await?; // todo: remove this line in production
 
     let mut tries = 0;
     let proposal = loop {
@@ -134,16 +141,20 @@ pub async fn tx(
     Ok(())
 }
 
-pub async fn sync(private_key: H256) -> anyhow::Result<()> {
+pub async fn sync(key: KeySet) -> anyhow::Result<()> {
     let client = get_client()?;
-    let key = h256_to_keyset(private_key);
     client.sync(key).await?;
     Ok(())
 }
 
-pub async fn balance(private_key: H256) -> anyhow::Result<()> {
+pub async fn sync_withdrawals(key: KeySet) -> anyhow::Result<()> {
     let client = get_client()?;
-    let key = h256_to_keyset(private_key);
+    client.sync_withdrawals(key).await?;
+    Ok(())
+}
+
+pub async fn balance(key: KeySet) -> anyhow::Result<()> {
+    let client = get_client()?;
     client.sync(key).await?;
 
     let user_data = client.get_user_data(key).await?;
@@ -151,10 +162,6 @@ pub async fn balance(private_key: H256) -> anyhow::Result<()> {
     for (i, leaf) in balances.iter() {
         println!("Token {}: {}", i, leaf.amount);
     }
-    println!("-----------------------------------------------");
+    println!("-----------------------------------");
     Ok(())
-}
-
-fn h256_to_keyset(h256: H256) -> KeySet {
-    KeySet::new(BigUint::from_bytes_be(h256.as_bytes()).into())
 }

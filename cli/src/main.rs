@@ -1,10 +1,11 @@
+use anyhow::{bail, ensure};
 use clap::{Parser, Subcommand};
-use cli::{balance, deposit, get_base_url, sync, tx};
+use cli::{balance, deposit, get_base_url, sync, sync_withdrawals, tx};
 use ethers::types::H256;
 use intmax2_core_sdk::utils::init_logger;
 use intmax2_zkp::{
-    common::signature::key_set::KeySet,
-    ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait as _},
+    common::{generic_address::GenericAddress, signature::key_set::KeySet},
+    ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait as _},
 };
 use num_bigint::BigUint;
 
@@ -24,21 +25,15 @@ struct Args {
 enum Commands {
     Tx {
         #[clap(long)]
-        block_builder_url: String,
-        #[clap(long)]
         private_key: H256,
         #[clap(long)]
-        to: H256,
+        to: String,
         #[clap(long)]
         amount: u128,
         #[clap(long)]
         token_index: u32,
     },
     Deposit {
-        #[clap(long)]
-        rpc_url: String,
-        #[clap(long)]
-        eth_private_key: H256,
         #[clap(long)]
         private_key: H256,
         #[clap(long)]
@@ -50,14 +45,16 @@ enum Commands {
         #[clap(long)]
         private_key: H256,
     },
+    SyncWithdrawals {
+        #[clap(long)]
+        private_key: H256,
+    },
     Balance {
         #[clap(long)]
         private_key: H256,
     },
-    SyncValidityProof,
-    PostEmptyBlock,
-    ConstructBlock,
-    PostBlock,
+    PostEmptyAndSync,
+    PostAndSync,
     GenerateKey,
 }
 
@@ -68,32 +65,37 @@ async fn main() -> anyhow::Result<()> {
 
     match &args.command {
         Commands::Tx {
-            block_builder_url,
             private_key,
             to,
             amount,
             token_index,
         } => {
-            let to = h256_to_u256(*to);
+            let to = parse_generic_address(to)?;
             let amount = u128_to_u256(*amount);
-            tx(block_builder_url, *private_key, to, amount, *token_index).await?;
+            let key = h256_to_keyset(*private_key);
+            tx(key, to, amount, *token_index).await?;
         }
         Commands::Deposit {
-            rpc_url,
-            eth_private_key,
             private_key,
             amount,
             token_index,
         } => {
             let amount = u128_to_u256(*amount);
             let token_index = *token_index;
-            deposit(rpc_url, *eth_private_key, *private_key, amount, token_index).await?;
+            let key = h256_to_keyset(*private_key);
+            deposit(key, amount, token_index).await?;
         }
         Commands::Sync { private_key } => {
-            sync(*private_key).await?;
+            let key = h256_to_keyset(*private_key);
+            sync(key).await?;
+        }
+        Commands::SyncWithdrawals { private_key } => {
+            let key = h256_to_keyset(*private_key);
+            sync_withdrawals(key).await?;
         }
         Commands::Balance { private_key } => {
-            balance(*private_key).await?;
+            let key = h256_to_keyset(*private_key);
+            balance(key).await?;
         }
         Commands::GenerateKey => {
             println!("Generating key");
@@ -104,27 +106,37 @@ async fn main() -> anyhow::Result<()> {
             println!("Private key: {}", private_key.to_hex());
             println!("Public key: {}", key.pubkey.to_hex());
         }
-        Commands::SyncValidityProof => {
+        Commands::PostEmptyAndSync => {
+            state_manager::post_empty_block(&get_base_url()).await?;
             state_manager::sync_validity_proof(&get_base_url()).await?;
         }
-        Commands::PostEmptyBlock => {
-            state_manager::post_empty_block(&get_base_url()).await?;
-        }
-        Commands::ConstructBlock => {
-            state_manager::construct_block(&get_base_url()).await?;
-        }
-        Commands::PostBlock => {
+        Commands::PostAndSync => {
             state_manager::post_block(&get_base_url()).await?;
+            state_manager::sync_validity_proof(&get_base_url()).await?;
         }
     }
 
     Ok(())
 }
 
+fn parse_generic_address(address: &str) -> anyhow::Result<GenericAddress> {
+    ensure!(address.starts_with("0x"), "Invalid prefix");
+    let bytes = hex::decode(&address[2..])?;
+    if bytes.len() == 20 {
+        let address = Address::from_bytes_be(&bytes);
+        return Ok(GenericAddress::from_address(address));
+    } else if bytes.len() == 32 {
+        let pubkey = U256::from_bytes_be(&bytes);
+        return Ok(GenericAddress::from_pubkey(pubkey));
+    } else {
+        bail!("Invalid length");
+    }
+}
+
 fn u128_to_u256(u128: u128) -> intmax2_zkp::ethereum_types::u256::U256 {
     BigUint::from(u128).try_into().unwrap()
 }
 
-fn h256_to_u256(h256: H256) -> intmax2_zkp::ethereum_types::u256::U256 {
-    intmax2_zkp::ethereum_types::u256::U256::from_bytes_be(h256.as_bytes())
+fn h256_to_keyset(h256: H256) -> KeySet {
+    KeySet::new(BigUint::from_bytes_be(h256.as_bytes()).into())
 }
