@@ -1,9 +1,12 @@
 use crate::js_types::common::JsTx;
 use client::{get_client, get_mock_contract, Config};
 use ethers::types::H256;
-use intmax2_core_sdk::external_api::contract::interface::ContractInterface;
+use intmax2_core_sdk::{
+    client::account::generate_intmax_account_from_eth_key as inner_generate_intmax_account_from_eth_key,
+    external_api::contract::interface::ContractInterface,
+};
 use intmax2_zkp::{
-    common::{signature::key_set::KeySet, transfer::Transfer},
+    common::transfer::Transfer,
     constants::NUM_TRANSFERS_IN_TX,
     ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
     mock::data::{deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData},
@@ -24,20 +27,20 @@ pub mod utils;
 
 #[derive(Debug, Clone)]
 #[wasm_bindgen(getter_with_clone)]
-pub struct Key {
+pub struct IntmaxAccount {
     pub privkey: String,
     pub pubkey: String,
 }
 
-/// Generate a new key pair from a provisional private key.
+/// Generate a new key pair from the given ethereum private key (32bytes hex string).
 #[wasm_bindgen]
-pub async fn generate_key_from_provisional(provisional_private_key: &str) -> Result<Key, JsError> {
-    let provisional_private_key = parse_h256(provisional_private_key)?;
-    let key_set = KeySet::generate_from_provisional(
-        BigUint::from_bytes_be(provisional_private_key.as_bytes()).into(),
-    );
+pub async fn generate_intmax_account_from_eth_key(
+    eth_private_key: &str,
+) -> Result<IntmaxAccount, JsError> {
+    let eth_private_key = parse_h256(eth_private_key)?;
+    let key_set = inner_generate_intmax_account_from_eth_key(eth_private_key);
     let private_key: U256 = BigUint::from(key_set.privkey).try_into().unwrap();
-    Ok(Key {
+    Ok(IntmaxAccount {
         privkey: private_key.to_hex(),
         pubkey: key_set.pubkey.to_hex(),
     })
