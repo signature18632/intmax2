@@ -21,7 +21,7 @@ async function main() {
   // deposit to the account
   const tokenIndex = 0; // 0 for ETH
   const amount = "123";
-  const pubkeySaltHash = await prepare_deposit(config, privateKey, amount, tokenIndex);
+  const pubkeySaltHash = await prepare_deposit(config, publicKey, amount, tokenIndex);
   console.log("pubkeySaltHash: ", pubkeySaltHash);
   await mimic_deposit(baseUrl, pubkeySaltHash, tokenIndex, amount);
 

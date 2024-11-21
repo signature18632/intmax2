@@ -44,7 +44,9 @@ async fn e2e_test() -> anyhow::Result<()> {
     let alice_key = KeySet::rand(&mut rng);
 
     // deposit 100wei ETH to alice wallet
-    let deposit_call = client.prepare_deposit(alice_key, 0, 100.into()).await?;
+    let deposit_call = client
+        .prepare_deposit(alice_key.pubkey, 0, 100.into())
+        .await?;
 
     contract
         .deposit(
