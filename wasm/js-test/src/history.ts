@@ -1,5 +1,5 @@
 import { decrypt_deposit_data, decrypt_transfer_data, decrypt_tx_data, JsDepositData, JsTransferData, JsTxData, JsUserData } from "../pkg/intmax2_wasm_lib";
-import { MetaData, StoreVaultClient } from "./store-vault-client";
+import { StoreVaultClient } from "./store-vault-client";
 
 export async function printHistory(base_url: string, privateKey: string, userData: JsUserData) {
     const storeVaultClient = new StoreVaultClient(base_url);
@@ -52,7 +52,7 @@ export async function fetchDepositHistory(storeVaultClient: StoreVaultClient, pr
                 deposit = {
                     amount: decrypted.amount,
                     token_index: decrypted.token_index,
-                    is_rejected: false,
+                    is_rejected: true,
                     timestamp: null,
                 };
             } else {
@@ -109,7 +109,7 @@ export async function fetchReceiveHistory(storeVaultClient: StoreVaultClient, pr
                     token_index: decrypted.transfer.token_index,
                     from: decrypted.sender,
                     to: decrypted.transfer.recipient.data,
-                    is_rejected: false,
+                    is_rejected: true,
                     timestamp: null,
                 };
             } else {
@@ -136,7 +136,6 @@ export async function fetchReceiveHistory(storeVaultClient: StoreVaultClient, pr
     }
     return history;
 }
-
 
 export interface Send {
     transfers: Transfer[];
@@ -181,7 +180,7 @@ export async function fetchSendHistory(storeVaultClient: StoreVaultClient, priva
             if (!processedUuids.includes(metaData.uuid)) {
                 send = {
                     transfers,
-                    is_rejected: false,
+                    is_rejected: true,
                     timestamp: null,
                 };
             } else {
