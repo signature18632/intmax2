@@ -1,16 +1,60 @@
-import { cleanEnv, url } from 'envalid';
-import { Config, finalize_tx, generate_intmax_account_from_eth_key, get_user_data, JsGenericAddress, JsTransfer, mimic_deposit, prepare_deposit, query_proposal, send_tx_request, sync, sync_withdrawals, } from '../pkg';
-import { constructBlock, postBlock, postEmptyBlock, syncValidityProof } from './state-manager';
+import { cleanEnv, num, str, url } from 'envalid';
+import { Config, finalize_tx, generate_intmax_account_from_eth_key, get_user_data, JsGenericAddress, JsTransfer, prepare_deposit, query_proposal, send_tx_request, sync, sync_withdrawals, } from '../pkg';
+import { postEmptyBlock, } from './state-manager';
 import { generateRandomHex } from './utils';
 import { printHistory } from './history';
+import { deposit } from './contract';
+import * as dotenv from 'dotenv';
+dotenv.config();
 
 const env = cleanEnv(process.env, {
-  BASE_URL: url(),
+  // Base URLs
+  STORE_VAULT_SERVER_BASE_URL: url(),
+  BALANCE_PROVER_BASE_URL: url(),
+  VALIDITY_PROVER_BASE_URL: url(),
+  WITHDRAWAL_SERVER_BASE_URL: url(),
+  BLOCK_BUILDER_BASE_URL: url(),
+
+  // Timeout configurations
+  DEPOSIT_TIMEOUT: num(),
+  TX_TIMEOUT: num(),
+
+  // Block builder configurations
+  BLOCK_BUILDER_REQUEST_INTERVAL: num(),
+  BLOCK_BUILDER_REQUEST_LIMIT: num(),
+  BLOCK_BUILDER_QUERY_WAIT_TIME: num(),
+  BLOCK_BUILDER_QUERY_INTERVAL: num(),
+  BLOCK_BUILDER_QUERY_LIMIT: num(),
+
+  // L1 configurations
+  L1_RPC_URL: url(),
+  L1_CHAIN_ID: num(),
+  LIQUIDITY_CONTRACT_ADDRESS: str(),
+
+  // L2 configurations
+  L2_RPC_URL: url(),
+  L2_CHAIN_ID: num(),
+  ROLLUP_CONTRACT_ADDRESS: str(),
+  ROLLUP_CONTRACT_DEPLOYED_BLOCK_NUMBER: num(),
+
 });
 
 async function main() {
-  const baseUrl = env.BASE_URL;
-  const config = Config.new(baseUrl, baseUrl, baseUrl, baseUrl, 7200n, 300n);
+  const config = new Config(
+    env.STORE_VAULT_SERVER_BASE_URL,
+    env.BALANCE_PROVER_BASE_URL,
+    env.VALIDITY_PROVER_BASE_URL,
+    env.WITHDRAWAL_SERVER_BASE_URL,
+    BigInt(env.DEPOSIT_TIMEOUT),
+    BigInt(env.TX_TIMEOUT),
+    env.L1_RPC_URL,
+    BigInt(env.L1_CHAIN_ID),
+    env.LIQUIDITY_CONTRACT_ADDRESS,
+    env.L2_RPC_URL,
+    BigInt(env.L2_CHAIN_ID),
+    env.ROLLUP_CONTRACT_ADDRESS,
+    BigInt(env.ROLLUP_CONTRACT_DEPLOYED_BLOCK_NUMBER),
+  );
 
   // generate key
   const key = await generate_intmax_account_from_eth_key(generateRandomHex(32));
@@ -19,16 +63,23 @@ async function main() {
   console.log("privateKey: ", privateKey);
   console.log("publicKey: ", publicKey);
 
-  // deposit to the account
-  const tokenIndex = 0; // 0 for ETH
-  const amount = "123";
-  const pubkeySaltHash = await prepare_deposit(config, publicKey, amount, tokenIndex);
-  console.log("pubkeySaltHash: ", pubkeySaltHash);
-  await mimic_deposit(baseUrl, pubkeySaltHash, tokenIndex, amount);
+  // One of default anvil keys
+  const ethKey = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"
 
-  await postEmptyBlock(baseUrl); // block builder post empty block (this is not used in production)
-  await syncValidityProof(baseUrl); // block validity prover sync validity proof (this is not used in production)
+  // deposit to the account
+  const tokenType = 0;
+  const tokenAddress = "0x0000000000000000000000000000000000000000";
+  const tokenId = "0";
+  const amount = "123"; // in wei
+
+  const pubkeySaltHash = await prepare_deposit(config, publicKey, amount, tokenType, tokenAddress, tokenId);
+  console.log("pubkeySaltHash: ", pubkeySaltHash);
+  await deposit(ethKey, env.L1_RPC_URL, env.LIQUIDITY_CONTRACT_ADDRESS, env.L2_RPC_URL, env.ROLLUP_CONTRACT_ADDRESS, BigInt(amount), tokenType, tokenAddress, tokenId, pubkeySaltHash);
+
+  await postEmptyBlock(env.BLOCK_BUILDER_BASE_URL); // block builder post empty block (this is not used in production)
   console.log("validity proof synced");
+
+  await sleep(80);
 
   // sync the account's balance proof 
   await sync(config, privateKey);
@@ -49,25 +100,22 @@ async function main() {
   const transfer = new JsTransfer(genericAddress, 0, "1", salt);
 
   // send the tx request
-  const memo = await send_tx_request(config, baseUrl, privateKey, [transfer]
+  const memo = await send_tx_request(config, env.BLOCK_BUILDER_BASE_URL, privateKey, [transfer]
   );
   const tx = memo.tx();
+  const isRegistrationBlock = memo.is_registration_block();
   console.log("tx.nonce", tx.nonce);
   console.log("tx.transfer_tree_root", tx.transfer_tree_root);
 
-  await constructBlock(baseUrl); // block builder construct block (this is not used in production)
 
   // query the block proposal
-  const proposal = await query_proposal(config, baseUrl, privateKey, tx);
+  const proposal = await query_proposal(config, env.BLOCK_BUILDER_BASE_URL, privateKey, isRegistrationBlock, tx);
   if (proposal === undefined) {
     throw new Error("No proposal found");
   }
   // finalize the tx
-  await finalize_tx(config, baseUrl, privateKey, memo, proposal);
+  await finalize_tx(config, env.BLOCK_BUILDER_BASE_URL, privateKey, memo, proposal);
 
-  await postBlock(baseUrl); // block builder post block (this is not used in production)
-  await syncValidityProof(baseUrl); // block validity prover sync validity proof (this is not used in production)
-  console.log("validity proof synced");
 
   // get the receiver's balance
   await sync(config, someonesKey.privkey);
@@ -86,20 +134,19 @@ async function main() {
   const withdrawalSalt = generateRandomHex(32);
   const withdrawalTransfer = new JsTransfer(new JsGenericAddress(false, withdrawalEthAddress), withdrawalTokenIndex, withdrawalAmount, withdrawalSalt);
 
-  const withdrawalMemo = await send_tx_request(config, baseUrl, privateKey, [withdrawalTransfer]);
+  const withdrawalMemo = await send_tx_request(config, env.BLOCK_BUILDER_BASE_URL, privateKey, [withdrawalTransfer]);
+  const tx2 = withdrawalMemo.tx();
+  const isRegistrationBlock2 = withdrawalMemo.is_registration_block();
   console.log("withdrawalMemo.tx().nonce", withdrawalMemo.tx().nonce);
   console.log("withdrawalMemo.tx().transfer_tree_root", withdrawalMemo.tx().transfer_tree_root);
 
-  await constructBlock(baseUrl); // block builder construct block (this is not used in production)
 
-  const proposal2 = await query_proposal(config, baseUrl, privateKey, withdrawalMemo.tx());
+  const proposal2 = await query_proposal(config, env.BLOCK_BUILDER_BASE_URL, privateKey, isRegistrationBlock2, tx2);
   if (proposal2 === undefined) {
     throw new Error("No proposal found");
   }
-  await finalize_tx(config, baseUrl, privateKey, withdrawalMemo, proposal2);
+  await finalize_tx(config, env.BLOCK_BUILDER_BASE_URL, privateKey, withdrawalMemo, proposal2);
 
-  await postBlock(baseUrl); // block builder post block (this is not used in production)
-  await syncValidityProof(baseUrl); // block validity prover sync validity proof (this is not used in production)
   console.log("validity proof synced");
 
   await new Promise((resolve) => setTimeout(resolve, 5000));
@@ -113,7 +160,11 @@ async function main() {
   await sync(config, privateKey);
   console.log("balance proof synced");
   userData = await get_user_data(config, privateKey);
-  await printHistory(baseUrl, privateKey, userData);
+  await printHistory(env.STORE_VAULT_SERVER_BASE_URL, privateKey, userData);
+}
+
+async function sleep(sec: number) {
+  return new Promise((resolve) => setTimeout(resolve, sec * 1000));
 }
 
 main().then(() => {

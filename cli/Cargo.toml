@@ -4,18 +4,23 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+plonky2 = {workspace = true} 
+intmax2-zkp = {workspace = true}
+intmax2-client-sdk = {path="../client-sdk"}
+intmax2-interfaces = {path = "../interfaces"}
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+reqwest = { workspace = true}
+ethers = {workspace = true}
+serde_json ={workspace = true}
+serde = { workspace = true}
 clap = { version = "4.5.18", features = ["derive"] }
-plonky2 = { git="https://github.com/InternetMaximalism/polygon-plonky2.git", branch="intmax2-dev"}
-intmax2-zkp = {git ="https://github.com/InternetMaximalism/intmax2-zkp", branch = "cli"}
-intmax2-core-sdk = {path="../core-sdk"}
-ethers = "2.0"
-tokio = { version = "1", features = ["full"] }
 anyhow = "1.0.93"
 num-bigint = "0.4.6"
 rand = "0.8.5"
 log = "0.4.22"
-reqwest = { version = "0.12.9", features = ["json"] }
-serde_json = "1.0.133"
-serde = { version = "1.0.215", features = ["derive"] }
 mockito = "1.6.1"
 hex = "0.4.3"
+envy = "0.4.2"
+url = { version = "2.5.4", features = ["serde"] }
+dotenv = "0.15.0"
+thiserror = "1.0.64"
