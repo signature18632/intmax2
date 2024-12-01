@@ -4,12 +4,15 @@ use intmax2_interfaces::api::{
     withdrawal_server::{
         interface::{Fee, WithdrawalInfo, WithdrawalServerClientInterface},
         types::{
-            GetFeeResponse, GetWithdrawalInfoReqponse, GetWithdrawalInfoRequest,
-            RequestWithdrawalRequest,
+            GetFeeResponse, GetWithdrawalInfoByRecipientRequest, GetWithdrawalInfoRequest,
+            GetWithdrawalInfoResponse, RequestWithdrawalRequest,
         },
     },
 };
-use intmax2_zkp::common::signature::{flatten::FlatG2, key_set::KeySet};
+use intmax2_zkp::{
+    common::signature::{flatten::FlatG2, key_set::KeySet},
+    ethereum_types::{address::Address, u256::U256},
+};
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
@@ -44,9 +47,11 @@ impl WithdrawalServerClientInterface for WithdrawalServerClient {
 
     async fn request_withdrawal(
         &self,
+        pubkey: U256,
         single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> Result<(), ServerError> {
         let request = RequestWithdrawalRequest {
+            pubkey,
             single_withdrawal_proof: single_withdrawal_proof.clone(),
         };
         post_request::<_, ()>(
@@ -61,9 +66,23 @@ impl WithdrawalServerClientInterface for WithdrawalServerClient {
         let pubkey = key.pubkey;
         let signature = FlatG2::default(); // todo: get signature from key
         let query = GetWithdrawalInfoRequest { pubkey, signature };
-        let response: GetWithdrawalInfoReqponse = get_request(
+        let response: GetWithdrawalInfoResponse = get_request(
             &self.base_url,
             "/withdrawal-server/get-withdrawal-info",
+            Some(query),
+        )
+        .await?;
+        Ok(response.withdrawal_info)
+    }
+
+    async fn get_withdrawal_info_by_recipient(
+        &self,
+        recipient: Address,
+    ) -> Result<Vec<WithdrawalInfo>, ServerError> {
+        let query = GetWithdrawalInfoByRecipientRequest { recipient };
+        let response: GetWithdrawalInfoResponse = get_request(
+            &self.base_url,
+            "/withdrawal-server/get-withdrawal-info-by-recipient",
             Some(query),
         )
         .await?;

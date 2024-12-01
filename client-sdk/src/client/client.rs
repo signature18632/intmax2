@@ -4,7 +4,7 @@ use intmax2_interfaces::{
         block_builder::interface::BlockBuilderClientInterface,
         store_vault_server::interface::{DataType, StoreVaultClientInterface},
         validity_prover::interface::ValidityProverClientInterface,
-        withdrawal_server::interface::WithdrawalServerClientInterface,
+        withdrawal_server::interface::{WithdrawalInfo, WithdrawalServerClientInterface},
     },
     data::{
         common_tx_data::CommonTxData,
@@ -319,7 +319,7 @@ where
             } else {
                 self.store_vault_server
                     .save_data(
-                        DataType::Transfer,
+                        DataType::Withdrawal,
                         key.pubkey,
                         &transfer_data.encrypt(key.pubkey),
                     )
@@ -394,6 +394,11 @@ where
     }
 
     pub async fn sync_withdrawals(&self, key: KeySet) -> Result<(), ClientError> {
+        log::info!("sync_withdrawals: {:?}", key);
+
+        // sync balance proof
+        self.sync(key).await?;
+
         let user_data = self.get_user_data(key).await?;
 
         let withdrawal_info = fetch_withdrawal_info(
@@ -606,7 +611,7 @@ where
 
         // send withdrawal request
         self.withdrawal_server
-            .request_withdrawal(&single_withdrawal_proof)
+            .request_withdrawal(key.pubkey, &single_withdrawal_proof)
             .await?;
 
         // update user data
@@ -691,5 +696,13 @@ where
             })?
             .unwrap_or(UserData::new(key.pubkey));
         Ok(user_data)
+    }
+
+    pub async fn get_withdrawal_info(
+        &self,
+        key: KeySet,
+    ) -> Result<Vec<WithdrawalInfo>, ClientError> {
+        let withdrawal_info = self.withdrawal_server.get_withdrawal_info(key).await?;
+        Ok(withdrawal_info)
     }
 }

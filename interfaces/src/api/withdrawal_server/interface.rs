@@ -1,3 +1,5 @@
+use std::fmt::{self, Display, Formatter};
+
 use async_trait::async_trait;
 use intmax2_zkp::{
     common::{signature::key_set::KeySet, withdrawal::Withdrawal},
@@ -55,9 +57,23 @@ pub struct ContractWithdrawal {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum WithdrawalStatus {
-    Pending,
-    Success,
-    Failed,
+    Requested = 0,
+    Relayed = 1,
+    Success = 2,
+    NeedClaim = 3,
+    Failed = 4, // Should be never used but just in case
+}
+
+impl Display for WithdrawalStatus {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            WithdrawalStatus::Requested => write!(f, "requested"),
+            WithdrawalStatus::Relayed => write!(f, "relayed"),
+            WithdrawalStatus::Success => write!(f, "success"),
+            WithdrawalStatus::NeedClaim => write!(f, "need_claim"),
+            WithdrawalStatus::Failed => write!(f, "failed"),
+        }
+    }
 }
 
 #[async_trait(?Send)]
@@ -66,8 +82,14 @@ pub trait WithdrawalServerClientInterface {
 
     async fn request_withdrawal(
         &self,
+        pubkey: U256,
         single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> Result<(), ServerError>;
 
     async fn get_withdrawal_info(&self, key: KeySet) -> Result<Vec<WithdrawalInfo>, ServerError>;
+
+    async fn get_withdrawal_info_by_recipient(
+        &self,
+        recipient: Address,
+    ) -> Result<Vec<WithdrawalInfo>, ServerError>;
 }
