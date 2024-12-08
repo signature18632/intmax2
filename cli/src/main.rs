@@ -2,13 +2,14 @@ use anyhow::{bail, ensure};
 use clap::{Parser, Subcommand};
 use ethers::types::{Address as EthAddress, H256, U256 as EthU256};
 use intmax2_cli::cli::{
+    claim::claim_withdrawals,
     deposit::deposit,
     get::{balance, history, withdrawal_status},
     send::tx,
     sync::{sync, sync_withdrawals},
     utils::post_empty_block,
 };
-use intmax2_client_sdk::utils::init_logger::init_logger;
+use intmax2_client_sdk::utils::logger::init_logger;
 use intmax2_interfaces::data::deposit_data::TokenType;
 use intmax2_zkp::{
     common::{generic_address::GenericAddress, signature::key_set::KeySet},
@@ -72,6 +73,12 @@ enum Commands {
     WithdrawalStatus {
         #[clap(long)]
         private_key: H256,
+    },
+    ClaimWithdrawals {
+        #[clap(long)]
+        private_key: H256,
+        #[clap(long)]
+        eth_private_key: H256,
     },
     GenerateKey,
 }
@@ -139,6 +146,13 @@ async fn main() -> anyhow::Result<()> {
         Commands::WithdrawalStatus { private_key } => {
             let key = h256_to_keyset(private_key);
             withdrawal_status(key).await?;
+        }
+        Commands::ClaimWithdrawals {
+            private_key,
+            eth_private_key,
+        } => {
+            let key = h256_to_keyset(private_key);
+            claim_withdrawals(key, eth_private_key).await?;
         }
         Commands::GenerateKey => {
             println!("Generating key");

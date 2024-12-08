@@ -6,9 +6,13 @@ import { printHistory } from './history';
 import { deposit, getEthBalance } from './contract';
 import * as dotenv from 'dotenv';
 import { WithdrawalServerClient } from './withdrawal-status';
+import { ethers } from 'ethers';
 dotenv.config();
 
 const env = cleanEnv(process.env, {
+  USER_ETH_PRIVATE_KEY: str(),
+  ENV: str(),
+
   // Base URLs
   STORE_VAULT_SERVER_BASE_URL: url(),
   BALANCE_PROVER_BASE_URL: url(),
@@ -37,7 +41,6 @@ const env = cleanEnv(process.env, {
   L2_CHAIN_ID: num(),
   ROLLUP_CONTRACT_ADDRESS: str(),
   ROLLUP_CONTRACT_DEPLOYED_BLOCK_NUMBER: num(),
-
 });
 
 async function main() {
@@ -48,6 +51,8 @@ async function main() {
     env.WITHDRAWAL_SERVER_BASE_URL,
     BigInt(env.DEPOSIT_TIMEOUT),
     BigInt(env.TX_TIMEOUT),
+    BigInt(env.BLOCK_BUILDER_REQUEST_LIMIT),
+    BigInt(env.BLOCK_BUILDER_QUERY_INTERVAL),
     env.L1_RPC_URL,
     BigInt(env.L1_CHAIN_ID),
     env.LIQUIDITY_CONTRACT_ADDRESS,
@@ -57,15 +62,16 @@ async function main() {
     BigInt(env.ROLLUP_CONTRACT_DEPLOYED_BLOCK_NUMBER),
   );
 
+  const ethKey = env.USER_ETH_PRIVATE_KEY;
+  const ethAddress = new ethers.Wallet(ethKey).address;
+  console.log("ethAddress: ", ethAddress);
+
   // generate key
-  const key = await generate_intmax_account_from_eth_key(generateRandomHex(32));
+  const key = await generate_intmax_account_from_eth_key(ethKey);
   const publicKey = key.pubkey;
   const privateKey = key.privkey;
   console.log("privateKey: ", privateKey);
   console.log("publicKey: ", publicKey);
-
-  // One of default anvil keys
-  const ethKey = "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6"
 
   // deposit to the account
   const tokenType = 0; // 0: native token, 1: ERC20, 2: ERC721, 3: ERC1155
@@ -81,10 +87,14 @@ async function main() {
 
   await deposit(ethKey, env.L1_RPC_URL, env.LIQUIDITY_CONTRACT_ADDRESS, env.L2_RPC_URL, env.ROLLUP_CONTRACT_ADDRESS, BigInt(amount), tokenType, tokenAddress, tokenId, pubkeySaltHash);
 
+  console.log("Deposit done. Sleeping for 1200s...");
+  await sleep(1200);
+
   await postEmptyBlock(env.BLOCK_BUILDER_BASE_URL); // block builder post empty block (this is not used in production)
 
   // wait for the validity prover syncs
-  await sleep(30);
+  console.log("Waiting for the validity prover to sync...");
+  await sleep(40);
 
   // sync the account's balance proof 
   await syncBalanceProof(config, privateKey);
@@ -106,7 +116,7 @@ async function main() {
   await sendTx(config, env.BLOCK_BUILDER_BASE_URL, privateKey, [transfer]);
 
   // wait for the validity prover syncs
-  await sleep(30);
+  await sleep(40);
 
   // get the receiver's balance
   await syncBalanceProof(config, privateKey);
@@ -126,7 +136,7 @@ async function main() {
   await sendTx(config, env.BLOCK_BUILDER_BASE_URL, privateKey, [withdrawalTransfer]);
 
   // wait for the validity prover syncs
-  await sleep(30);
+  await sleep(40);
 
   // sync withdrawals 
   await sync_withdrawals(config, privateKey);
@@ -160,20 +170,7 @@ async function syncBalanceProof(config: Config, privateKey: string) {
 
 async function sendTx(config: Config, block_builder_base_url: string, privateKey: string, transfers: JsTransfer[]) {
   console.log("Sending tx...");
-  let memo: JsTxRequestMemo | undefined = undefined;
-  for (let i = 0; i < env.BLOCK_BUILDER_REQUEST_LIMIT; i++) {
-    try {
-      memo = await send_tx_request(config, block_builder_base_url, privateKey, transfers);
-      break;
-    } catch (error) {
-      console.log("Error sending tx request: ", error, "retrying...");
-    }
-    await sleep(env.BLOCK_BUILDER_REQUEST_INTERVAL);
-  }
-  if (!memo) {
-    throw new Error("Failed to send tx request after all retries");
-  }
-
+  let memo: JsTxRequestMemo = await send_tx_request(config, block_builder_base_url, privateKey, transfers);
   const tx = memo.tx();
   const isRegistrationBlock = memo.is_registration_block();
 
