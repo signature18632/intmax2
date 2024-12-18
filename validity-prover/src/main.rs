@@ -1,11 +1,8 @@
 use actix_cors::Cors;
 use actix_web::{middleware::Logger, web::Data, App, HttpServer};
-use env_logger::fmt::Formatter;
-use log::{LevelFilter, Record};
+use server_common::{health_check::health_check, logger::init_logger};
 use std::{
-    env,
-    fs::File,
-    io::{self, Write},
+    io::{self},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -15,32 +12,12 @@ use std::{
 use tokio::time::interval;
 use validity_prover::{
     api::{api::validity_prover_scope, state::State, validity_prover::ValidityProver},
-    health_check::health_check,
     Env,
 };
 
-fn init_file_logger() {
-    let mut builder = env_logger::Builder::new();
-
-    if env::var("LOG_TO_FILE").unwrap_or_default() == "1" {
-        let log_file = File::create("log.txt").expect("Unable to create log file");
-        let log_file = std::sync::Mutex::new(log_file);
-        builder.format(move |buf: &mut Formatter, record: &Record| {
-            writeln!(buf, "{}: {}", record.level(), record.args())?;
-            if let Ok(mut file) = log_file.lock() {
-                writeln!(file, "{}: {}", record.level(), record.args())?;
-            }
-            Ok(())
-        });
-    } else {
-        builder.format(|buf, record| writeln!(buf, "{}: {}", record.level(), record.args()));
-    }
-    builder.filter(None, LevelFilter::Info).init();
-}
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    init_file_logger();
+    init_logger().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     dotenv::dotenv().ok();
     let env: Env = envy::from_env().map_err(|e| {

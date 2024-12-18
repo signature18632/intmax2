@@ -17,8 +17,8 @@ const D: usize = 2;
 #[derive(Debug, Clone)]
 pub struct TransferInfo {
     pub settled: Vec<(MetaData, TransferData<F, C, D>)>,
-    pub pending: Vec<MetaData>,
-    pub rejected: Vec<MetaData>,
+    pub pending: Vec<(MetaData, TransferData<F, C, D>)>,
+    pub timeout: Vec<(MetaData, TransferData<F, C, D>)>,
 }
 
 pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProverClientInterface>(
@@ -30,7 +30,7 @@ pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProver
 ) -> Result<TransferInfo, ClientError> {
     let mut settled = Vec::new();
     let mut pending = Vec::new();
-    let mut rejected = Vec::new();
+    let mut timeout = Vec::new();
 
     let encrypted_data = store_vault_server
         .get_data_all_after(DataType::Transfer, key.pubkey, transfer_lpt)
@@ -51,17 +51,17 @@ pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProver
                     if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
                         // timeout
                         log::error!("Transfer {} is timeouted", meta.uuid);
-                        rejected.push(meta);
+                        timeout.push((meta, transfer_data));
                     } else {
                         // pending
                         log::info!("Transfer {} is pending", meta.uuid);
-                        pending.push(meta);
+                        pending.push((meta, transfer_data));
                     }
                 }
             }
             Err(e) => {
                 log::error!("failed to decrypt transfer data: {}", e);
-                rejected.push(meta);
+                // ignore this transfer
             }
         };
     }
@@ -72,6 +72,6 @@ pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProver
     Ok(TransferInfo {
         settled,
         pending,
-        rejected,
+        timeout,
     })
 }

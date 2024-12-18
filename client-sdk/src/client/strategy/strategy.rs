@@ -28,14 +28,14 @@ pub enum Action {
     Deposit(MetaData, DepositData),            // Receive deposit
     Transfer(MetaData, TransferData<F, C, D>), // Receive transfer
     Tx(MetaData, TxData<F, C, D>),             // Send tx
+    PendingTx(MetaData, TxData<F, C, D>),      // Pending tx
+    None,
 }
 
-#[derive(Debug, Clone)]
-pub struct NextAction {
-    pub action: Option<Action>,
-    pub pending_deposits: Vec<MetaData>,
-    pub pending_transfers: Vec<MetaData>,
-    pub pending_txs: Vec<MetaData>,
+#[derive(Debug, Clone, Default)]
+pub struct PendingInfo {
+    pub pending_deposits: Vec<(MetaData, DepositData)>,
+    pub pending_transfers: Vec<(MetaData, TransferData<F, C, D>)>,
 }
 
 // generate strategy of the balance proof update process
@@ -49,7 +49,7 @@ pub async fn determine_next_action<
     key: KeySet,
     deposit_timeout: u64,
     tx_timeout: u64,
-) -> Result<NextAction, ClientError> {
+) -> Result<(Action, PendingInfo), ClientError> {
     // get user data from the data store server
     let user_data = store_vault_server
         .get_user_data(key.pubkey)
@@ -58,6 +58,36 @@ pub async fn determine_next_action<
         .transpose()
         .map_err(|e| ClientError::DecryptionError(e.to_string()))?
         .unwrap_or(UserData::new(key.pubkey));
+    let prev_private_commitment = user_data.private_commitment();
+
+    let tx_info = fetch_tx_info(
+        store_vault_server,
+        validity_prover,
+        key,
+        user_data.tx_lpt,
+        tx_timeout,
+    )
+    .await?;
+
+    // Check if there is a settled tx with the same prev_private_commitment
+    for (meta, tx_data) in tx_info.settled.iter() {
+        if tx_data.spent_witness.prev_private_state.commitment() == prev_private_commitment {
+            return Ok((
+                Action::Tx(meta.clone(), tx_data.clone()),
+                PendingInfo::default(),
+            ));
+        }
+    }
+
+    // Check if there is a pending tx with the same prev_private_commitment
+    for (meta, tx_data) in tx_info.pending.iter() {
+        if tx_data.spent_witness.prev_private_state.commitment() == prev_private_commitment {
+            return Ok((
+                Action::PendingTx(meta.clone(), tx_data.clone()),
+                PendingInfo::default(),
+            ));
+        }
+    }
 
     let deposit_info = fetch_deposit_info(
         store_vault_server,
@@ -78,28 +108,19 @@ pub async fn determine_next_action<
     )
     .await?;
 
-    let tx_info = fetch_tx_info(
-        store_vault_server,
-        validity_prover,
-        key,
-        user_data.tx_lpt,
-        tx_timeout,
-    )
-    .await?;
+    let pending_info = PendingInfo {
+        pending_deposits: deposit_info.pending,
+        pending_transfers: transfer_info.pending,
+    };
 
     let mut all_actions: Vec<(u32, u8, Action)> = Vec::new();
-
-    // Add tx data with priority 1
-    for (meta, data) in tx_info.settled.into_iter() {
-        all_actions.push((meta.block_number.unwrap(), 1, Action::Tx(meta, data)));
-    }
-    // Add deposit data with priority 2
+    // Add deposit data with priority 1
     for (meta, data) in deposit_info.settled.into_iter() {
-        all_actions.push((meta.block_number.unwrap(), 2, Action::Deposit(meta, data)));
+        all_actions.push((meta.block_number.unwrap(), 1, Action::Deposit(meta, data)));
     }
-    // Add transfer data with priority 3
+    // Add transfer data with priority 2
     for (meta, data) in transfer_info.settled.into_iter() {
-        all_actions.push((meta.block_number.unwrap(), 3, Action::Transfer(meta, data)));
+        all_actions.push((meta.block_number.unwrap(), 2, Action::Transfer(meta, data)));
     }
 
     // Sort by block number first, then by priority
@@ -107,11 +128,5 @@ pub async fn determine_next_action<
 
     // Get the next action
     let next_action = all_actions.first().map(|(_, _, action)| action.clone());
-
-    Ok(NextAction {
-        action: next_action,
-        pending_deposits: deposit_info.pending,
-        pending_transfers: transfer_info.pending,
-        pending_txs: tx_info.pending,
-    })
+    Ok((next_action.unwrap_or(Action::None), pending_info))
 }
