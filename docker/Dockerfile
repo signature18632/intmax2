@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-RUN rustup toolchain install nightly \
+RUN rustup toolchain install nightly-2024-09-17 \
     && rustup default nightly
 
 RUN cargo install sccache --version ^0.7
