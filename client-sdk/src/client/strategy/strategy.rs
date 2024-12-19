@@ -32,6 +32,18 @@ pub enum Action {
     None,
 }
 
+impl Action {
+    pub fn uuid(&self) -> Option<String> {
+        match self {
+            Action::Deposit(meta, _) => Some(meta.uuid.clone()),
+            Action::Transfer(meta, _) => Some(meta.uuid.clone()),
+            Action::Tx(meta, _) => Some(meta.uuid.clone()),
+            Action::PendingTx(meta, _) => Some(meta.uuid.clone()),
+            Action::None => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct PendingInfo {
     pub pending_deposits: Vec<(MetaData, DepositData)>,
@@ -123,8 +135,8 @@ pub async fn determine_next_action<
         all_actions.push((meta.block_number.unwrap(), 2, Action::Transfer(meta, data)));
     }
 
-    // Sort by block number first, then by priority
-    all_actions.sort_by_key(|(block_num, priority, _)| (*block_num, *priority));
+    // Sort by block number first, then by priority, then by uuid
+    all_actions.sort_by_key(|(block_num, priority, action)| (*block_num, *priority, action.uuid()));
 
     // Get the next action
     let next_action = all_actions.first().map(|(_, _, action)| action.clone());
