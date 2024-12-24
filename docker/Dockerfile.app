@@ -35,6 +35,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+ARG APP_NAME
 WORKDIR /app
 
 COPY --from=builder /usr/src/app/target/release/${APP_NAME} /app/${APP_NAME}
