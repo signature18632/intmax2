@@ -1,6 +1,8 @@
 use intmax2_client_sdk::external_api::contract::error::BlockchainError;
 use intmax2_zkp::ethereum_types::bytes32::Bytes32;
 
+use crate::trees::merkle_tree::error::MerkleTreeError;
+
 #[derive(Debug, thiserror::Error)]
 pub enum ObserverError {
     #[error("Blockchain error: {0}")]
@@ -9,7 +11,7 @@ pub enum ObserverError {
     #[error("Database error: {0}")]
     DBError(#[from] sqlx::Error),
 
-    #[error("Derialization error: {0}")]
+    #[error("Deserialization error: {0}")]
     DeserializationError(#[from] serde_json::Error),
 
     #[error("Full block sync error: {0}")]
@@ -32,6 +34,12 @@ pub enum ValidityProverError {
 
     #[error("Block witness generation error: {0}")]
     BlockWitnessGenerationError(String),
+
+    #[error("Merkle tree error: {0}")]
+    MerkleTreeError(#[from] MerkleTreeError),
+
+    #[error("{0}")] // TODO: Add more specific error messages
+    AnyhowError(#[from] anyhow::Error),
 
     #[error("Database error: {0}")]
     DBError(#[from] sqlx::Error),
@@ -56,6 +64,9 @@ pub enum ValidityProverError {
 
     #[error("Account tree not found for block number {0}")]
     AccountTreeNotFound(u32),
+
+    #[error("Deposit tree not found for block number {0}")]
+    DepositTreeRootNotFound(u32),
 
     #[error("Input error {0}")]
     InputError(String),

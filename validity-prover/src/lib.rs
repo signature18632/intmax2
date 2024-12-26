@@ -2,7 +2,7 @@ use ethers::types::Address;
 use serde::Deserialize;
 
 pub mod api;
-pub mod utils;
+pub mod trees;
 
 #[derive(Deserialize)]
 pub struct Env {
