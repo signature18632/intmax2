@@ -1,4 +1,3 @@
-use crate::client::error::ClientError;
 use intmax2_interfaces::{
     api::{
         store_vault_server::interface::{DataType, StoreVaultClientInterface},
@@ -12,6 +11,8 @@ use plonky2::{
     hash::hash_types::RichField,
     plonk::config::{GenericConfig, PoseidonGoldilocksConfig},
 };
+
+use super::error::StrategyError;
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -35,7 +36,7 @@ pub async fn fetch_tx_info<S: StoreVaultClientInterface, V: ValidityProverClient
     tx_lpt: u64,
     processed_tx_uuids: &[String],
     tx_timeout: u64,
-) -> Result<TxInfo<F, C, D>, ClientError> {
+) -> Result<TxInfo<F, C, D>, StrategyError> {
     let mut settled = Vec::new();
     let mut pending = Vec::new();
     let mut timeout = Vec::new();

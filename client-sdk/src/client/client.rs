@@ -11,7 +11,6 @@ use intmax2_interfaces::{
         deposit_data::{DepositData, TokenType},
         transfer_data::TransferData,
         tx_data::TxData,
-        user_data::UserData,
     },
 };
 use intmax2_zkp::{
@@ -32,7 +31,7 @@ use plonky2::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    client::utils::generate_salt,
+    client::sync::utils::generate_salt,
     external_api::{
         contract::{liquidity_contract::LiquidityContract, rollup_contract::RollupContract},
         utils::time::sleep_for,
@@ -40,10 +39,10 @@ use crate::{
 };
 
 use super::{
-    balance_logic::generate_spent_witness,
     config::ClientConfig,
     error::ClientError,
     history::{fetch_history, HistoryEntry},
+    sync::balance_logic::generate_spent_witness,
 };
 
 type F = GoldilocksField;
@@ -142,10 +141,12 @@ where
     ) -> Result<TxRequestMemo, ClientError> {
         // input validation
         if transfers.len() == 0 {
-            return Err(ClientError::InternalError("transfers is empty".to_string()));
+            return Err(ClientError::TransferLenError(
+                "transfers is empty".to_string(),
+            ));
         }
         if transfers.len() > NUM_TRANSFERS_IN_TX {
-            return Err(ClientError::InternalError(
+            return Err(ClientError::TransferLenError(
                 "transfers is too long".to_string(),
             ));
         }
@@ -176,17 +177,6 @@ where
                 )));
             }
         }
-
-        // balance proof existence check
-        let _balance_proof = self
-            .store_vault_server
-            .get_balance_proof(
-                key.pubkey,
-                user_data.block_number,
-                user_data.private_commitment(),
-            )
-            .await?
-            .ok_or_else(|| ClientError::BalanceProofNotFound)?;
 
         // generate spent proof
         let tx_nonce = user_data.full_private_state.nonce;
@@ -352,21 +342,6 @@ where
         };
 
         Ok(result)
-    }
-
-    /// Get the latest user data from the data store server
-    pub async fn get_user_data(&self, key: KeySet) -> Result<UserData, ClientError> {
-        let user_data = self
-            .store_vault_server
-            .get_user_data(key.pubkey)
-            .await?
-            .map(|encrypted| UserData::decrypt(&encrypted, key))
-            .transpose()
-            .map_err(|e| {
-                ClientError::DecryptionError(format!("failed to decrypt user data: {}", e))
-            })?
-            .unwrap_or(UserData::new(key.pubkey));
-        Ok(user_data)
     }
 
     pub async fn get_withdrawal_info(

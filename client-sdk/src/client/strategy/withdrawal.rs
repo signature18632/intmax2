@@ -13,7 +13,7 @@ use plonky2::{
 
 use intmax2_zkp::common::signature::key_set::KeySet;
 
-use crate::client::error::ClientError;
+use super::error::StrategyError;
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -39,7 +39,7 @@ pub async fn fetch_withdrawal_info<
     key: KeySet,
     withdrawal_lpt: u64,
     tx_timeout: u64,
-) -> Result<WithdrawalInfo<F, C, D>, ClientError> {
+) -> Result<WithdrawalInfo<F, C, D>, StrategyError> {
     let mut settled = Vec::new();
     let mut pending = Vec::new();
     let mut rejected = Vec::new();
