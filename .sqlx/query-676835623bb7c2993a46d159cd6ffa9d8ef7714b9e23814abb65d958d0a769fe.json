@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT uuid, timestamp, block_number, encrypted_data\n            FROM encrypted_data\n            WHERE data_type = $1 AND pubkey = $2 AND timestamp > $3\n            ORDER BY timestamp ASC\n            ",
+  "query": "\n            SELECT uuid, timestamp, block_number, encrypted_data\n            FROM encrypted_data\n            WHERE data_type = $1 AND pubkey = $2 AND timestamp >= $3\n            ORDER BY timestamp ASC\n            ",
   "describe": {
     "columns": [
       {
@@ -38,5 +38,5 @@
       false
     ]
   },
-  "hash": "26360c54b620603560a2c9cfdc9c7d598f068fd692d0df1a984aea5f7a463aac"
+  "hash": "676835623bb7c2993a46d159cd6ffa9d8ef7714b9e23814abb65d958d0a769fe"
 }
