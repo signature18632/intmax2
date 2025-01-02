@@ -203,20 +203,23 @@ impl WitnessGenerator {
             .await
             .map_err(|e| ValidityProverError::FailedToUpdateTrees(e.to_string()))?;
 
-            // let validity_proof = self
-            //     .validity_processor()
-            //     .prove(&prev_validity_proof, &validity_witness)
-            //     .map_err(|e| ValidityProverError::ValidityProveError(e.to_string()))?;
-
             // Update database state
+            let mut tx = self.pool.begin().await?;
             sqlx::query!(
                 "INSERT INTO validity_state (block_number, validity_witness, sender_leaves) VALUES ($1, $2, $3)",
                 block_number as i32,
                 serde_json::to_value(&validity_witness)?,
                 serde_json::to_value(&block_witness.get_sender_tree().leaves())?,
             )
-            .execute(&self.pool)
+            .execute(tx.as_mut())
             .await?;
+
+            sqlx::query!(
+                "INSERT INTO prover_tasks (block_number, assigned, completed) VALUES ($1, FALSE, FALSE)
+                 ON CONFLICT (block_number) DO NOTHING",
+                block_number as i32
+            )
+            .execute(tx.as_mut()).await?;
 
             let tx_tree_root = full_block.signature.tx_tree_root;
             if tx_tree_root != Bytes32::default()
@@ -228,9 +231,11 @@ impl WitnessGenerator {
                     tx_tree_root.to_bytes_be(),
                     block_number as i32
                 )
-                .execute(&self.pool)
+                .execute(tx.as_mut())
                 .await?;
             }
+
+            tx.commit().await?;
         }
         log::info!("End of sync validity prover");
         Ok(())

@@ -43,5 +43,8 @@ impl ProverCoordinator {
         })
     }
 
-    pub fn wrap_if_possible(&self) {}
+    // 既に生成されているtransition proofを使ってvalidity proofを生成する
+    pub fn wrap_task(&self) {
+        todo!()
+    }
 }

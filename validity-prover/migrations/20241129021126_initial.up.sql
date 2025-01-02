@@ -35,14 +35,19 @@ CREATE TABLE tx_tree_roots (
     block_number INTEGER NOT NULL
 );
 
-CREATE TABLE transition_proofs(
+CREATE TABLE validity_proofs (
     block_number INTEGER PRIMARY KEY,
     proof JSONB NOT NULL
 );
 
-CREATE TABLE validity_proofs (
+-- Prover coordinator tables
+CREATE TABLE prover_tasks (
     block_number INTEGER PRIMARY KEY,
-    proof JSONB NOT NULL
+    assigned BOOLEAN NOT NULL,
+    assigned_at TIMESTAMP,
+    completed BOOLEAN NOT NULL,
+    completed_at TIMESTAMP,
+    transition_proof JSONB 
 );
 
 --- Merkle tree tables
