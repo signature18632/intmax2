@@ -18,7 +18,7 @@ use serde_qs::actix::QsQuery;
 pub async fn get_block_number(state: Data<State>) -> Result<Json<GetBlockNumberResponse>, Error> {
     let block_number = state
         .validity_prover
-        .get_block_number()
+        .get_last_block_number()
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok(Json(GetBlockNumberResponse { block_number }))

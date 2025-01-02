@@ -27,8 +27,12 @@ CREATE TABLE deposit_leaf_events (
 CREATE TABLE validity_state (
    block_number INTEGER NOT NULL PRIMARY KEY,
    validity_witness JSONB NOT NULL,
-   tx_tree_root BYTEA NOT NULL,
    sender_leaves JSONB NOT NULL
+);
+
+CREATE TABLE tx_tree_roots (
+    block_number INTEGER PRIMARY KEY,
+    tx_tree_root BYTEA NOT NULL
 );
 
 CREATE TABLE transition_proofs(
