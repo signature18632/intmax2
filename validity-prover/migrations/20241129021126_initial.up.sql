@@ -31,8 +31,8 @@ CREATE TABLE validity_state (
 );
 
 CREATE TABLE tx_tree_roots (
-    block_number INTEGER PRIMARY KEY,
-    tx_tree_root BYTEA NOT NULL
+    tx_tree_root BYTEA PRIMARY KEY,
+    block_number INTEGER NOT NULL
 );
 
 CREATE TABLE transition_proofs(
