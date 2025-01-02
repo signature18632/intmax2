@@ -14,7 +14,8 @@ use std::{
 };
 use tokio::time::interval;
 use validity_prover::{
-    api::{api::validity_prover_scope, state::State, validity_prover::ValidityProver},
+    api::{api::validity_prover_scope, state::State},
+    app::validity_prover::ValidityProver,
     Env,
 };
 

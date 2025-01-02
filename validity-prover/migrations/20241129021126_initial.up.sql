@@ -25,25 +25,21 @@ CREATE TABLE deposit_leaf_events (
 
 -- Validity prover tables
 CREATE TABLE validity_state (
-    id SERIAL PRIMARY KEY,
-    last_block_number INTEGER NOT NULL
+   block_number INTEGER NOT NULL PRIMARY KEY,
+   validity_witness JSONB NOT NULL,
+   tx_tree_root BYTEA NOT NULL,
+   sender_leaves JSONB NOT NULL,
 );
+
+CREATE TABLE transition_proofs {
+    block_number INTEGER PRIMARY KEY,
+    proof JSONB NOT NULL
+}
 
 CREATE TABLE validity_proofs (
     block_number INTEGER PRIMARY KEY,
     proof JSONB NOT NULL
 );
-
-CREATE TABLE tx_tree_roots (
-    tx_tree_root BYTEA PRIMARY KEY,
-    block_number INTEGER NOT NULL
-);
-
-CREATE TABLE sender_leaves (
-    block_number INTEGER PRIMARY KEY,
-    leaves JSONB NOT NULL
-);
-
 
 --- Merkle tree tables
 CREATE TABLE IF NOT EXISTS hash_nodes (

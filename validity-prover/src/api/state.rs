@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use super::validity_prover::ValidityProver;
+use crate::app::validity_prover::ValidityProver;
 
 #[derive(Clone)]
 pub struct State {
