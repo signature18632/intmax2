@@ -1,4 +1,4 @@
-use intmax2_client_sdk::client::client::TxResult;
+use intmax2_client_sdk::client::client::{DepositResult, TxResult};
 use intmax2_interfaces::data::{
     deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData, user_data::UserData,
 };
@@ -74,9 +74,28 @@ impl JsTxData {
 
 #[derive(Debug, Clone)]
 #[wasm_bindgen(getter_with_clone)]
+pub struct JsDepositResult {
+    pub deposit_data: JsDepositData,
+    pub deposit_uuid: String,
+}
+
+impl JsDepositResult {
+    pub fn from_deposit_result(deposit_result: &DepositResult) -> Self {
+        Self {
+            deposit_data: JsDepositData::from_deposit_data(&deposit_result.deposit_data),
+            deposit_uuid: deposit_result.deposit_uuid.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[wasm_bindgen(getter_with_clone)]
 pub struct JsTxResult {
     pub tx_tree_root: String,
     pub transfer_data_vec: Vec<JsTransferData>,
+    pub withdrawal_data_vec: Vec<JsTransferData>,
+    pub transfer_uuids: Vec<String>,
+    pub withdrawal_uuids: Vec<String>,
 }
 
 impl JsTxResult {
@@ -87,9 +106,18 @@ impl JsTxResult {
             .iter()
             .map(JsTransferData::from_transfer_data)
             .collect::<Vec<_>>();
+        let withdrawal_data_vec = tx_result
+            .withdrawal_data_vec
+            .iter()
+            .map(JsTransferData::from_transfer_data)
+            .collect::<Vec<_>>();
+
         Self {
             tx_tree_root,
             transfer_data_vec,
+            withdrawal_data_vec,
+            transfer_uuids: tx_result.transfer_uuids.clone(),
+            withdrawal_uuids: tx_result.withdrawal_uuids.clone(),
         }
     }
 }
