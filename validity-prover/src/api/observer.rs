@@ -397,12 +397,12 @@ impl Observer {
 
     async fn sync_blocks(&self) -> Result<(), ObserverError> {
         let mut tries = 0;
-        if tries >= MAX_TRIES {
-            return Err(ObserverError::FullBlockSyncError(
-                "Max tries exceeded".to_string(),
-            ));
-        }
         loop {
+            if tries >= MAX_TRIES {
+                return Err(ObserverError::FullBlockSyncError(
+                    "Max tries exceeded".to_string(),
+                ));
+            }
             match self.try_sync_block().await {
                 Ok((full_blocks, to_block)) => {
                     let mut tx = self.pool.begin().await?;
