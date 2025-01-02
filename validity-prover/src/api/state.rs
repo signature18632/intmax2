@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
-use crate::app::validity_prover::ValidityProver;
+use crate::app::witness_generator::WitnessGenerator;
 
 #[derive(Clone)]
 pub struct State {
-    pub validity_prover: Arc<ValidityProver>,
+    pub validity_prover: Arc<WitnessGenerator>,
 }
 
 impl State {
-    pub fn new(validity_prover: ValidityProver) -> Self {
+    pub fn new(validity_prover: WitnessGenerator) -> Self {
         let _ = validity_prover.validity_processor(); // initialize
         log::info!("State initialized");
         Self {

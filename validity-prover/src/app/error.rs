@@ -71,3 +71,12 @@ pub enum ValidityProverError {
     #[error("Input error {0}")]
     InputError(String),
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum ProverCoordinatorError {
+    #[error("Database error: {0}")]
+    DBError(#[from] sqlx::Error),
+
+    #[error("Deserialization error: {0}")]
+    DeserializationError(#[from] serde_json::Error),
+}

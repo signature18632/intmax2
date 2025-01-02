@@ -1,3 +1,4 @@
+pub mod prover_coordinator;
 pub mod error;
 pub mod observer;
-pub mod validity_prover;
+pub mod witness_generator;

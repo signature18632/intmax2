@@ -15,7 +15,7 @@ use std::{
 use tokio::time::interval;
 use validity_prover::{
     api::{api::validity_prover_scope, state::State},
-    app::validity_prover::ValidityProver,
+    app::witness_generator::WitnessGenerator,
     Env,
 };
 
@@ -31,7 +31,7 @@ async fn main() -> std::io::Result<()> {
             format!("Failed to parse environment variables: {}", e),
         )
     })?;
-    let validity_prover = ValidityProver::new(&env).await.map_err(|e| {
+    let validity_prover = WitnessGenerator::new(&env).await.map_err(|e| {
         io::Error::new(
             io::ErrorKind::Other,
             format!("Failed to create validity prover: {}", e),

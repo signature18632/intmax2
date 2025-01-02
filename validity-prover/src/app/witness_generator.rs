@@ -51,7 +51,7 @@ const ACCOUNT_DB_TAG: u32 = 1;
 const BLOCK_DB_TAG: u32 = 2;
 const DEPOSIT_DB_TAG: u32 = 3;
 
-pub struct ValidityProver {
+pub struct WitnessGenerator {
     validity_processor: OnceLock<ValidityProcessor<F, C, D>>,
     observer: Observer,
     account_tree: HistoricalAccountTree<ADB>,
@@ -60,7 +60,7 @@ pub struct ValidityProver {
     pool: PgPool,
 }
 
-impl ValidityProver {
+impl WitnessGenerator {
     pub async fn new(env: &Env) -> Result<Self, ValidityProverError> {
         let rollup_contract = RollupContract::new(
             &env.l2_rpc_url,
