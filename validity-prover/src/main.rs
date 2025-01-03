@@ -4,18 +4,10 @@ use server_common::{
     health_check::{health_check, set_name_and_version},
     logger::init_logger,
 };
-use std::{
-    io::{self},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    time::Duration,
-};
-use tokio::time::interval;
+use std::io::{self};
+
 use validity_prover::{
-    api::{api::validity_prover_scope, state::State},
-    app::witness_generator::WitnessGenerator,
+    api::{state::State, witness_generator::validity_prover_scope},
     Env,
 };
 
@@ -31,49 +23,24 @@ async fn main() -> std::io::Result<()> {
             format!("Failed to parse environment variables: {}", e),
         )
     })?;
-    let validity_prover = WitnessGenerator::new(&env).await.map_err(|e| {
+    let state = State::new(&env).await.map_err(|e| {
         io::Error::new(
             io::ErrorKind::Other,
             format!("Failed to create validity prover: {}", e),
         )
     })?;
-    let inner_state = State::new(validity_prover);
-    let state = Data::new(inner_state.clone());
 
-    let is_syncing = Arc::new(AtomicBool::new(false));
-    let is_syncing_clone = is_syncing.clone();
-    actix_web::rt::spawn(async move {
-        let mut interval = interval(Duration::from_secs(env.sync_interval));
-        loop {
-            interval.tick().await;
+    // Start a job
+    state.job();
 
-            // Skip if previous task is still running
-            if is_syncing_clone.load(Ordering::SeqCst) {
-                log::warn!("Previous sync task is still running, skipping this interval");
-                continue;
-            }
+    let data = Data::new(state.clone());
 
-            is_syncing_clone.store(true, Ordering::SeqCst);
-
-            match inner_state.sync_task().await {
-                Ok(_) => {
-                    log::debug!("Sync task completed successfully");
-                }
-                Err(e) => {
-                    log::error!("Error in sync task: {:?}", e);
-                }
-            }
-
-            // Reset the flag after task completion
-            is_syncing_clone.store(false, Ordering::SeqCst);
-        }
-    });
     HttpServer::new(move || {
         let cors = Cors::permissive();
         App::new()
             .wrap(cors)
             .wrap(Logger::new("Request: %r | Status: %s | Duration: %Ts"))
-            .app_data(state.clone())
+            .app_data(data.clone())
             .service(health_check)
             .service(validity_prover_scope())
     })

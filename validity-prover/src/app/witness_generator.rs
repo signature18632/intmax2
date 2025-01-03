@@ -1,9 +1,7 @@
 use intmax2_client_sdk::external_api::contract::rollup_contract::RollupContract;
 use intmax2_interfaces::api::validity_prover::interface::{AccountInfo, DepositInfo};
 use intmax2_zkp::{
-    circuits::validity::{
-        validity_pis::ValidityPublicInputs, validity_processor::ValidityProcessor,
-    },
+    circuits::validity::validity_pis::ValidityPublicInputs,
     common::{
         block::Block,
         trees::{
@@ -25,7 +23,14 @@ use plonky2::{
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
 use sqlx::{postgres::PgPoolOptions, PgPool};
-use std::{sync::OnceLock, time::Duration};
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+use tokio::time::interval;
 
 use super::{error::ValidityProverError, observer::Observer};
 use crate::{
@@ -51,8 +56,14 @@ const ACCOUNT_DB_TAG: u32 = 1;
 const BLOCK_DB_TAG: u32 = 2;
 const DEPOSIT_DB_TAG: u32 = 3;
 
+#[derive(Clone)]
+pub struct Config {
+    pub sync_interval: u64,
+}
+
+#[derive(Clone)]
 pub struct WitnessGenerator {
-    validity_processor: OnceLock<ValidityProcessor<F, C, D>>,
+    config: Config,
     observer: Observer,
     account_tree: HistoricalAccountTree<ADB>,
     block_tree: HistoricalBlockHashTree<BDB>,
@@ -62,6 +73,10 @@ pub struct WitnessGenerator {
 
 impl WitnessGenerator {
     pub async fn new(env: &Env) -> Result<Self, ValidityProverError> {
+        let config = Config {
+            sync_interval: env.sync_interval,
+        };
+
         let rollup_contract = RollupContract::new(
             &env.l2_rpc_url,
             env.l2_chain_id,
@@ -75,7 +90,6 @@ impl WitnessGenerator {
             env.database_timeout,
         )
         .await?;
-        let validity_processor = OnceLock::new();
 
         let pool = PgPoolOptions::new()
             .max_connections(env.database_max_connections)
@@ -112,7 +126,7 @@ impl WitnessGenerator {
         );
 
         Ok(Self {
-            validity_processor,
+            config,
             observer,
             pool,
             account_tree,
@@ -403,8 +417,33 @@ impl WitnessGenerator {
         }))
     }
 
-    pub fn validity_processor(&self) -> &ValidityProcessor<F, C, D> {
-        self.validity_processor
-            .get_or_init(|| ValidityProcessor::new())
+    pub fn job(self) {
+        let is_syncing = Arc::new(AtomicBool::new(false));
+        let is_syncing_clone = is_syncing.clone();
+        actix_web::rt::spawn(async move {
+            let mut interval = interval(Duration::from_secs(self.config.sync_interval));
+            loop {
+                interval.tick().await;
+
+                // Skip if previous task is still running
+                if is_syncing_clone.load(Ordering::SeqCst) {
+                    log::warn!("Previous sync task is still running, skipping this interval");
+                    continue;
+                }
+
+                is_syncing_clone.store(true, Ordering::SeqCst);
+
+                match self.sync().await {
+                    Ok(_) => {
+                        log::debug!("Sync task completed successfully");
+                    }
+                    Err(e) => {
+                        log::error!("Error in sync task: {:?}", e);
+                    }
+                }
+                // Reset the flag after task completion
+                is_syncing_clone.store(false, Ordering::SeqCst);
+            }
+        });
     }
 }

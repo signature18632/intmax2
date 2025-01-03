@@ -15,6 +15,7 @@ const BACKWARD_SYNC_BLOCK_NUMBER: u64 = 1000;
 const MAX_TRIES: u32 = 3;
 const SLEEP_TIME: u64 = 10;
 
+#[derive(Clone)]
 pub struct Observer {
     rollup_contract: RollupContract,
     pool: PgPool,

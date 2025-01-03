@@ -1,23 +1,27 @@
-use std::sync::Arc;
-
-use crate::app::witness_generator::WitnessGenerator;
+use crate::{
+    app::{prover_coordinator::ProverCoordinator, witness_generator::WitnessGenerator},
+    Env,
+};
 
 #[derive(Clone)]
 pub struct State {
-    pub validity_prover: Arc<WitnessGenerator>,
+    pub witness_generator: WitnessGenerator,
+    pub coordinator: ProverCoordinator,
 }
 
 impl State {
-    pub fn new(validity_prover: WitnessGenerator) -> Self {
-        let _ = validity_prover.validity_processor(); // initialize
+    pub async fn new(env: &Env) -> anyhow::Result<Self> {
+        let witness_generator = WitnessGenerator::new(&env).await?;
+        let coordinator = ProverCoordinator::new(env).await?;
+
         log::info!("State initialized");
-        Self {
-            validity_prover: Arc::new(validity_prover),
-        }
+        Ok(Self {
+            witness_generator,
+            coordinator,
+        })
     }
 
-    pub async fn sync_task(&self) -> anyhow::Result<()> {
-        self.validity_prover.sync().await?;
-        Ok(())
+    pub fn job(&self) {
+        self.clone().witness_generator.job();
     }
 }

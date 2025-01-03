@@ -17,7 +17,7 @@ use serde_qs::actix::QsQuery;
 #[get("/block-number")]
 pub async fn get_block_number(state: Data<State>) -> Result<Json<GetBlockNumberResponse>, Error> {
     let block_number = state
-        .validity_prover
+        .witness_generator
         .get_last_block_number()
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -29,7 +29,7 @@ pub async fn get_next_deposit_index(
     state: Data<State>,
 ) -> Result<Json<GetNextDepositIndexResponse>, Error> {
     let deposit_index = state
-        .validity_prover
+        .witness_generator
         .get_next_deposit_index()
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -43,7 +43,7 @@ pub async fn get_account_info(
 ) -> Result<Json<GetAccountInfoResponse>, Error> {
     let query = query.into_inner();
     let account_info = state
-        .validity_prover
+        .witness_generator
         .get_account_info(query.pubkey)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -57,7 +57,7 @@ pub async fn get_update_witness(
 ) -> Result<Json<GetUpdateWitnessResponse>, Error> {
     let query = query.into_inner();
     let update_witness = state
-        .validity_prover
+        .witness_generator
         .get_update_witness(
             query.pubkey,
             query.root_block_number,
@@ -76,7 +76,7 @@ pub async fn get_deposit_info(
 ) -> Result<Json<GetDepositInfoResponse>, Error> {
     let query = query.into_inner();
     let deposit_info = state
-        .validity_prover
+        .witness_generator
         .get_deposit_info(query.deposit_hash)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -90,7 +90,7 @@ pub async fn get_block_number_by_tx_tree_root(
 ) -> Result<Json<GetBlockNumberByTxTreeRootResponse>, Error> {
     let query = query.into_inner();
     let block_number = state
-        .validity_prover
+        .witness_generator
         .get_block_number_by_tx_tree_root(query.tx_tree_root)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -104,7 +104,7 @@ pub async fn get_validity_pis(
 ) -> Result<Json<GetValidityPisResponse>, Error> {
     let query = query.into_inner();
     let validity_pis = state
-        .validity_prover
+        .witness_generator
         .get_validity_pis(query.block_number)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -118,7 +118,7 @@ pub async fn get_sender_leaves(
 ) -> Result<Json<GetSenderLeavesResponse>, Error> {
     let query = query.into_inner();
     let sender_leaves = state
-        .validity_prover
+        .witness_generator
         .get_sender_leaves(query.block_number)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -132,7 +132,7 @@ pub async fn get_block_merkle_proof(
 ) -> Result<Json<GetBlockMerkleProofResponse>, Error> {
     let query = query.into_inner();
     let block_merkle_proof = state
-        .validity_prover
+        .witness_generator
         .get_block_merkle_proof(query.root_block_number, query.leaf_block_number)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
@@ -146,7 +146,7 @@ pub async fn get_deposit_merkle_proof(
 ) -> Result<Json<GetDepositMerkleProofResponse>, Error> {
     let query = query.into_inner();
     let deposit_merkle_proof = state
-        .validity_prover
+        .witness_generator
         .get_deposit_merkle_proof(query.block_number, query.deposit_index)
         .await
         .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
