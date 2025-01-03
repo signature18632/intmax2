@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS prover_tasks (
     block_number INTEGER PRIMARY KEY,
     assigned BOOLEAN NOT NULL,
     assigned_at TIMESTAMP,
+    last_heartbeat TIMESTAMP,
     completed BOOLEAN NOT NULL,
     completed_at TIMESTAMP,
     transition_proof JSONB 

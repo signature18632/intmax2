@@ -79,4 +79,7 @@ pub enum ProverCoordinatorError {
 
     #[error("Deserialization error: {0}")]
     DeserializationError(#[from] serde_json::Error),
+
+    #[error("Failed to generate validity proof: {0}")]
+    FailedToGenerateValidityProof(String),
 }
