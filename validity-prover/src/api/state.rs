@@ -23,5 +23,6 @@ impl State {
 
     pub fn job(&self) {
         self.clone().witness_generator.job();
+        self.clone().coordinator.job();
     }
 }

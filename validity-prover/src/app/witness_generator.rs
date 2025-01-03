@@ -172,12 +172,6 @@ impl WitnessGenerator {
                 block_number
             );
 
-            let prev_validity_proof = self.get_validity_proof(block_number - 1).await?;
-            assert!(
-                prev_validity_proof.is_some() || block_number == 1,
-                "prev validity proof not found"
-            );
-
             let full_block = self.observer.get_full_block(block_number).await?;
 
             let deposit_events = self

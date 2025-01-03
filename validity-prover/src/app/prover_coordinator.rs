@@ -217,7 +217,7 @@ impl ProverCoordinator {
         Ok(())
     }
 
-    async fn clean_up_job(self) {
+    fn clean_up_job(self) {
         tokio::spawn(async move {
             loop {
                 self.clean_up().await.unwrap();
@@ -226,7 +226,7 @@ impl ProverCoordinator {
         });
     }
 
-    async fn generate_validity_proof_job(self) {
+    fn generate_validity_proof_job(self) {
         tokio::spawn(async move {
             loop {
                 self.generate_validity_proof().await.unwrap();
@@ -235,8 +235,8 @@ impl ProverCoordinator {
         });
     }
 
-    pub async fn job(&self) {
-        self.clone().clean_up_job().await;
-        self.clone().generate_validity_proof_job().await;
+    pub fn job(&self) {
+        self.clone().clean_up_job();
+        self.clone().generate_validity_proof_job();
     }
 }
