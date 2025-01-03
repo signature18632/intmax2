@@ -1,0 +1,6 @@
+[package]
+name = "validity-prover-worker"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

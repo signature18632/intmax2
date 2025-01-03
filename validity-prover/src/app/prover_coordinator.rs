@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use intmax2_zkp::circuits::validity::{
     transition::processor::TransitionProcessor, validity_circuit::ValidityCircuit,
@@ -34,16 +34,19 @@ type Result<T> = std::result::Result<T, ProverCoordinatorError>;
 //     transition_proof JSONB
 // );
 
-pub struct HeartBeatConfig {
+#[derive(Clone)]
+pub struct Config {
     pub heartbeat_interval: u64,
     pub cleanup_interval: u64,
+    pub validity_proof_interval: u64,
 }
 
+#[derive(Clone)]
 pub struct ProverCoordinator {
-    pub transition_processor: TransitionProcessor<F, C, D>,
-    pub validity_circuit: ValidityCircuit<F, C, D>,
+    pub transition_processor: Arc<TransitionProcessor<F, C, D>>,
+    pub validity_circuit: Arc<ValidityCircuit<F, C, D>>,
     pub pool: PgPool,
-    pub heartbeat_config: HeartBeatConfig,
+    pub config: Config,
 }
 
 impl ProverCoordinator {
@@ -60,14 +63,15 @@ impl ProverCoordinator {
                 .data
                 .verifier_data(),
         );
-        let heartbeat_config = HeartBeatConfig {
+        let heartbeat_config = Config {
             heartbeat_interval: env.heartbeat_interval,
             cleanup_interval: env.cleanup_interval,
+            validity_proof_interval: env.validity_proof_interval,
         };
         Ok(Self {
-            transition_processor,
-            validity_circuit,
-            heartbeat_config,
+            transition_processor: Arc::new(transition_processor),
+            validity_circuit: Arc::new(validity_circuit),
+            config: heartbeat_config,
             pool,
         })
     }
@@ -116,7 +120,7 @@ impl ProverCoordinator {
             SET assigned = FALSE
             WHERE assigned = TRUE AND last_heartbeat < NOW() - INTERVAL '1 second' * $1
             "#,
-            self.heartbeat_config.heartbeat_interval as i64,
+            self.config.heartbeat_interval as i64,
         )
         .execute(&self.pool)
         .await?;
@@ -211,5 +215,28 @@ impl ProverCoordinator {
         }
 
         Ok(())
+    }
+
+    async fn clean_up_job(self) {
+        tokio::spawn(async move {
+            loop {
+                self.clean_up().await.unwrap();
+                tokio::time::sleep(Duration::from_secs(self.config.cleanup_interval)).await;
+            }
+        });
+    }
+
+    async fn generate_validity_proof_job(self) {
+        tokio::spawn(async move {
+            loop {
+                self.generate_validity_proof().await.unwrap();
+                tokio::time::sleep(Duration::from_secs(self.config.validity_proof_interval)).await;
+            }
+        });
+    }
+
+    pub async fn job(&self) {
+        self.clone().clean_up_job().await;
+        self.clone().generate_validity_proof_job().await;
     }
 }

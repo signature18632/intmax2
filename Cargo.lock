@@ -6186,6 +6186,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "validity-prover-worker"
+version = "0.1.4"
+
+[[package]]
 name = "valuable"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
