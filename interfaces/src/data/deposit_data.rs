@@ -113,23 +113,15 @@ impl DepositData {
     }
 
     pub fn deposit(&self) -> Option<Deposit> {
-        if let Some(token_index) = self.token_index {
-            Some(Deposit {
-                pubkey_salt_hash: self.pubkey_salt_hash,
-                token_index,
-                amount: self.amount,
-            })
-        } else {
-            None
-        }
+        self.token_index.map(|token_index| Deposit {
+            pubkey_salt_hash: self.pubkey_salt_hash,
+            token_index,
+            amount: self.amount,
+        })
     }
 
     pub fn deposit_hash(&self) -> Option<Bytes32> {
-        if let Some(deposit) = self.deposit() {
-            Some(deposit.hash())
-        } else {
-            None
-        }
+        self.deposit().map(|deposit| deposit.hash())
     }
 }
 
