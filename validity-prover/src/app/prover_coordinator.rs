@@ -47,7 +47,7 @@ type Result<T> = std::result::Result<T, ProverCoordinatorError>;
 
 #[derive(Clone)]
 pub struct Config {
-    pub heartbeat_interval: u64,
+    pub heartbeat_timeout: u64,
     pub cleanup_interval: u64,
     pub validity_proof_interval: u64,
 }
@@ -75,7 +75,7 @@ impl ProverCoordinator {
                 .verifier_data(),
         );
         let heartbeat_config = Config {
-            heartbeat_interval: env.heartbeat_interval,
+            heartbeat_timeout: env.heartbeat_timeout,
             cleanup_interval: env.cleanup_interval,
             validity_proof_interval: env.validity_proof_interval,
         };
@@ -167,7 +167,7 @@ impl ProverCoordinator {
         Ok(())
     }
 
-    // Set the task to assigned = FALSE if the task has not received a heartbeat for the last heartbeat_interval
+    // Set the task to assigned = FALSE if the task has not received a heartbeat for the last heartbeat_timeout
     pub async fn clean_up(&self) -> Result<()> {
         sqlx::query!(
             r#"
@@ -175,7 +175,7 @@ impl ProverCoordinator {
             SET assigned = FALSE
             WHERE assigned = TRUE AND last_heartbeat < NOW() - INTERVAL '1 second' * $1
             "#,
-            self.config.heartbeat_interval as i64,
+            self.config.heartbeat_timeout as i64,
         )
         .execute(&self.pool)
         .await?;

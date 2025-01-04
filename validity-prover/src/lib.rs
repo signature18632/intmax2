@@ -18,7 +18,7 @@ pub struct Env {
     pub database_timeout: u64,
 
     // Prover coordinator
-    pub heartbeat_interval: u64,
+    pub heartbeat_timeout: u64,
     pub cleanup_interval: u64,
     pub validity_proof_interval: u64,
 }
