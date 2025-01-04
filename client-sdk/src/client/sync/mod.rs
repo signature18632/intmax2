@@ -43,10 +43,7 @@ use crate::client::strategy::strategy::ReceiveAction;
 
 use super::{
     client::Client,
-    strategy::{
-        strategy::{determine_sequence, Action, PendingInfo},
-        withdrawal::fetch_withdrawal_info,
-    },
+    strategy::strategy::{determine_sequence, determine_withdrawals, Action, PendingInfo},
 };
 
 impl<BB, S, V, B, W> Client<BB, S, V, B, W>
@@ -129,29 +126,19 @@ where
         Ok(pending)
     }
 
+    /// Sync the client's withdrawals and relays to the withdrawal server
     pub async fn sync_withdrawals(&self, key: KeySet) -> Result<(), SyncError> {
-        // sync balance proof
-        self.sync(key).await?;
-
-        let user_data = self.get_user_data(key).await?;
-
-        let withdrawal_info = fetch_withdrawal_info(
+        let (withdrawals, new_withdrawal_lpt) = determine_withdrawals(
             &self.store_vault_server,
             &self.validity_prover,
             key,
-            user_data.withdrawal_lpt,
             self.config.tx_timeout,
         )
         .await?;
-        if withdrawal_info.pending.len() > 0 {
-            return Err(SyncError::PendingWithdrawalError(format!(
-                "pending withdrawal: {:?}",
-                withdrawal_info.pending.len()
-            )));
-        }
-        for (meta, data) in &withdrawal_info.settled {
+        for (meta, data) in &withdrawals {
             self.sync_withdrawal(key, meta, data).await?;
         }
+        self.update_withdrawal_lpt(key, new_withdrawal_lpt).await?;
         Ok(())
     }
 
@@ -202,6 +189,12 @@ where
         // update user data
         user_data.block_number = new_block_number;
         user_data.processed_deposit_uuids.push(meta.uuid.clone());
+
+        if new_balance_pis.private_commitment != user_data.private_commitment() {
+            return Err(SyncError::InternalError(
+                "private commitment mismatch".to_string(),
+            ));
+        }
 
         // save proof and user data
         self.store_vault_server
@@ -254,7 +247,13 @@ where
                 last_block_number,
             }) => {
                 log::error!("Ignore tx: {} because of sender last block number error: balance_proof_block_number: {}, last_block_number: {}",meta.uuid, balance_proof_block_number, last_block_number);
-                // TODO: handle this error
+                return Ok(());
+            }
+            Err(SyncError::BalanceProofNotFound) => {
+                log::error!(
+                    "Ignore tx: {} because of sender balance proof not found",
+                    meta.uuid
+                );
                 return Ok(());
             }
             Err(e) => return Err(e),
@@ -286,10 +285,86 @@ where
         user_data.block_number = new_block_number;
         user_data.processed_transfer_uuids.push(meta.uuid.clone());
 
+        if new_balance_pis.private_commitment != user_data.private_commitment() {
+            return Err(SyncError::InternalError(
+                "private commitment mismatch".to_string(),
+            ));
+        }
+
         // save proof and user data
         self.store_vault_server
             .save_balance_proof(key.pubkey, &new_balance_proof)
             .await?;
+        self.store_vault_server
+            .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
+            .await?;
+
+        Ok(())
+    }
+
+    async fn sync_withdrawal(
+        &self,
+        key: KeySet,
+        meta: &MetaData,
+        withdrawal_data: &TransferData<F, C, D>,
+    ) -> Result<(), SyncError> {
+        log::info!("sync_withdrawal: {:?}", meta);
+        if meta.block_number.is_none() {
+            return Err(SyncError::InternalError(
+                "block number is not set".to_string(),
+            ));
+        }
+
+        // sender balance proof after applying the tx
+        let balance_proof = match self
+            .update_send_by_receiver(
+                key,
+                key.pubkey,
+                meta.block_number.unwrap(),
+                &withdrawal_data.tx_data,
+            )
+            .await
+        {
+            Ok(proof) => proof,
+            Err(SyncError::SenderLastBlockNumberError {
+                balance_proof_block_number,
+                last_block_number,
+            }) => {
+                log::error!("Ignore tx: {} because of sender last block number error: balance_proof_block_number: {}, last_block_number: {}",meta.uuid, balance_proof_block_number, last_block_number);
+                return Ok(());
+            }
+            Err(SyncError::BalanceProofNotFound) => {
+                log::error!(
+                    "Ignore tx: {} because of sender balance proof not found",
+                    meta.uuid
+                );
+                return Ok(());
+            }
+            Err(e) => return Err(e),
+        };
+
+        let withdrawal_witness = WithdrawalWitness {
+            transfer_witness: TransferWitness {
+                transfer: withdrawal_data.transfer.clone(),
+                transfer_index: withdrawal_data.transfer_index,
+                transfer_merkle_proof: withdrawal_data.transfer_merkle_proof.clone(),
+                tx: withdrawal_data.tx_data.tx.clone(),
+            },
+            balance_proof,
+        };
+        let single_withdrawal_proof = self
+            .balance_prover
+            .prove_single_withdrawal(key, &withdrawal_witness)
+            .await?;
+
+        // send withdrawal request
+        self.withdrawal_server
+            .request_withdrawal(key.pubkey, &single_withdrawal_proof)
+            .await?;
+
+        // update user data
+        let mut user_data = self.get_user_data(key).await?;
+        user_data.processed_withdrawal_uuids.push(meta.uuid.clone());
         self.store_vault_server
             .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
             .await?;
@@ -311,6 +386,16 @@ where
         log::info!("update_transfer_lpt: {:?}", timestamp);
         let mut user_data = self.get_user_data(key).await?;
         user_data.transfer_lpt = timestamp;
+        self.store_vault_server
+            .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
+            .await?;
+        Ok(())
+    }
+
+    async fn update_withdrawal_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), SyncError> {
+        log::info!("update_withdrawal_lpt: {:?}", timestamp);
+        let mut user_data = self.get_user_data(key).await?;
+        user_data.withdrawal_lpt = timestamp;
         self.store_vault_server
             .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
             .await?;
@@ -376,61 +461,6 @@ where
         self.store_vault_server
             .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
             .await?;
-        Ok(())
-    }
-
-    async fn sync_withdrawal(
-        &self,
-        key: KeySet,
-        meta: &MetaData,
-        withdrawal_data: &TransferData<F, C, D>,
-    ) -> Result<(), SyncError> {
-        log::info!("sync_withdrawal: {:?}", meta);
-        if meta.block_number.is_none() {
-            return Err(SyncError::InternalError(
-                "block number is not set".to_string(),
-            ));
-        }
-
-        let mut user_data = self.get_user_data(key).await?;
-        let new_user_balance_proof = self
-            .update_send_by_receiver(
-                key,
-                key.pubkey,
-                meta.block_number.unwrap(),
-                &withdrawal_data.tx_data,
-            )
-            .await?;
-
-        let withdrawal_witness = WithdrawalWitness {
-            transfer_witness: TransferWitness {
-                transfer: withdrawal_data.transfer.clone(),
-                transfer_index: withdrawal_data.transfer_index,
-                transfer_merkle_proof: withdrawal_data.transfer_merkle_proof.clone(),
-                tx: withdrawal_data.tx_data.tx.clone(),
-            },
-            balance_proof: new_user_balance_proof,
-        };
-        let single_withdrawal_proof = self
-            .balance_prover
-            .prove_single_withdrawal(key, &withdrawal_witness)
-            .await?;
-
-        // send withdrawal request
-        self.withdrawal_server
-            .request_withdrawal(key.pubkey, &single_withdrawal_proof)
-            .await?;
-
-        // update user data
-        user_data.block_number = meta.block_number.unwrap();
-        user_data.withdrawal_lpt = meta.timestamp;
-        user_data.processed_withdrawal_uuids.push(meta.uuid.clone());
-
-        // save user data
-        self.store_vault_server
-            .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
-            .await?;
-
         Ok(())
     }
 
@@ -525,6 +555,12 @@ where
                 balance_proof_block_number: new_block_number,
                 block_number: to_block_number,
             });
+        }
+
+        if new_balance_pis.private_commitment != user_data.private_commitment() {
+            return Err(SyncError::InternalError(
+                "private commitment mismatch".to_string(),
+            ));
         }
 
         // save balance proof
