@@ -27,7 +27,7 @@ struct Process {
 
 #[derive(Clone)]
 struct Config {
-    work_interval: u64,
+    heartbeat_interval: u64,
     submit_interval: u64,
 }
 
@@ -42,7 +42,7 @@ pub struct Worker {
 impl Worker {
     pub fn new(env: &EnvVar) -> Worker {
         let config = Config {
-            work_interval: env.work_interval,
+            heartbeat_interval: env.heartbeat_interval,
             submit_interval: env.submit_interval,
         };
         let client = ValidityProverClient::new(&env.validity_prover_base_url);
@@ -125,8 +125,10 @@ impl Worker {
                     Ok(_) => {}
                     Err(e) => log::error!("Error while working: {:?}", e),
                 }
-                tokio::time::sleep(tokio::time::Duration::from_secs(self.config.work_interval))
-                    .await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(
+                    self.config.heartbeat_interval,
+                ))
+                .await;
             }
         });
     }
