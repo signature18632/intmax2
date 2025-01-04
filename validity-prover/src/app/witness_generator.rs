@@ -339,7 +339,7 @@ impl WitnessGenerator {
         )
         .fetch_optional(&self.pool)
         .await?;
-        let validity_witness = match record {
+        let validity_pis = match record {
             Some(record) => {
                 let validity_witness: ValidityWitness =
                     serde_json::from_value(record.validity_witness.clone())?;
@@ -348,7 +348,7 @@ impl WitnessGenerator {
             }
             None => None,
         };
-        Ok(validity_witness)
+        Ok(validity_pis)
     }
 
     pub async fn get_sender_leaves(
