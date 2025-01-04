@@ -82,4 +82,7 @@ pub enum ProverCoordinatorError {
 
     #[error("Failed to generate validity proof: {0}")]
     FailedToGenerateValidityProof(String),
+
+    #[error("Validity witness not found for block number {0}")]
+    ValidityWitnessNotFound(u32),
 }

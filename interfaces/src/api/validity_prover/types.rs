@@ -137,8 +137,7 @@ pub struct GetAccountInfoResponse {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssignResponse {
-    pub block_number: u32,
-    pub validity_witness: ValidityWitness,
+    pub task: Option<(u32, ValidityWitness)>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

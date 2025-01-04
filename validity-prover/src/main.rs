@@ -7,7 +7,7 @@ use server_common::{
 use std::io::{self};
 
 use validity_prover::{
-    api::{state::State, witness_generator::validity_prover_scope},
+    api::{coordinator::coordinator_scope, state::State, witness_generator::validity_prover_scope},
     Env,
 };
 
@@ -43,6 +43,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(data.clone())
             .service(health_check)
             .service(validity_prover_scope())
+            .service(coordinator_scope())
     })
     .bind(format!("0.0.0.0:{}", env.port))?
     .run()

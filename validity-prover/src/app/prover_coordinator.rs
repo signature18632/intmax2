@@ -1,7 +1,10 @@
 use std::{sync::Arc, time::Duration};
 
-use intmax2_zkp::circuits::validity::{
-    transition::processor::TransitionProcessor, validity_circuit::ValidityCircuit,
+use intmax2_zkp::{
+    circuits::validity::{
+        transition::processor::TransitionProcessor, validity_circuit::ValidityCircuit,
+    },
+    common::witness::validity_witness::ValidityWitness,
 };
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
@@ -33,6 +36,12 @@ type Result<T> = std::result::Result<T, ProverCoordinatorError>;
 //     completed_at TIMESTAMP,
 //     transition_proof JSONB
 // );
+
+// CREATE TABLE IF NOT EXISTS validity_state (
+//     block_number INTEGER NOT NULL PRIMARY KEY,
+//     validity_witness JSONB NOT NULL,
+//     sender_leaves JSONB NOT NULL
+//  );
 
 #[derive(Clone)]
 pub struct Config {
@@ -77,7 +86,7 @@ impl ProverCoordinator {
     }
 
     // Assign the task with the smallest block number among the unassigned tasks
-    pub async fn assign_task(&self) -> Result<Option<u32>> {
+    pub async fn assign_task(&self) -> Result<Option<(u32, ValidityWitness)>> {
         let record = sqlx::query!(
             r#"
             UPDATE prover_tasks
@@ -95,7 +104,31 @@ impl ProverCoordinator {
         .fetch_optional(&self.pool)
         .await?;
         let block_number = record.map(|r| r.block_number as u32);
-        Ok(block_number)
+        if block_number.is_none() {
+            return Ok(None);
+        }
+        let block_number = block_number.unwrap();
+
+        // get validity witness from the validity_state table
+        let record = sqlx::query!(
+            r#"
+            SELECT validity_witness
+            FROM validity_state
+            WHERE block_number = $1
+            "#,
+            block_number as i32,
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        let validity_witness = match record {
+            Some(record) => serde_json::from_value(record.validity_witness.clone())?,
+            None => {
+                return Err(ProverCoordinatorError::ValidityWitnessNotFound(
+                    block_number,
+                ))
+            }
+        };
+        Ok(Some((block_number, validity_witness)))
     }
 
     pub async fn heartbeat(&self, block_number: u32) -> Result<()> {

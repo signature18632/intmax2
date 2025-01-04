@@ -4,7 +4,13 @@ use intmax2_interfaces::api::{
     validity_prover::{
         interface::{AccountInfo, DepositInfo, ValidityProverClientInterface},
         types::{
-            GetAccountInfoQuery, GetAccountInfoResponse, GetBlockMerkleProofQuery, GetBlockMerkleProofResponse, GetBlockNumberByTxTreeRootQuery, GetBlockNumberByTxTreeRootResponse, GetBlockNumberResponse, GetDepositInfoQuery, GetDepositInfoResponse, GetDepositMerkleProofQuery, GetDepositMerkleProofResponse, GetNextDepositIndexResponse, GetSenderLeavesQuery, GetSenderLeavesResponse, GetUpdateWitnessQuery, GetUpdateWitnessResponse, GetValidityPisQuery, GetValidityPisResponse
+            AssignResponse, CompleteRequest, GetAccountInfoQuery, GetAccountInfoResponse,
+            GetBlockMerkleProofQuery, GetBlockMerkleProofResponse, GetBlockNumberByTxTreeRootQuery,
+            GetBlockNumberByTxTreeRootResponse, GetBlockNumberResponse, GetDepositInfoQuery,
+            GetDepositInfoResponse, GetDepositMerkleProofQuery, GetDepositMerkleProofResponse,
+            GetNextDepositIndexResponse, GetSenderLeavesQuery, GetSenderLeavesResponse,
+            GetUpdateWitnessQuery, GetUpdateWitnessResponse, GetValidityPisQuery,
+            GetValidityPisResponse, HeartBeatRequest,
         },
     },
 };
@@ -15,13 +21,16 @@ use intmax2_zkp::{
             block_hash_tree::BlockHashMerkleProof, deposit_tree::DepositMerkleProof,
             sender_tree::SenderLeaf,
         },
-        witness::update_witness::UpdateWitness,
+        witness::{update_witness::UpdateWitness, validity_witness::ValidityWitness},
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
 };
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
+use plonky2::{
+    field::goldilocks_field::GoldilocksField,
+    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
+};
 
-use super::utils::query::get_request;
+use super::utils::query::{get_request, post_request};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -183,5 +192,33 @@ impl ValidityProverClientInterface for ValidityProverClient {
         )
         .await?;
         Ok(response.account_info)
+    }
+}
+
+// coordinator client
+impl ValidityProverClient {
+    pub async fn assign_task(&self) -> Result<Option<(u32, ValidityWitness)>, ServerError> {
+        let response: AssignResponse =
+            post_request::<(), _>(&self.base_url, "/coordinator/assign", None).await?;
+        Ok(response.task)
+    }
+
+    pub async fn complete_task(
+        &self,
+        block_number: u32,
+        transition_proof: ProofWithPublicInputs<F, C, D>,
+    ) -> Result<(), ServerError> {
+        let request = CompleteRequest {
+            block_number,
+            transition_proof,
+        };
+        post_request::<_, ()>(&self.base_url, "/coordinator/complete", Some(&request)).await?;
+        Ok(())
+    }
+
+    pub async fn heartbeat(&self, block_number: u32) -> Result<(), ServerError> {
+        let request = HeartBeatRequest { block_number };
+        post_request::<_, ()>(&self.base_url, "/coordinator/heartbeat", Some(&request)).await?;
+        Ok(())
     }
 }

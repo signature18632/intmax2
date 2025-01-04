@@ -54,7 +54,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         post_request::<_, ()>(
             &self.base_url,
             "/store-vault-server/save-balance-proof",
-            &request,
+            Some(&request),
         )
         .await
     }
@@ -92,7 +92,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         let response: SaveDataResponse = post_request(
             &self.base_url,
             &format!("/store-vault-server/{}/save", data_type.to_string()),
-            &request,
+            Some(&request),
         )
         .await?;
         Ok(response.uuid)
@@ -107,7 +107,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         let response: BatchSaveDataResponse = post_request(
             &self.base_url,
             &format!("/store-vault-server/{}/batch-save", data_type.to_string()),
-            &request,
+            Some(&request),
         )
         .await?;
         Ok(response.uuids)
@@ -178,7 +178,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         post_request::<_, ()>(
             &self.base_url,
             "/store-vault-server/save-user-data",
-            &request,
+            Some(&request),
         )
         .await
     }

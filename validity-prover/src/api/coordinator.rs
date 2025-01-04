@@ -15,8 +15,7 @@ pub async fn assign_task(data: Data<State>) -> Result<Json<AssignResponse>, Erro
         log::error!("Failed to assign task: {:?}", e);
         actix_web::error::ErrorInternalServerError(e)
     })?;
-
-    todo!()
+    Ok(Json(AssignResponse { task }))
 }
 
 #[post("/complete")]
@@ -49,7 +48,7 @@ pub async fn heartbeat(
     Ok(Json(()))
 }
 
-pub fn task_scope() -> actix_web::Scope {
+pub fn coordinator_scope() -> actix_web::Scope {
     actix_web::web::scope("/coordinator")
         .service(assign_task)
         .service(complete_task)
