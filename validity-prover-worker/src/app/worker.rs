@@ -67,6 +67,7 @@ impl Worker {
             return Ok(());
         }
         let task = task.unwrap();
+        log::info!("Task assigned for block_number {}", task.block_number);
         let process = Process {
             task: task.clone(),
             transition_proof: None,
@@ -85,6 +86,7 @@ impl Worker {
             .unwrap()
             .transition_proof
             .replace(transition_proof);
+        log::info!("Proof generated for block_number {}", task.block_number);
         Ok(())
     }
 
@@ -101,9 +103,17 @@ impl Worker {
                 .complete_task(process.task.block_number, transition_proof.clone())
                 .await?;
             self.process.write().await.take(); // clear process
+            log::info!(
+                "Proof submitted for block_number {}",
+                process.task.block_number
+            );
         } else {
             // submit heartbeat if proof is not available
             self.client.heartbeat(process.task.block_number).await?;
+            log::info!(
+                "Heartbeat submitted for block_number {}",
+                process.task.block_number
+            );
         }
         Ok(())
     }

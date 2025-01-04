@@ -96,7 +96,7 @@ impl ProverCoordinator {
             WHERE block_number = (
                 SELECT block_number
                 FROM prover_tasks
-                WHERE assigned = FALSE
+                WHERE assigned = FALSE AND completed = FALSE
                 ORDER BY block_number
                 LIMIT 1
             )
