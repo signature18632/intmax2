@@ -4,13 +4,13 @@ use intmax2_interfaces::api::{
     validity_prover::{
         interface::{AccountInfo, DepositInfo, TransitionProofTask, ValidityProverClientInterface},
         types::{
-            AssignResponse, CompleteRequest, GetAccountInfoQuery, GetAccountInfoResponse,
-            GetBlockMerkleProofQuery, GetBlockMerkleProofResponse, GetBlockNumberByTxTreeRootQuery,
+            GetAccountInfoQuery, GetAccountInfoResponse, GetBlockMerkleProofQuery,
+            GetBlockMerkleProofResponse, GetBlockNumberByTxTreeRootQuery,
             GetBlockNumberByTxTreeRootResponse, GetBlockNumberResponse, GetDepositInfoQuery,
             GetDepositInfoResponse, GetDepositMerkleProofQuery, GetDepositMerkleProofResponse,
             GetNextDepositIndexResponse, GetSenderLeavesQuery, GetSenderLeavesResponse,
             GetUpdateWitnessQuery, GetUpdateWitnessResponse, GetValidityPisQuery,
-            GetValidityPisResponse, HeartBeatRequest,
+            GetValidityPisResponse,
         },
     },
 };
