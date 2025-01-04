@@ -101,6 +101,7 @@ pub async fn receive_deposit<V: ValidityProverClientInterface, B: BalanceProverC
     Ok(balance_proof)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
     balance_prover: &B,

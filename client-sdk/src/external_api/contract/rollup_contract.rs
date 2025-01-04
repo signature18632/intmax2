@@ -296,6 +296,7 @@ impl RollupContract {
         Ok(tx_hash)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn post_registration_block(
         &self,
         signer_private_key: H256,
@@ -333,6 +334,7 @@ impl RollupContract {
         Ok(tx_hash)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn post_non_registration_block(
         &self,
         signer_private_key: H256,
