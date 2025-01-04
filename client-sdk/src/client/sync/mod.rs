@@ -247,7 +247,13 @@ where
                 last_block_number,
             }) => {
                 log::error!("Ignore tx: {} because of sender last block number error: balance_proof_block_number: {}, last_block_number: {}",meta.uuid, balance_proof_block_number, last_block_number);
-                // TODO: handle this error
+                return Ok(());
+            }
+            Err(SyncError::BalanceProofNotFound) => {
+                log::error!(
+                    "Ignore tx: {} because of sender balance proof not found",
+                    meta.uuid
+                );
                 return Ok(());
             }
             Err(e) => return Err(e),
@@ -309,15 +315,33 @@ where
             ));
         }
 
-        // get balance proof right after applying the tx
-        let balance_proof = self
+        // sender balance proof after applying the tx
+        let balance_proof = match self
             .update_send_by_receiver(
                 key,
                 key.pubkey,
                 meta.block_number.unwrap(),
                 &withdrawal_data.tx_data,
             )
-            .await?;
+            .await
+        {
+            Ok(proof) => proof,
+            Err(SyncError::SenderLastBlockNumberError {
+                balance_proof_block_number,
+                last_block_number,
+            }) => {
+                log::error!("Ignore tx: {} because of sender last block number error: balance_proof_block_number: {}, last_block_number: {}",meta.uuid, balance_proof_block_number, last_block_number);
+                return Ok(());
+            }
+            Err(SyncError::BalanceProofNotFound) => {
+                log::error!(
+                    "Ignore tx: {} because of sender balance proof not found",
+                    meta.uuid
+                );
+                return Ok(());
+            }
+            Err(e) => return Err(e),
+        };
 
         let withdrawal_witness = WithdrawalWitness {
             transfer_witness: TransferWitness {
