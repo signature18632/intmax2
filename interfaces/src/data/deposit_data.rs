@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{fmt, str::FromStr};
 
 use anyhow::{bail, ensure};
 use serde::{Deserialize, Serialize};
@@ -53,14 +53,15 @@ impl FromStr for TokenType {
     }
 }
 
-impl ToString for TokenType {
-    fn to_string(&self) -> String {
-        match self {
+impl fmt::Display for TokenType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let t = match self {
             Self::NATIVE => "NATIVE".to_string(),
             Self::ERC20 => "ERC20".to_string(),
             Self::ERC721 => "ERC721".to_string(),
             Self::ERC1155 => "ERC1155".to_string(),
-        }
+        };
+        write!(f, "{}", t)
     }
 }
 
@@ -129,5 +130,20 @@ impl DepositData {
         } else {
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TokenType;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_token_type() {
+        let native = TokenType::from_str("NATIVE").unwrap();
+        assert_eq!(native.to_string(), "NATIVE");
+
+        let erc721 = TokenType::ERC721;
+        assert_eq!(erc721.to_string(), "ERC721");
     }
 }
