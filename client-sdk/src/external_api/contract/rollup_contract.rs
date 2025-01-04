@@ -228,7 +228,7 @@ impl RollupContract {
         for (event, meta) in events {
             blocks_posted_events.push(BlockPosted {
                 prev_block_hash: Bytes32::from_bytes_be(&event.prev_block_hash),
-                block_builder: Address::from_bytes_be(&event.block_builder.as_bytes()),
+                block_builder: Address::from_bytes_be(event.block_builder.as_bytes()),
                 block_number: event.block_number.as_u32(),
                 deposit_tree_root: Bytes32::from_bytes_be(&event.deposit_tree_root),
                 signature_hash: Bytes32::from_bytes_be(&event.signature_hash),
@@ -258,7 +258,7 @@ impl RollupContract {
                 event.prev_block_hash,
                 event.deposit_tree_root,
                 event.block_number,
-                &tx.input.to_vec(),
+                &tx.input,
             )
             .map_err(|e| {
                 BlockchainError::DecodeCallDataError(format!(

@@ -46,11 +46,11 @@ pub async fn handle_contract_call<S: ToString, O: Detokenize>(
         }
         Err(e) => {
             let error_message = e.to_string();
-            return Err(BlockchainError::TransactionError(format!(
+            Err(BlockchainError::TransactionError(format!(
                 "{} failed with error: {:?}",
                 tx_name.to_string(),
                 error_message
-            )));
+            )))
         }
     }
 }
@@ -80,7 +80,7 @@ async fn send_tx_with_eip1559_gas_bump<S: ToString>(
                 let suggested_max_fee_per_gas = base_fee * 2 + priority_fee;
                 let max_fee_per_gas = current_tx
                     .max_fee_per_gas
-                    .unwrap_or_else(|| suggested_max_fee_per_gas);
+                    .unwrap_or(suggested_max_fee_per_gas);
                 let new_priority_fee = priority_fee * (100 + GAS_BUMP_PERCENTAGE) / 100;
                 let new_max_fee_per_gas = suggested_max_fee_per_gas
                     .max(max_fee_per_gas * (100 + GAS_BUMP_PERCENTAGE) / 100);
@@ -123,7 +123,7 @@ async fn send_tx_with_eip1559_gas_bump<S: ToString>(
             }
         }
     }
-    return Err(BlockchainError::MaxTxRetriesReached);
+    Err(BlockchainError::MaxTxRetriesReached)
 }
 
 async fn check_if_tx_succeeded(
@@ -142,11 +142,9 @@ async fn check_if_tx_succeeded(
                     tx_receipt.transaction_hash
                 )));
             }
-            return Ok(Some(tx_receipt.transaction_hash));
+            Ok(Some(tx_receipt.transaction_hash))
         }
-        None => {
-            return Ok(None);
-        }
+        None => Ok(None),
     }
 }
 

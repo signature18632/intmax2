@@ -62,20 +62,18 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
                     let mut meta = meta;
                     meta.block_number = Some(deposit_info.block_number);
                     settled.push((meta, deposit_data));
+                } else if meta.timestamp + deposit_timeout < chrono::Utc::now().timestamp() as u64 {
+                    // timeout
+                    log::error!(
+                        "Deposit uuid: {}, hash: {} is timeout",
+                        meta.uuid,
+                        deposit_hash
+                    );
+                    timeout.push((meta, deposit_data));
                 } else {
-                    if meta.timestamp + deposit_timeout < chrono::Utc::now().timestamp() as u64 {
-                        // timeout
-                        log::error!(
-                            "Deposit uuid: {}, hash: {} is timeout",
-                            meta.uuid,
-                            deposit_hash
-                        );
-                        timeout.push((meta, deposit_data));
-                    } else {
-                        // pending
-                        log::info!("Deposit {} is pending", meta.uuid);
-                        pending.push((meta, deposit_data));
-                    }
+                    // pending
+                    log::info!("Deposit {} is pending", meta.uuid);
+                    pending.push((meta, deposit_data));
                 }
             }
             Err(e) => {

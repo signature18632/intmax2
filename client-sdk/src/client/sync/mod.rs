@@ -268,7 +268,7 @@ where
             new_salt,
             &new_sender_balance_proof,
             &prev_balance_proof,
-            &transfer_data,
+            transfer_data,
         )
         .await?;
 
@@ -345,10 +345,10 @@ where
 
         let withdrawal_witness = WithdrawalWitness {
             transfer_witness: TransferWitness {
-                transfer: withdrawal_data.transfer.clone(),
+                transfer: withdrawal_data.transfer,
                 transfer_index: withdrawal_data.transfer_index,
                 transfer_merkle_proof: withdrawal_data.transfer_merkle_proof.clone(),
-                tx: withdrawal_data.tx_data.tx.clone(),
+                tx: withdrawal_data.tx_data.tx,
             },
             balance_proof,
         };
@@ -485,9 +485,9 @@ where
             .store_vault_server
             .get_balance_proof(sender, block_number, spent_proof_pis.new_private_commitment)
             .await?;
-        if new_sender_balance_proof.is_some() {
+        if let Some(proof) = new_sender_balance_proof {
             // already updated
-            return Ok(new_sender_balance_proof.unwrap());
+            return Ok(proof);
         }
 
         let prev_sender_balance_proof = self
@@ -498,7 +498,7 @@ where
                 spent_proof_pis.prev_private_commitment,
             )
             .await?
-            .ok_or_else(|| SyncError::BalanceProofNotFound)?;
+            .ok_or(SyncError::BalanceProofNotFound)?;
 
         let new_sender_balance_proof = update_send_by_receiver(
             &self.validity_prover,
@@ -535,10 +535,8 @@ where
                 user_data.private_commitment(),
             )
             .await?;
-        if user_data.block_number != 0 {
-            if prev_balance_proof.is_none() {
-                return Err(SyncError::BalanceProofNotFound);
-            }
+        if user_data.block_number != 0 && prev_balance_proof.is_none() {
+            return Err(SyncError::BalanceProofNotFound);
         }
         let new_balance_proof = update_no_send(
             &self.validity_prover,

@@ -74,18 +74,18 @@ async fn handle_response<R: DeserializeOwned>(
             .await
             .unwrap_or_else(|_| "Failed to read error response".to_string());
         let error_message = match serde_json::from_str::<ErrorResponse>(&error_text) {
-            Ok(error_resp) => error_resp.message.unwrap_or_else(|| error_resp.error),
+            Ok(error_resp) => error_resp.message.unwrap_or(error_resp.error),
             Err(_) => error_text,
         };
         let abr_request = if is_debug_mode() {
             // full request string
-            request_str.clone().unwrap_or_else(|| "".to_string())
+            request_str.clone().unwrap_or_default()
         } else {
             // Truncate the request string to 500 characters if it is too long
             request_str
                 .as_ref()
                 .map(|s| s.chars().take(500).collect::<String>())
-                .unwrap_or_else(|| "".to_string())
+                .unwrap_or_default()
         };
         return Err(ServerError::ServerError(
             status.into(),
