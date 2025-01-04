@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use intmax2_interfaces::api::{
     error::ServerError,
     validity_prover::{
-        interface::{AccountInfo, DepositInfo, ValidityProverClientInterface},
+        interface::{AccountInfo, DepositInfo, TransitionProofTask, ValidityProverClientInterface},
         types::{
             AssignResponse, CompleteRequest, GetAccountInfoQuery, GetAccountInfoResponse,
             GetBlockMerkleProofQuery, GetBlockMerkleProofResponse, GetBlockNumberByTxTreeRootQuery,
@@ -21,7 +21,7 @@ use intmax2_zkp::{
             block_hash_tree::BlockHashMerkleProof, deposit_tree::DepositMerkleProof,
             sender_tree::SenderLeaf,
         },
-        witness::{update_witness::UpdateWitness, validity_witness::ValidityWitness},
+        witness::update_witness::UpdateWitness,
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
 };
@@ -197,7 +197,7 @@ impl ValidityProverClientInterface for ValidityProverClient {
 
 // coordinator client
 impl ValidityProverClient {
-    pub async fn assign_task(&self) -> Result<Option<(u32, ValidityWitness)>, ServerError> {
+    pub async fn assign_task(&self) -> Result<Option<TransitionProofTask>, ServerError> {
         let response: AssignResponse =
             post_request::<(), _>(&self.base_url, "/coordinator/assign", None).await?;
         Ok(response.task)

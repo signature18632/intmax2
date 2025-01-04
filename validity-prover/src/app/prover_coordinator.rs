@@ -1,8 +1,10 @@
 use std::{sync::Arc, time::Duration};
 
+use intmax2_interfaces::api::validity_prover::interface::TransitionProofTask;
 use intmax2_zkp::{
     circuits::validity::{
         transition::processor::TransitionProcessor, validity_circuit::ValidityCircuit,
+        validity_pis::ValidityPublicInputs,
     },
     common::witness::validity_witness::ValidityWitness,
 };
@@ -86,7 +88,7 @@ impl ProverCoordinator {
     }
 
     // Assign the task with the smallest block number among the unassigned tasks
-    pub async fn assign_task(&self) -> Result<Option<(u32, ValidityWitness)>> {
+    pub async fn assign_task(&self) -> Result<Option<TransitionProofTask>> {
         let record = sqlx::query!(
             r#"
             UPDATE prover_tasks
@@ -109,7 +111,27 @@ impl ProverCoordinator {
         }
         let block_number = block_number.unwrap();
 
-        // get validity witness from the validity_state table
+        let validity_witness = self.get_validity_witness(block_number).await?;
+        let prev_block_number = block_number - 1;
+        let prev_validity_pis = if prev_block_number == 0 {
+            // prev_validity_pis is the genesis validity public inputs
+            ValidityPublicInputs::genesis()
+        } else {
+            let prev_validity_witness = self.get_validity_witness(prev_block_number).await?;
+            prev_validity_witness
+                .to_validity_pis()
+                .map_err(|e| ProverCoordinatorError::FailedToConvertValidityPis(e.to_string()))?
+        };
+
+        let task = TransitionProofTask {
+            block_number,
+            prev_validity_pis,
+            validity_witness,
+        };
+        Ok(Some(task))
+    }
+
+    async fn get_validity_witness(&self, block_number: u32) -> Result<ValidityWitness> {
         let record = sqlx::query!(
             r#"
             SELECT validity_witness
@@ -128,7 +150,7 @@ impl ProverCoordinator {
                 ))
             }
         };
-        Ok(Some((block_number, validity_witness)))
+        Ok(validity_witness)
     }
 
     pub async fn heartbeat(&self, block_number: u32) -> Result<()> {

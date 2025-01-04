@@ -11,11 +11,13 @@ use crate::api::state::State;
 
 #[post("/assign")]
 pub async fn assign_task(data: Data<State>) -> Result<Json<AssignResponse>, Error> {
-    let task = data.coordinator.assign_task().await.map_err(|e| {
+    let assigned_task = data.coordinator.assign_task().await.map_err(|e| {
         log::error!("Failed to assign task: {:?}", e);
         actix_web::error::ErrorInternalServerError(e)
     })?;
-    Ok(Json(AssignResponse { task }))
+    Ok(Json(AssignResponse {
+        task: assigned_task,
+    }))
 }
 
 #[post("/complete")]

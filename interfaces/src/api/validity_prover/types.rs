@@ -1,4 +1,4 @@
-use super::interface::DepositInfo;
+use super::interface::{DepositInfo, TransitionProofTask};
 use crate::api::validity_prover::interface::AccountInfo;
 use intmax2_zkp::{
     circuits::validity::validity_pis::ValidityPublicInputs,
@@ -7,7 +7,7 @@ use intmax2_zkp::{
             block_hash_tree::BlockHashMerkleProof, deposit_tree::DepositMerkleProof,
             sender_tree::SenderLeaf,
         },
-        witness::{update_witness::UpdateWitness, validity_witness::ValidityWitness},
+        witness::update_witness::UpdateWitness,
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
 };
@@ -137,7 +137,7 @@ pub struct GetAccountInfoResponse {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AssignResponse {
-    pub task: Option<(u32, ValidityWitness)>,
+    pub task: Option<TransitionProofTask>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

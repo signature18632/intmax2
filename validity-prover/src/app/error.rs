@@ -85,4 +85,7 @@ pub enum ProverCoordinatorError {
 
     #[error("Validity witness not found for block number {0}")]
     ValidityWitnessNotFound(u32),
+
+    #[error("Failed to convert validity pis: {0}")]
+    FailedToConvertValidityPis(String),
 }

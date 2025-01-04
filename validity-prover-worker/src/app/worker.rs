@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
 use intmax2_client_sdk::external_api::validity_prover::ValidityProverClient;
-use intmax2_zkp::{
-    circuits::validity::transition::processor::TransitionProcessor,
-    common::witness::validity_witness::ValidityWitness,
-};
+use intmax2_interfaces::api::validity_prover::interface::TransitionProofTask;
+use intmax2_zkp::circuits::validity::transition::processor::TransitionProcessor;
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
@@ -22,9 +20,8 @@ const D: usize = 2;
 type Result<T> = std::result::Result<T, WorkerError>;
 
 #[derive(Clone)]
-struct Task {
-    block_number: u32,
-    witness: ValidityWitness,
+struct Process {
+    task: TransitionProofTask,
     transition_proof: Option<ProofWithPublicInputs<F, C, D>>,
 }
 
@@ -39,7 +36,7 @@ pub struct Worker {
     config: Config,
     client: ValidityProverClient,
     transition_processor: Arc<TransitionProcessor<F, C, D>>,
-    task: Arc<RwLock<Option<Task>>>,
+    process: Arc<RwLock<Option<Process>>>,
 }
 
 impl Worker {
@@ -55,12 +52,12 @@ impl Worker {
             config,
             client,
             transition_processor,
-            task,
+            process: task,
         }
     }
 
     async fn work(&self) -> Result<()> {
-        if self.task.read().await.is_some() {
+        if self.process.read().await.is_some() {
             log::info!("Task already assigned");
             return Ok(());
         }
@@ -69,20 +66,19 @@ impl Worker {
             log::info!("No task available");
             return Ok(());
         }
-        let (block_number, validity_witness) = task.unwrap();
-        let task = Task {
-            block_number,
-            witness: validity_witness.clone(),
+        let task = task.unwrap();
+        let process = Process {
+            task: task.clone(),
             transition_proof: None,
         };
-        self.task.write().await.replace(task);
+        self.process.write().await.replace(process);
 
         // generate proof
         let transition_proof = self
             .transition_processor
-            .prove(todo!(), &validity_witness)
+            .prove(&task.prev_validity_pis, &task.validity_witness)
             .map_err(|e| WorkerError::TransitionProveFailed(format!("{:?}", e)))?;
-        self.task
+        self.process
             .write()
             .await
             .as_mut()
@@ -93,22 +89,21 @@ impl Worker {
     }
 
     async fn submit(&self) -> Result<()> {
-        let task = self.task.read().await.clone();
-        if task.is_none() {
-            log::info!("No task assigned");
+        let process = self.process.read().await.clone();
+        if process.is_none() {
+            log::info!("No process to submit");
             return Ok(());
         }
-        let task = task.unwrap();
-
-        if let Some(transition_proof) = &task.transition_proof {
+        let process = process.unwrap();
+        if let Some(transition_proof) = &process.transition_proof {
             // submit proof if available
             self.client
-                .complete_task(task.block_number, transition_proof.clone())
+                .complete_task(process.task.block_number, transition_proof.clone())
                 .await?;
-            self.task.write().await.take(); // clear task
+            self.process.write().await.take(); // clear process
         } else {
             // submit heartbeat if proof is not available
-            self.client.heartbeat(task.block_number).await?;
+            self.client.heartbeat(process.task.block_number).await?;
         }
         Ok(())
     }

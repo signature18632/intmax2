@@ -6,7 +6,7 @@ use intmax2_zkp::{
             block_hash_tree::BlockHashMerkleProof, deposit_tree::DepositMerkleProof,
             sender_tree::SenderLeaf,
         },
-        witness::update_witness::UpdateWitness,
+        witness::{update_witness::UpdateWitness, validity_witness::ValidityWitness},
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
 };
@@ -32,6 +32,14 @@ pub struct DepositInfo {
 pub struct AccountInfo {
     pub account_id: Option<u64>,
     pub block_number: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransitionProofTask {
+    pub block_number: u32,
+    pub prev_validity_pis: ValidityPublicInputs,
+    pub validity_witness: ValidityWitness,
 }
 
 #[async_trait(?Send)]
