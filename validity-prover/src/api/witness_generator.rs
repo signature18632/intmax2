@@ -24,6 +24,18 @@ pub async fn get_block_number(state: Data<State>) -> Result<Json<GetBlockNumberR
     Ok(Json(GetBlockNumberResponse { block_number }))
 }
 
+#[get("/validity-proof-block-number")]
+pub async fn get_validity_proof_block_number(
+    state: Data<State>,
+) -> Result<Json<GetBlockNumberResponse>, Error> {
+    let block_number = state
+        .witness_generator
+        .get_latest_validity_proof_block_number()
+        .await
+        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+    Ok(Json(GetBlockNumberResponse { block_number }))
+}
+
 #[get("/next-deposit-index")]
 pub async fn get_next_deposit_index(
     state: Data<State>,
@@ -158,6 +170,7 @@ pub async fn get_deposit_merkle_proof(
 pub fn validity_prover_scope() -> actix_web::Scope {
     actix_web::web::scope("/validity-prover")
         .service(get_block_number)
+        .service(get_validity_proof_block_number)
         .service(get_next_deposit_index)
         .service(get_account_info)
         .service(get_update_witness)

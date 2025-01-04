@@ -188,6 +188,13 @@ impl ProverCoordinator {
         block_number: u32,
         transition_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> Result<()> {
+        // Verify the transition proof
+        self.transition_processor
+            .transition_wrapper_circuit
+            .data
+            .verify(transition_proof.clone())
+            .map_err(|e| ProverCoordinatorError::TransitionProofVerificationError(e.to_string()))?;
+
         let transition_proof = serde_json::to_value(transition_proof)?;
         sqlx::query!(
             r#"

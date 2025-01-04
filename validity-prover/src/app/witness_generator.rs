@@ -8,7 +8,7 @@ use intmax2_zkp::{
             account_tree::AccountMembershipProof, block_hash_tree::BlockHashMerkleProof,
             deposit_tree::DepositMerkleProof, sender_tree::SenderLeaf,
         },
-        witness::update_witness::UpdateWitness,
+        witness::{update_witness::UpdateWitness, validity_witness::ValidityWitness},
     },
     constants::{ACCOUNT_TREE_HEIGHT, BLOCK_HASH_TREE_HEIGHT, DEPOSIT_TREE_HEIGHT},
     ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait as _},
@@ -326,8 +326,29 @@ impl WitnessGenerator {
         &self,
         block_number: u32,
     ) -> Result<Option<ValidityPublicInputs>, ValidityProverError> {
-        let validity_proof = self.get_validity_proof(block_number).await?;
-        Ok(validity_proof.map(|proof| ValidityPublicInputs::from_pis(&proof.public_inputs)))
+        if block_number == 0 {
+            return Ok(Some(ValidityPublicInputs::genesis()));
+        }
+        let record = sqlx::query!(
+            r#"
+            SELECT validity_witness
+            FROM validity_state
+            WHERE block_number = $1
+            "#,
+            block_number as i32,
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        let validity_witness = match record {
+            Some(record) => {
+                let validity_witness: ValidityWitness =
+                    serde_json::from_value(record.validity_witness.clone())?;
+                let validity_pis = validity_witness.to_validity_pis()?;
+                Some(validity_pis)
+            }
+            None => None,
+        };
+        Ok(validity_witness)
     }
 
     pub async fn get_sender_leaves(
@@ -377,6 +398,21 @@ impl WitnessGenerator {
             .prove_membership(block_number as u64, pubkey)
             .await?;
         Ok(proof)
+    }
+
+    pub async fn get_latest_validity_proof_block_number(&self) -> Result<u32, ValidityProverError> {
+        let record = sqlx::query!(
+            r#"
+            SELECT block_number
+            FROM validity_proofs
+            ORDER BY block_number DESC
+            LIMIT 1
+            "#,
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        let block_number = record.map(|r| r.block_number as u32).unwrap_or(0);
+        Ok(block_number)
     }
 
     pub async fn get_last_block_number(&self) -> Result<u32, ValidityProverError> {
