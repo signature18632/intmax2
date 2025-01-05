@@ -214,8 +214,8 @@ pub async fn update_send_by_sender<
             tx_block_number
         )))?;
     let tx_witness = TxWitness {
-        validity_pis,
-        sender_leaves,
+        validity_pis: validity_pis.clone(),
+        sender_leaves: sender_leaves.clone(),
         tx: tx_data.common.tx,
         tx_index: tx_data.common.tx_index,
         tx_merkle_proof: tx_data.common.tx_merkle_proof.clone(),
