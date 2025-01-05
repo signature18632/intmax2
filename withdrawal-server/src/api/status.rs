@@ -23,9 +23,9 @@ impl From<WithdrawalStatus> for SqlWithdrawalStatus {
     }
 }
 
-impl Into<WithdrawalStatus> for SqlWithdrawalStatus {
-    fn into(self) -> WithdrawalStatus {
-        match self {
+impl From<SqlWithdrawalStatus> for WithdrawalStatus {
+    fn from(val: SqlWithdrawalStatus) -> Self {
+        match val {
             SqlWithdrawalStatus::Requested => WithdrawalStatus::Requested,
             SqlWithdrawalStatus::Relayed => WithdrawalStatus::Relayed,
             SqlWithdrawalStatus::Success => WithdrawalStatus::Success,

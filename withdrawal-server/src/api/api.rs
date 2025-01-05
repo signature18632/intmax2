@@ -32,7 +32,7 @@ pub async fn request_withdrawal(
         .withdrawal_server
         .request_withdrawal(request.pubkey, &request.single_withdrawal_proof)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(()))
 }
 
@@ -45,7 +45,7 @@ pub async fn get_withdrawal_info(
         .withdrawal_server
         .get_withdrawal_info(query.pubkey, query.signature.clone())
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
 
     Ok(Json(GetWithdrawalInfoResponse { withdrawal_info }))
 }
@@ -59,7 +59,7 @@ pub async fn get_withdrawal_info_by_recipient(
         .withdrawal_server
         .get_withdrawal_info_by_recipient(query.recipient)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetWithdrawalInfoResponse { withdrawal_info }))
 }
 
