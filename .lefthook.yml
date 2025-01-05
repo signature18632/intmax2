@@ -7,6 +7,6 @@ pre-commit:
       stage_fixed: true
     cargo-clippy:
       glob: "*.rs"
-      run: cargo clippy -- -D warnings
+      run: cargo clippy --tests -- -D warnings
     check-typos:
       run: typos {staged_files}
