@@ -18,7 +18,7 @@ pub async fn post_empty_block(state: Data<State>) -> Result<Json<()>, Error> {
     state
         .evoke_force_post()
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(()))
 }
 
@@ -47,7 +47,7 @@ pub async fn tx_request(
         .await
         .send_tx_request(request.is_registration_block, request.pubkey, request.tx)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(()))
 }
 
@@ -62,7 +62,7 @@ pub async fn query_proposal(
         .read()
         .await
         .query_proposal(request.is_registration_block, request.pubkey, request.tx)
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(QueryProposalResponse { block_proposal }))
 }
 
@@ -81,7 +81,7 @@ pub async fn post_signature(
         .write()
         .await
         .post_signature(request.is_registration_block, request.tx, user_signature)
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(()))
 }
 
