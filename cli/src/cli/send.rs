@@ -53,7 +53,7 @@ pub async fn transfer(key: KeySet, transfer_inputs: &[TransferInput]) -> Result<
     let env = envy::from_env::<EnvVar>()?;
     let client = get_client()?;
 
-    let pending_info = client.sync(key.clone()).await?;
+    let pending_info = client.sync(key).await?;
     log::info!(
         "Pending deposits: {:?}",
         pending_info.pending_deposits.len()
@@ -83,7 +83,7 @@ pub async fn transfer(key: KeySet, transfer_inputs: &[TransferInput]) -> Result<
         .await?;
 
     let is_registration_block = memo.is_registration_block;
-    let tx = memo.tx.clone();
+    let tx = memo.tx;
 
     log::info!("Waiting for block builder to build the block");
     tokio::time::sleep(std::time::Duration::from_secs(
@@ -96,8 +96,8 @@ pub async fn transfer(key: KeySet, transfer_inputs: &[TransferInput]) -> Result<
         let proposal = client
             .query_proposal(&block_builder_url, key, is_registration_block, tx)
             .await?;
-        if proposal.is_some() {
-            break proposal.unwrap();
+        if let Some(p) = proposal {
+            break p;
         }
         if tries > env.block_builder_query_limit {
             return Err(CliError::FailedToGetProposal);
@@ -126,10 +126,10 @@ fn parse_generic_address(address: &str) -> anyhow::Result<GenericAddress> {
     let bytes = hex::decode(&address[2..])?;
     if bytes.len() == 20 {
         let address = IAddress::from_bytes_be(&bytes);
-        return Ok(GenericAddress::from_address(address));
+        Ok(GenericAddress::from_address(address))
     } else if bytes.len() == 32 {
         let pubkey = IU256::from_bytes_be(&bytes);
-        return Ok(GenericAddress::from_pubkey(pubkey));
+        Ok(GenericAddress::from_pubkey(pubkey))
     } else {
         bail!("Invalid length");
     }

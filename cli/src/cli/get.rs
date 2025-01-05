@@ -14,7 +14,7 @@ use super::error::CliError;
 
 pub async fn balance(key: KeySet) -> Result<(), CliError> {
     let client = get_client()?;
-    let pending_info = client.sync(key.clone()).await?;
+    let pending_info = client.sync(key).await?;
 
     println!("Pending deposits: {}", pending_info.pending_deposits.len());
     println!(
@@ -28,11 +28,10 @@ pub async fn balance(key: KeySet) -> Result<(), CliError> {
 
     println!("Balances:");
     for (i, leaf) in balances.iter() {
-        let (token_type, address, token_id) =
-            client.liquidity_contract.get_token_info(*i as u32).await?;
+        let (token_type, address, token_id) = client.liquidity_contract.get_token_info(*i).await?;
         println!("\t Token #{}:", i);
         println!("\t\t Amount: {}", leaf.amount);
-        println!("\t\t Type: {}", token_type.to_string());
+        println!("\t\t Type: {}", token_type);
 
         match token_type {
             TokenType::NATIVE => {}

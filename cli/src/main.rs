@@ -58,7 +58,7 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
             let key = h256_to_keyset(private_key);
             let transfer_input = TransferInput {
                 recipient: to,
-                amount: amount.into(),
+                amount,
                 token_index,
             };
             transfer(key, &[transfer_input]).await?;
