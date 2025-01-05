@@ -104,6 +104,12 @@ A server that receives withdrawal requests from users and writes them to the dat
 
 ## Set-up Local Environment
 
+initial setup for Rust Tools:
+
+```bash
+rustup component add rustfmt clippy
+```
+
 install [lefthook](https://github.com/evilmartians/lefthook):
 
 ```bash
