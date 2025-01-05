@@ -163,7 +163,7 @@ impl StoreVaultServer {
     ) -> Result<String> {
         let pubkey_hex = pubkey.to_hex();
         let uuid = Uuid::new_v4().to_string();
-        let timestamp = chrono::Utc::now().timestamp() as i64;
+        let timestamp = chrono::Utc::now().timestamp();
 
         sqlx::query!(
             r#"
@@ -188,7 +188,7 @@ impl StoreVaultServer {
         data_type: DataType,
         requests: Vec<(U256, Vec<u8>)>,
     ) -> Result<Vec<String>> {
-        let timestamp = chrono::Utc::now().timestamp() as i64;
+        let timestamp = chrono::Utc::now().timestamp();
 
         // Prepare values for bulk insert
         let pubkeys: Vec<String> = requests.iter().map(|(pubkey, _)| pubkey.to_hex()).collect();
