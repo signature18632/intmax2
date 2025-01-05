@@ -19,11 +19,15 @@ use super::utils::query::{get_request, post_request};
 #[derive(Debug, Clone)]
 pub struct BlockBuilderClient;
 
-impl BlockBuilderClient {}
+impl BlockBuilderClient {
+    pub fn new() -> Self {
+        BlockBuilderClient
+    }
+}
 
 impl Default for BlockBuilderClient {
     fn default() -> Self {
-        BlockBuilderClient
+        BlockBuilderClient::new()
     }
 }
 
