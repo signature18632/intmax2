@@ -89,17 +89,17 @@ mod tests {
     #[test]
     fn test_bit_path() {
         let mut path = BitPath::new(0, 0);
-        assert_eq!(path.is_empty(), true);
+        assert!(path.is_empty());
         assert_eq!(path.len(), 0);
         assert_eq!(path.value(), 0);
 
         path.push(true);
-        assert_eq!(path.is_empty(), false);
+        assert!(!path.is_empty());
         assert_eq!(path.len(), 1);
         assert_eq!(path.value(), 1);
 
         path.push(false);
-        assert_eq!(path.is_empty(), false);
+        assert!(!path.is_empty());
         assert_eq!(path.len(), 2);
         assert_eq!(path.value(), 1);
 
@@ -109,17 +109,17 @@ mod tests {
         assert_eq!(recovered_path, path);
 
         assert_eq!(path.pop(), Some(false));
-        assert_eq!(path.is_empty(), false);
+        assert!(!path.is_empty());
         assert_eq!(path.len(), 1);
         assert_eq!(path.value(), 1);
 
         assert_eq!(path.pop(), Some(true));
-        assert_eq!(path.is_empty(), true);
+        assert!(path.is_empty());
         assert_eq!(path.len(), 0);
         assert_eq!(path.value(), 0);
 
         assert_eq!(path.pop(), None);
-        assert_eq!(path.is_empty(), true);
+        assert!(path.is_empty());
         assert_eq!(path.len(), 0);
         assert_eq!(path.value(), 0);
     }

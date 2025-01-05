@@ -434,7 +434,7 @@ mod tests {
     #[tokio::test]
     async fn test_rollup_contract() -> anyhow::Result<()> {
         let anvil = Anvil::new().spawn();
-        let private_key: [u8; 32] = anvil.keys()[0].to_bytes().try_into().unwrap();
+        let private_key: [u8; 32] = anvil.keys()[0].to_bytes().into();
         let private_key = H256::from_slice(&private_key);
         let rpc_url = anvil.endpoint();
         let chain_id = anvil.chain_id();
@@ -471,7 +471,7 @@ mod tests {
         rollup_contract
             .post_non_registration_block(
                 private_key,
-                ethers::utils::parse_ether("1").unwrap().into(),
+                ethers::utils::parse_ether("1").unwrap(),
                 Bytes32::rand(&mut rng),
                 signature.sender_flag,
                 signature.agg_pubkey,
