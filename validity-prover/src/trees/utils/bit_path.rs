@@ -24,7 +24,7 @@ impl BitPath {
     }
 
     pub fn push(&mut self, bit: bool) {
-        self.value |= ((bit as u64) << self.length);
+        self.value |= (bit as u64) << self.length;
         self.length += 1;
     }
 
@@ -67,7 +67,7 @@ impl BitPath {
         // flip the last bit
         let mut path = *self;
         let last = path.len() - 1;
-        path.value ^= (1 << last);
+        path.value ^= 1 << last;
         path
     }
 
