@@ -81,6 +81,7 @@ pub struct Config {
 
 #[wasm_bindgen]
 impl Config {
+    #[allow(clippy::too_many_arguments)]
     #[wasm_bindgen(constructor)]
     pub fn new(
         store_vault_server_url: String,
