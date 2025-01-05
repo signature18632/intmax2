@@ -27,7 +27,7 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlMerkleTree<V> {
 
         let mut zero_hashes = vec![];
         let mut h = V::empty_leaf().hash();
-        zero_hashes.push(h.clone());
+        zero_hashes.push(h);
         for _ in 0..height {
             let new_h = Hasher::<V>::two_to_one(h, h);
             zero_hashes.push(new_h);

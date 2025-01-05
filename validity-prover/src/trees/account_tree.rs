@@ -36,21 +36,21 @@ impl<DB: MerkleTreeClient<V>> HistoricalAccountTree<DB> {
     pub async fn prove_membership(&self, timestamp: u64, key: U256) -> Result<MembershipProof> {
         if let Some(index) = self.index(timestamp, key).await? {
             // inclusion proof
-            return Ok(MembershipProof {
+            Ok(MembershipProof {
                 is_included: true,
                 leaf_index: index,
                 leaf: self.0.get_leaf(timestamp, index).await?,
                 leaf_proof: self.0.prove(timestamp, index).await?,
-            });
+            })
         } else {
             // exclusion proof
             let low_index = self.low_index(timestamp, key).await?; // unwrap is safe here
-            return Ok(MembershipProof {
+            Ok(MembershipProof {
                 is_included: false,
                 leaf_index: low_index,
                 leaf: self.0.get_leaf(timestamp, low_index).await?,
                 leaf_proof: self.0.prove(timestamp, low_index).await?,
-            });
+            })
         }
     }
 

@@ -24,7 +24,7 @@ impl BitPath {
     }
 
     pub fn push(&mut self, bit: bool) {
-        self.value = self.value | ((bit as u64) << self.length);
+        self.value |= ((bit as u64) << self.length);
         self.length += 1;
     }
 
@@ -34,13 +34,13 @@ impl BitPath {
         }
         let bit = (self.value >> (self.length - 1)) & 1;
         // mask out the bit
-        self.value = self.value & !(1 << (self.length - 1));
+        self.value &= !(1 << (self.length - 1));
         self.length -= 1;
         Some(bit == 1)
     }
 
     pub fn to_bits_le(&self) -> Vec<bool> {
-        let mut s = self.clone();
+        let mut s = *self;
         let mut bits = Vec::new();
         while !s.is_empty() {
             bits.push(s.pop().unwrap());
@@ -65,9 +65,9 @@ impl BitPath {
 
     pub fn sibling(&self) -> Self {
         // flip the last bit
-        let mut path = self.clone();
+        let mut path = *self;
         let last = path.len() - 1;
-        path.value = path.value ^ (1 << last);
+        path.value ^= (1 << last);
         path
     }
 

@@ -45,7 +45,7 @@ impl<DB: MerkleTreeClient<V>> HistoricalIndexedMerkleTree<DB> {
                 (leaf.key < key) && (key < leaf.next_key || leaf.next_key == U256::default())
             })
             .collect::<Vec<_>>();
-        ensure!(0 < low_leaf_candidates.len(), "key already exists");
+        ensure!(!low_leaf_candidates.is_empty(), "key already exists");
         ensure!(
             low_leaf_candidates.len() == 1,
             "low_index: too many candidates"
