@@ -66,7 +66,7 @@ fn parse_block(
     decoded: &[Token],
 ) -> anyhow::Result<FullBlock> {
     let tx_tree_root = decoded
-        .get(0)
+        .first()
         .ok_or(anyhow::anyhow!("tx_tree_root not found"))?
         .clone()
         .into_fixed_bytes()
@@ -95,7 +95,7 @@ fn parse_block(
     let agg_pubkey = FlatG1(
         aggregated_public_key
             .iter()
-            .map(|e| U256::from_bytes_be(&e))
+            .map(|e| U256::from_bytes_be(e))
             .collect::<Vec<U256>>()
             .try_into()
             .map_err(|_| anyhow::anyhow!("aggregated_public_key is not FlatG1"))?,
@@ -116,7 +116,7 @@ fn parse_block(
     let agg_signature = FlatG2(
         aggregated_signature
             .iter()
-            .map(|e| U256::from_bytes_be(&e))
+            .map(|e| U256::from_bytes_be(e))
             .collect::<Vec<U256>>()
             .try_into()
             .map_err(|_| anyhow::anyhow!("aggregated_signature is not FlatG2"))?,
@@ -138,7 +138,7 @@ fn parse_block(
     let message_point = FlatG2(
         message_point
             .iter()
-            .map(|e| U256::from_bytes_be(&e))
+            .map(|e| U256::from_bytes_be(e))
             .collect::<Vec<U256>>()
             .try_into()
             .map_err(|_| anyhow::anyhow!("message_point is not FlatG2"))?,
@@ -175,9 +175,8 @@ fn parse_block(
     let account_id_hash = if is_registration_block {
         Bytes32::default()
     } else {
-        let account_ids_packed =
-            AccountIdPacked::from_trimmed_bytes(&account_ids.as_ref().unwrap())
-                .map_err(|e| anyhow::anyhow!("error while recovering packed account ids {}", e))?;
+        let account_ids_packed = AccountIdPacked::from_trimmed_bytes(account_ids.as_ref().unwrap())
+            .map_err(|e| anyhow::anyhow!("error while recovering packed account ids {}", e))?;
         account_ids_packed.hash()
     };
 

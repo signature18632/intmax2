@@ -44,7 +44,7 @@ impl State {
     pub async fn main_job(self, is_registration_block: bool) {
         actix_web::rt::spawn(async move {
             loop {
-                if self.is_shutting_down.read().await.clone() {
+                if *self.is_shutting_down.read().await {
                     log::info!("Shutting down block builder");
                     break;
                 }

@@ -46,7 +46,7 @@ pub enum Action {
 #[derive(Debug, Clone)]
 pub enum ReceiveAction {
     Deposit(MetaData, DepositData),
-    Transfer(MetaData, TransferData<F, C, D>),
+    Transfer(MetaData, Box<TransferData<F, C, D>>),
 }
 
 impl ReceiveAction {
@@ -254,7 +254,7 @@ async fn collect_receives(
         let receive_transfer = transfers
             .iter()
             .filter(|(meta, _)| meta.block_number.unwrap() < block_number)
-            .map(|(meta, data)| ReceiveAction::Transfer(meta.clone(), data.clone()))
+            .map(|(meta, data)| ReceiveAction::Transfer(meta.clone(), Box::new(data.clone())))
             .collect_vec();
         transfers.retain(|(meta, _)| meta.block_number.unwrap() >= block_number);
 
@@ -271,7 +271,7 @@ async fn collect_receives(
 
         let receive_transfer = transfers
             .iter()
-            .map(|(meta, data)| ReceiveAction::Transfer(meta.clone(), data.clone()))
+            .map(|(meta, data)| ReceiveAction::Transfer(meta.clone(), Box::new(data.clone())))
             .collect_vec();
         transfers.clear();
 

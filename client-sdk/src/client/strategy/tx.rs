@@ -60,16 +60,14 @@ pub async fn fetch_tx_info<S: StoreVaultClientInterface, V: ValidityProverClient
                     let mut meta = meta;
                     meta.block_number = Some(block_number);
                     settled.push((meta, tx_data));
+                } else if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
+                    // timeout
+                    log::error!("Tx {} is timeout", meta.uuid);
+                    timeout.push((meta, tx_data));
                 } else {
-                    if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
-                        // timeout
-                        log::error!("Tx {} is timeout", meta.uuid);
-                        timeout.push((meta, tx_data));
-                    } else {
-                        // pending
-                        log::info!("Tx {} is pending", meta.uuid);
-                        pending.push((meta, tx_data));
-                    }
+                    // pending
+                    log::info!("Tx {} is pending", meta.uuid);
+                    pending.push((meta, tx_data));
                 }
             }
             Err(e) => {

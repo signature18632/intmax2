@@ -43,8 +43,11 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
+#[allow(clippy::upper_case_acronyms)]
 type ADB = SqlMerkleTree<IndexedMerkleLeaf>;
+#[allow(clippy::upper_case_acronyms)]
 type BDB = SqlMerkleTree<Bytes32>;
+#[allow(clippy::upper_case_acronyms)]
 type DDB = SqlMerkleTree<DepositHash>;
 
 const ACCOUNT_DB_TAG: u32 = 1;
@@ -435,7 +438,6 @@ impl ValidityProver {
     }
 
     pub fn validity_processor(&self) -> &ValidityProcessor<F, C, D> {
-        self.validity_processor
-            .get_or_init(|| ValidityProcessor::new())
+        self.validity_processor.get_or_init(ValidityProcessor::new)
     }
 }

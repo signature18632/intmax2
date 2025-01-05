@@ -20,7 +20,7 @@ pub async fn get_block_number(state: Data<State>) -> Result<Json<GetBlockNumberR
         .validity_prover
         .get_block_number()
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetBlockNumberResponse { block_number }))
 }
 
@@ -32,7 +32,7 @@ pub async fn get_next_deposit_index(
         .validity_prover
         .get_next_deposit_index()
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetNextDepositIndexResponse { deposit_index }))
 }
 
@@ -46,7 +46,7 @@ pub async fn get_account_info(
         .validity_prover
         .get_account_info(query.pubkey)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetAccountInfoResponse { account_info }))
 }
 
@@ -65,7 +65,7 @@ pub async fn get_update_witness(
             query.is_prev_account_tree,
         )
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetUpdateWitnessResponse { update_witness }))
 }
 
@@ -79,7 +79,7 @@ pub async fn get_deposit_info(
         .validity_prover
         .get_deposit_info(query.deposit_hash)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetDepositInfoResponse { deposit_info }))
 }
 
@@ -93,7 +93,7 @@ pub async fn get_block_number_by_tx_tree_root(
         .validity_prover
         .get_block_number_by_tx_tree_root(query.tx_tree_root)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetBlockNumberByTxTreeRootResponse { block_number }))
 }
 
@@ -107,7 +107,7 @@ pub async fn get_validity_pis(
         .validity_prover
         .get_validity_pis(query.block_number)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetValidityPisResponse { validity_pis }))
 }
 
@@ -121,7 +121,7 @@ pub async fn get_sender_leaves(
         .validity_prover
         .get_sender_leaves(query.block_number)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetSenderLeavesResponse { sender_leaves }))
 }
 
@@ -135,7 +135,7 @@ pub async fn get_block_merkle_proof(
         .validity_prover
         .get_block_merkle_proof(query.root_block_number, query.leaf_block_number)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetBlockMerkleProofResponse { block_merkle_proof }))
 }
 
@@ -149,7 +149,7 @@ pub async fn get_deposit_merkle_proof(
         .validity_prover
         .get_deposit_merkle_proof(query.block_number, query.deposit_index)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetDepositMerkleProofResponse {
         deposit_merkle_proof,
     }))

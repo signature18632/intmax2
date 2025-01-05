@@ -58,6 +58,7 @@ impl LiquidityContract {
         self.address
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn initialize(
         &self,
         signer_private_key: H256,
@@ -127,9 +128,9 @@ impl LiquidityContract {
         .await
         .map_err(|e| BlockchainError::RPCError(format!("Error getting token index: {:?}", e)))?;
         if !is_found {
-            return Ok(None);
+            Ok(None)
         } else {
-            return Ok(Some(token_index));
+            Ok(Some(token_index))
         }
     }
 
@@ -142,7 +143,7 @@ impl LiquidityContract {
             .await
             .map_err(|e| BlockchainError::RPCError(format!("Error getting token info: {:?}", e)))?;
 
-        let token_type: u8 = token_info.token_type.into();
+        let token_type: u8 = token_info.token_type;
         let token_type = TokenType::try_from(token_type)
             .map_err(|e| BlockchainError::ParseError(format!("Invalid token type: {:?}", e)))?;
         let token_address = Address::from_bytes_be(token_info.token_address.as_bytes());

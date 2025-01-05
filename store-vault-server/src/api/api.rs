@@ -28,7 +28,7 @@ pub async fn save_balance_proof(
         .store_vault_server
         .save_balance_proof(request.pubkey, request.balance_proof)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(()))
 }
 
@@ -42,7 +42,7 @@ pub async fn get_balance_proof(
         .store_vault_server
         .get_balance_proof(query.pubkey, query.block_number, query.private_commitment)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetBalanceProofResponse { balance_proof }))
 }
 
@@ -60,7 +60,7 @@ pub async fn save_data(
         .store_vault_server
         .save_data(data_type, request.pubkey, request.data)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(SaveDataResponse { uuid }))
 }
 
@@ -89,7 +89,7 @@ pub async fn batch_save_data(
         .store_vault_server
         .batch_save_data(data_type, requests)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
 
     Ok(Json(BatchSaveDataResponse { uuids }))
 }
@@ -108,7 +108,7 @@ pub async fn get_data(
         .store_vault_server
         .get_data(data_type, &query.uuid)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetDataResponse { data }))
 }
 
@@ -137,7 +137,7 @@ pub async fn batch_get_data(
         .store_vault_server
         .batch_get_data(data_type, &uuids)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
 
     Ok(Json(BatchGetDataResponse { data }))
 }
@@ -156,7 +156,7 @@ pub async fn get_data_all_after(
         .store_vault_server
         .get_data_all_after(data_type, query.pubkey, query.timestamp)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetDataAllAfterResponse { data }))
 }
 
@@ -170,7 +170,7 @@ pub async fn save_user_data(
         .store_vault_server
         .save_user_data(request.pubkey, request.data)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(()))
 }
 
@@ -184,7 +184,7 @@ pub async fn get_user_data(
         .store_vault_server
         .get_user_data(query.pubkey)
         .await
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetUserDataResponse { data }))
 }
 

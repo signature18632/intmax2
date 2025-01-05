@@ -69,7 +69,7 @@ pub async fn receive_deposit<V: ValidityProverClientInterface, B: BalanceProverC
         .await?;
     let deposit_witness = DepositWitness {
         deposit_salt: deposit_data.deposit_salt,
-        deposit_index: deposit_info.deposit_index as u32,
+        deposit_index: deposit_info.deposit_index,
         deposit: deposit_data.deposit().unwrap(),
         deposit_merkle_proof,
     };
@@ -94,13 +94,14 @@ pub async fn receive_deposit<V: ValidityProverClientInterface, B: BalanceProverC
             key,
             key.pubkey,
             &receive_deposit_witness,
-            &prev_balance_proof,
+            prev_balance_proof,
         )
         .await?;
 
     Ok(balance_proof)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
     balance_prover: &B,
@@ -123,8 +124,8 @@ pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProver
     }
     // Generate witness
     let transfer_witness = TransferWitness {
-        tx: transfer_data.tx_data.tx.clone(),
-        transfer: transfer_data.transfer.clone(),
+        tx: transfer_data.tx_data.tx,
+        transfer: transfer_data.transfer,
         transfer_index: transfer_data.transfer_index,
         transfer_merkle_proof: transfer_data.transfer_merkle_proof.clone(),
     };
@@ -156,7 +157,7 @@ pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProver
             key,
             key.pubkey,
             &receive_transfer_witness,
-            &prev_balance_proof,
+            prev_balance_proof,
         )
         .await?;
 
@@ -215,7 +216,7 @@ pub async fn update_send_by_sender<
     let tx_witness = TxWitness {
         validity_pis: validity_pis.clone(),
         sender_leaves: sender_leaves.clone(),
-        tx: tx_data.common.tx.clone(),
+        tx: tx_data.common.tx,
         tx_index: tx_data.common.tx_index,
         tx_merkle_proof: tx_data.common.tx_merkle_proof.clone(),
     };
@@ -343,7 +344,7 @@ pub async fn update_send_by_receiver<
     let tx_witness = TxWitness {
         validity_pis,
         sender_leaves,
-        tx: common_tx_data.tx.clone(),
+        tx: common_tx_data.tx,
         tx_index: common_tx_data.tx_index,
         tx_merkle_proof: common_tx_data.tx_merkle_proof.clone(),
     };
@@ -384,6 +385,7 @@ pub async fn update_send_by_receiver<
 }
 
 /// Update prev_balance_proof to block_number or do noting if already synced later than block_number.
+///
 /// Assumes that there are no send transactions between the block_number of prev_balance_proof and block_number.
 pub async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
@@ -429,7 +431,7 @@ pub async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverCl
         )));
     }
     let balance_proof = balance_prover
-        .prove_update(key, key.pubkey, &update_witness, &prev_balance_proof)
+        .prove_update(key, key.pubkey, &update_witness, prev_balance_proof)
         .await?;
     Ok(balance_proof)
 }
@@ -439,7 +441,7 @@ pub async fn generate_spent_witness(
     tx_nonce: u32,
     transfers: &[Transfer],
 ) -> Result<SpentWitness, SyncError> {
-    let transfer_tree = generate_transfer_tree(&transfers);
+    let transfer_tree = generate_transfer_tree(transfers);
     let tx = Tx {
         nonce: tx_nonce,
         transfer_tree_root: transfer_tree.get_root(),
