@@ -1,4 +1,7 @@
-use intmax2_zkp::{ethereum_types::u256::U256, utils::poseidon_hash_out::PoseidonHashOut};
+use intmax2_zkp::{
+    common::signature::flatten::FlatG2, ethereum_types::u256::U256,
+    utils::poseidon_hash_out::PoseidonHashOut,
+};
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
@@ -37,6 +40,14 @@ pub struct GetBalanceProofResponse {
 pub struct SaveDataRequest {
     pub pubkey: U256,
     pub data: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveDataRequestWithSignature {
+    pub pubkey: U256,
+    pub data: Vec<u8>,
+    pub signature: FlatG2,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
