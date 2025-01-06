@@ -55,7 +55,7 @@ jobs:
           components: clippy
       - uses: r7kamura/rust-problem-matchers@v1
       - name: cargo clippy
-        run: cargo clippy --tests -- -D warnings
+        run: cargo clippy --tests -- -D warnings -D "clippy::perf" -D "clippy::correctness"
   tests:
     name: tests
     needs: clippy
