@@ -677,7 +677,7 @@ dependencies = [
  "serde_json",
  "serde_qs",
  "server-common",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "tokio",
  "uuid 1.11.0",
 ]
@@ -807,7 +807,7 @@ dependencies = [
  "serde_json",
  "serde_qs",
  "server-common",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "tokio",
  "uuid 1.11.0",
 ]
@@ -2957,7 +2957,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_qs",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "tokio",
  "url",
 ]
@@ -3005,7 +3005,7 @@ dependencies = [
  "simplelog",
  "strum",
  "strum_macros",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "tokio",
 ]
 
@@ -4928,7 +4928,7 @@ dependencies = [
  "cargo_metadata 0.19.1",
  "log",
  "serde",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "tokio",
  "tracing",
  "tracing-appender",
@@ -5375,7 +5375,7 @@ dependencies = [
  "serde_qs",
  "server-common",
  "sqlx",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "tokio",
  "uuid 1.11.0",
 ]
@@ -5610,7 +5610,7 @@ dependencies = [
  "reqwest 0.12.12",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "tokio",
  "validity-prover",
 ]
@@ -6201,7 +6201,7 @@ dependencies = [
  "serde_qs",
  "server-common",
  "sqlx",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -6661,7 +6661,7 @@ dependencies = [
  "serde_qs",
  "server-common",
  "sqlx",
- "thiserror 1.0.69",
+ "thiserror 2.0.3",
  "tokio",
  "uuid 1.11.0",
 ]
