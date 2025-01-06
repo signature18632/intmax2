@@ -672,7 +672,7 @@ dependencies = [
  "intmax2-zkp",
  "log",
  "plonky2",
- "reqwest 0.12.9",
+ "reqwest 0.12.12",
  "serde",
  "serde_json",
  "serde_qs",
@@ -802,7 +802,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "plonky2",
  "plonky2_bn254",
- "reqwest 0.12.9",
+ "reqwest 0.12.12",
  "serde",
  "serde_json",
  "serde_qs",
@@ -2953,7 +2953,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "plonky2",
  "rand",
- "reqwest 0.12.9",
+ "reqwest 0.12.12",
  "serde",
  "serde_json",
  "serde_qs",
@@ -2995,7 +2995,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "regex",
- "reqwest 0.12.9",
+ "reqwest 0.12.12",
  "serde",
  "serde_json",
  "serde_qs",
@@ -3042,7 +3042,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "plonky2",
  "rand",
- "reqwest 0.12.9",
+ "reqwest 0.12.12",
  "serde",
  "serde_json",
  "wasm-bindgen",
@@ -4440,9 +4440,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.9"
+version = "0.12.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a77c62af46e79de0a562e1a9849205ffcb7fc1238876e9bd743357570e04046f"
+checksum = "43e734407157c3c2034e0258f5e4473ddb361b1e85f95a66690d67264d7cd1da"
 dependencies = [
  "base64 0.22.1",
  "bytes",
@@ -4473,6 +4473,7 @@ dependencies = [
  "system-configuration 0.6.1",
  "tokio",
  "tokio-native-tls",
+ "tower",
  "tower-service",
  "url",
  "wasm-bindgen",
@@ -5368,7 +5369,7 @@ dependencies = [
  "intmax2-zkp",
  "log",
  "plonky2",
- "reqwest 0.12.9",
+ "reqwest 0.12.12",
  "serde",
  "serde_json",
  "serde_qs",
@@ -5606,7 +5607,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "plonky2",
  "rand",
- "reqwest 0.12.9",
+ "reqwest 0.12.12",
  "serde",
  "serde_json",
  "thiserror 1.0.69",
@@ -5872,6 +5873,27 @@ dependencies = [
  "toml_datetime",
  "winnow",
 ]
+
+[[package]]
+name = "tower"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d039ad9159c98b70ecfd540b2573b97f7f52c3e8d9f8ad57a24b916a536975f9"
+dependencies = [
+ "futures-core",
+ "futures-util",
+ "pin-project-lite",
+ "sync_wrapper 1.0.2",
+ "tokio",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "tower-layer"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "121c2a6cda46980bb0fcd1647ffaf6cd3fc79a013de288782836f6df9c48780e"
 
 [[package]]
 name = "tower-service"
@@ -6173,7 +6195,7 @@ dependencies = [
  "log",
  "plonky2",
  "rand",
- "reqwest 0.12.9",
+ "reqwest 0.12.12",
  "serde",
  "serde_json",
  "serde_qs",
@@ -6633,7 +6655,7 @@ dependencies = [
  "intmax2-zkp",
  "log",
  "plonky2",
- "reqwest 0.12.9",
+ "reqwest 0.12.12",
  "serde",
  "serde_json",
  "serde_qs",
