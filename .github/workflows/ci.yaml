@@ -60,6 +60,33 @@ jobs:
     name: tests
     needs: clippy
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      anvil:
+        image: ghcr.io/foundry-rs/foundry:latest
+        ports:
+          - 8545:8545
+        options: >-
+          --health-cmd="curl -f http://localhost:8545"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        env:
+          ANVIL_IP_ADDR: 0.0.0.0
+        entrypoint: ["/usr/local/bin/anvil"]
+        args: ["--host", "0.0.0.0"]
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust Toolchain
