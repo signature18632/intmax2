@@ -19,6 +19,7 @@ use super::encryption::{decrypt, encrypt};
 #[serde(rename_all = "camelCase")]
 pub struct DepositData {
     pub deposit_salt: Salt,
+    pub depositor: Address,        // The address of the depositor
     pub pubkey_salt_hash: Bytes32, // The poseidon hash of the pubkey and salt, to hide the pubkey
     pub amount: U256,              // The amount of the token, which is the amount of the deposit
 
@@ -28,6 +29,7 @@ pub struct DepositData {
     pub token_id: U256,
 
     pub token_index: Option<u32>, // The index of the token in the contract
+    pub nonce: Option<u32>,       // The nonce of the deposit
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -112,11 +114,13 @@ impl DepositData {
     }
 
     pub fn deposit(&self) -> Option<Deposit> {
-        if let Some(token_index) = self.token_index {
+        if let (Some(token_index), Some(nonce)) = (self.token_index, self.nonce) {
             Some(Deposit {
+                depositor: self.depositor,
                 pubkey_salt_hash: self.pubkey_salt_hash,
-                token_index,
                 amount: self.amount,
+                token_index,
+                nonce,
             })
         } else {
             None

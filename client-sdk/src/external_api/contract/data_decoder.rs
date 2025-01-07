@@ -12,7 +12,7 @@ use intmax2_zkp::{
     constants::NUM_SENDERS_IN_BLOCK,
     ethereum_types::{
         account_id_packed::AccountIdPacked, bytes16::Bytes16, bytes32::Bytes32, u256::U256,
-        u32limb_trait::U32LimbTrait as _,
+        u32limb_trait::U32LimbTrait as _, u64::U64,
     },
 };
 
@@ -20,6 +20,7 @@ pub fn decode_post_block_calldata(
     functions: Functions,
     prev_block_hash: Bytes32,
     deposit_tree_root: Bytes32,
+    timestamp: u64,
     block_number: u32,
     data: &[u8],
 ) -> anyhow::Result<FullBlock> {
@@ -41,6 +42,7 @@ pub fn decode_post_block_calldata(
             true,
             prev_block_hash,
             deposit_tree_root,
+            timestamp,
             block_number,
             &decoded,
         )?,
@@ -48,6 +50,7 @@ pub fn decode_post_block_calldata(
             false,
             prev_block_hash,
             deposit_tree_root,
+            timestamp,
             block_number,
             &decoded,
         )?,
@@ -62,6 +65,7 @@ fn parse_block(
     is_registration_block: bool,
     prev_block_hash: Bytes32,
     deposit_tree_root: Bytes32,
+    timestamp: u64,
     block_number: u32,
     decoded: &[Token],
 ) -> anyhow::Result<FullBlock> {
@@ -72,15 +76,22 @@ fn parse_block(
         .into_fixed_bytes()
         .ok_or(anyhow::anyhow!("tx_tree_root is not FixedBytes"))?;
     let tx_tree_root = Bytes32::from_bytes_be(&tx_tree_root);
-    let sender_flag = decoded
+    let expiry = decoded
         .get(1)
+        .ok_or(anyhow::anyhow!("expiry not found"))?
+        .clone()
+        .into_uint()
+        .ok_or(anyhow::anyhow!("expiry is not Uint"))?;
+    let expiry: U64 = expiry.as_u64().into();
+    let sender_flag = decoded
+        .get(2)
         .ok_or(anyhow::anyhow!("sender_flags not found"))?
         .clone()
         .into_fixed_bytes()
         .ok_or(anyhow::anyhow!("sender_flags is not FixedBytes"))?;
     let sender_flag = Bytes16::from_bytes_be(&sender_flag);
     let aggregated_public_key = decoded
-        .get(2)
+        .get(3)
         .ok_or(anyhow::anyhow!("aggregated_public_key not found"))?
         .clone()
         .into_fixed_array()
@@ -101,7 +112,7 @@ fn parse_block(
             .map_err(|_| anyhow::anyhow!("aggregated_public_key is not FlatG1"))?,
     );
     let aggregated_signature = decoded
-        .get(3)
+        .get(4)
         .ok_or(anyhow::anyhow!("aggregated_signature not found"))?
         .clone()
         .into_fixed_array()
@@ -122,7 +133,7 @@ fn parse_block(
             .map_err(|_| anyhow::anyhow!("aggregated_signature is not FlatG2"))?,
     );
     let message_point = decoded
-        .get(4)
+        .get(5)
         .ok_or(anyhow::anyhow!("message_point not found"))?
         .clone()
         .into_fixed_array()
@@ -145,7 +156,7 @@ fn parse_block(
     );
 
     let pubkeys = if is_registration_block {
-        let pubkeys = decoded.get(5).ok_or(anyhow::anyhow!("pubkeys not found"))?;
+        let pubkeys = decoded.get(6).ok_or(anyhow::anyhow!("pubkeys not found"))?;
         Some(parse_sender_public_keys(pubkeys.clone())?)
     } else {
         None
@@ -154,7 +165,7 @@ fn parse_block(
         None
     } else {
         let account_ids = decoded
-            .get(6) // note that index=5 is pubkeys_hash
+            .get(7) // note that index=5 is pubkeys_hash
             .ok_or(anyhow::anyhow!("account_ids not found"))?;
         Some(parse_account_ids(account_ids.clone())?)
     };
@@ -165,7 +176,7 @@ fn parse_block(
         get_pubkey_hash(&pubkeys)
     } else {
         let pubkey_hash = decoded
-            .get(5)
+            .get(6)
             .ok_or(anyhow::anyhow!("pubkey_hash is not found"))?
             .clone()
             .into_fixed_bytes()
@@ -183,6 +194,7 @@ fn parse_block(
 
     let signature = SignatureContent {
         is_registration_block,
+        expiry,
         tx_tree_root,
         sender_flag,
         agg_pubkey,
@@ -196,6 +208,7 @@ fn parse_block(
         prev_block_hash,
         deposit_tree_root,
         signature_hash: signature.hash(),
+        timestamp: timestamp.into(),
         block_number,
     };
 
