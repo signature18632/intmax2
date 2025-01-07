@@ -83,10 +83,9 @@ jobs:
           --health-interval=10s
           --health-timeout=5s
           --health-retries=3
+          --entrypoint "/usr/local/bin/anvil -- --host 0.0.0.0"
         env:
           ANVIL_IP_ADDR: 0.0.0.0
-        entrypoint: ["/usr/local/bin/anvil"]
-        args: ["--host", "0.0.0.0"]
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust Toolchain
