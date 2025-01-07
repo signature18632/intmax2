@@ -71,4 +71,4 @@ jobs:
           tool: cargo-nextest
       - uses: r7kamura/rust-problem-matchers@v1
       - name: Run tests
-        run: cargo nextest run
+        run: cargo nextest run --profile ci
