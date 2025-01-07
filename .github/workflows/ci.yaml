@@ -74,18 +74,6 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-      anvil:
-        image: ghcr.io/foundry-rs/foundry:latest
-        ports:
-          - 8545:8545
-        options: >-
-          --health-cmd="curl -f http://localhost:8545"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
-          --entrypoint "/anvil/anvil -- --host 0.0.0.0"
-        env:
-          ANVIL_IP_ADDR: 0.0.0.0
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust Toolchain
@@ -95,6 +83,16 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
+      - name: Install Anvil
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
       - uses: r7kamura/rust-problem-matchers@v1
+      - name: Start Anvil
+        run: |
+          anvil &
+          sleep 5
+        env:
+          ANVIL_IP_ADDR: 0.0.0.0
       - name: Run tests
         run: cargo nextest run --profile ci
