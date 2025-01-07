@@ -13,6 +13,7 @@ use intmax2_zkp::{
 #[derive(Debug, Clone)]
 pub struct ProposalMemo {
     pub tx_tree_root: Bytes32,
+    pub expiry: u64,
     pub pubkeys: Vec<U256>,            // sorted & padded pubkeys
     pub pubkey_hash: Bytes32,          // hash of the sorted & padded pubkeys
     pub tx_requests: Vec<(U256, Tx)>,  // not sorted tx requests
@@ -144,6 +145,9 @@ impl BuilderState {
 
     /// Propose a block with the tx requests
     pub fn propose_block(&mut self) {
+        // todo: set
+        let expiry = 0;
+
         let tx_requests = match self {
             BuilderState::AcceptingTxs(state) => state.tx_requests.clone(),
             _ => panic!("Invalid state transition"),
@@ -174,6 +178,7 @@ impl BuilderState {
             let tx_merkle_proof = tx_tree.prove(tx_index as u64);
             proposals.push(BlockProposal {
                 tx_tree_root,
+                expiry,
                 tx_index,
                 tx_merkle_proof,
                 pubkeys: pubkeys.clone(),
@@ -183,6 +188,7 @@ impl BuilderState {
 
         let memo = ProposalMemo {
             tx_tree_root,
+            expiry,
             pubkeys,
             pubkey_hash,
             tx_requests,

@@ -13,7 +13,7 @@ use intmax2_zkp::{
         block_builder::{BlockProposal, UserSignature},
         signature::{
             flatten::FlatG2,
-            sign::{hash_to_weight, tx_tree_root_to_message_point},
+            sign::{hash_to_weight, tx_tree_root_and_expiry_to_message_point},
             SignatureContent,
         },
         tx::Tx,
@@ -210,7 +210,7 @@ impl BlockBuilder {
         }
         let memo = status.get_proposal_memo().unwrap();
         signature
-            .verify(memo.tx_tree_root, memo.pubkey_hash)
+            .verify(memo.tx_tree_root, memo.expiry, memo.pubkey_hash)
             .map_err(|e| BlockBuilderError::InvalidSignature(e.to_string()))?;
 
         // update state
@@ -316,6 +316,7 @@ impl BlockBuilder {
         }
         let signature = construct_signature(
             memo.tx_tree_root,
+            memo.expiry,
             memo.pubkey_hash,
             account_id_hash,
             is_registration_block,
@@ -334,6 +335,7 @@ impl BlockBuilder {
                     self.block_builder_private_key,
                     self.eth_allowance_for_block,
                     memo.tx_tree_root,
+                    memo.expiry,
                     signature.sender_flag,
                     signature.agg_pubkey,
                     signature.agg_signature,
@@ -347,6 +349,7 @@ impl BlockBuilder {
                     self.block_builder_private_key,
                     self.eth_allowance_for_block,
                     memo.tx_tree_root,
+                    memo.expiry,
                     signature.sender_flag,
                     signature.agg_pubkey,
                     signature.agg_signature,
@@ -437,6 +440,7 @@ struct SenderWithSignature {
 
 fn construct_signature(
     tx_tree_root: Bytes32,
+    expiry: u64,
     pubkey_hash: Bytes32,
     account_id_hash: Bytes32,
     is_registration_block: bool,
@@ -475,13 +479,14 @@ fn construct_signature(
             (acc + x).into()
         });
     // message point
-    let message_point = tx_tree_root_to_message_point(tx_tree_root);
+    let message_point = tx_tree_root_and_expiry_to_message_point(tx_tree_root, expiry.into());
     assert!(
         Bn254::pairing(agg_pubkey, message_point)
             == Bn254::pairing(G1Affine::generator(), agg_signature)
     );
     SignatureContent {
         tx_tree_root,
+        expiry: expiry.into(),
         is_registration_block,
         sender_flag,
         pubkey_hash,

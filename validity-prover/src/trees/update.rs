@@ -79,12 +79,14 @@ pub async fn to_block_witness<
             )
         };
     let prev_account_tree_root = account_tree.get_root(timestamp).await?;
+    let prev_next_account_id = account_tree.len(timestamp).await? as u64;
     let prev_block_tree_root = block_tree.get_root(timestamp).await?;
     let block_witness = BlockWitness {
         block: full_block.block.clone(),
         signature: full_block.signature.clone(),
         pubkeys: pubkeys.clone(),
         prev_account_tree_root,
+        prev_next_account_id,
         prev_block_tree_root,
         account_id_packed,
         account_merkle_proofs,

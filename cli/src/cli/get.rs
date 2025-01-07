@@ -102,7 +102,9 @@ fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
             token_address,
             token_id,
             token_index,
+            nonce,
             amount,
+            depositor,
             pubkey_salt_hash,
             is_included,
             is_rejected,
@@ -110,14 +112,23 @@ fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
         } => {
             let status = get_status_string(*is_included, *is_rejected);
             let time = format_timestamp(meta.timestamp);
-            let deposit_hash = token_index.map(|idx| {
-                let deposit = Deposit {
-                    pubkey_salt_hash: *pubkey_salt_hash,
-                    token_index: idx,
-                    amount: *amount,
-                };
-                deposit.hash()
-            });
+
+            let deposit_hash = if let Some(idx) = token_index {
+                if let Some(nonce) = nonce {
+                    let deposit = Deposit {
+                        depositor: *depositor,
+                        pubkey_salt_hash: *pubkey_salt_hash,
+                        amount: *amount,
+                        token_index: *idx,
+                        nonce: *nonce,
+                    };
+                    Some(deposit.hash())
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
 
             println!(
                 "{} [{}]",
