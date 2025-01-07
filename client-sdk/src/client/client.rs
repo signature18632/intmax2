@@ -136,7 +136,6 @@ where
             token_address,
             token_id,
             token_index: None,
-            nonce: None,
         };
         let deposit_uuid = self
             .store_vault_server

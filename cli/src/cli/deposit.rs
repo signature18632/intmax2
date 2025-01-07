@@ -100,6 +100,8 @@ pub async fn deposit(
 
     // relay deposits by self if local
     if is_local()? {
+        // let deposit_id
+
         let token_index = liquidity_contract
             .get_token_index(token_type, token_address, token_id)
             .await?

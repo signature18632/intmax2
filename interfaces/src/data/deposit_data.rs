@@ -29,7 +29,6 @@ pub struct DepositData {
     pub token_id: U256,
 
     pub token_index: Option<u32>, // The index of the token in the contract
-    pub nonce: Option<u32>,       // The nonce of the deposit
 }
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -115,17 +114,12 @@ impl DepositData {
     }
 
     pub fn deposit(&self) -> Option<Deposit> {
-        if let (Some(token_index), Some(nonce)) = (self.token_index, self.nonce) {
-            Some(Deposit {
-                depositor: self.depositor,
-                pubkey_salt_hash: self.pubkey_salt_hash,
-                amount: self.amount,
-                token_index,
-                nonce,
-            })
-        } else {
-            None
-        }
+        self.token_index.map(|token_index| Deposit {
+            depositor: self.depositor,
+            pubkey_salt_hash: self.pubkey_salt_hash,
+            amount: self.amount,
+            token_index,
+        })
     }
 
     pub fn deposit_hash(&self) -> Option<Bytes32> {
