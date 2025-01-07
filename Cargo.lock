@@ -801,7 +801,7 @@ dependencies = [
  "num",
  "num-bigint 0.4.6",
  "plonky2",
- "plonky2_bn254",
+ "plonky2_bn254 0.1.0 (git+https://github.com/InternetMaximalism/plonky2_bn254)",
  "reqwest 0.12.9",
  "serde",
  "serde_json",
@@ -3055,7 +3055,7 @@ dependencies = [
 [[package]]
 name = "intmax2-zkp"
 version = "0.1.0"
-source = "git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli#4e4746e5d1b80601501406806e711c9da097554d"
+source = "git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli#88c8276c72fa86d98ce3411546bec3e369c45e1c"
 dependencies = [
  "anyhow",
  "ark-bn254",
@@ -3075,7 +3075,7 @@ dependencies = [
  "num-bigint 0.4.6",
  "num-traits",
  "plonky2",
- "plonky2_bn254",
+ "plonky2_bn254 0.1.0 (git+https://github.com/InternetMaximalism/plonky2_bn254?branch=audit)",
  "plonky2_keccak",
  "plonky2_u32",
  "rand",
@@ -4070,6 +4070,29 @@ dependencies = [
  "static_assertions",
  "unroll",
  "web-time",
+]
+
+[[package]]
+name = "plonky2_bn254"
+version = "0.1.0"
+source = "git+https://github.com/InternetMaximalism/plonky2_bn254?branch=audit#bf875be8b5a0806d7bb2a2d46fabc17d7f0f934e"
+dependencies = [
+ "anyhow",
+ "ark-bn254",
+ "ark-ec",
+ "ark-ff",
+ "ark-std",
+ "env_logger",
+ "hashbrown 0.14.5",
+ "hex",
+ "itertools 0.12.1",
+ "log",
+ "num",
+ "num-bigint 0.4.6",
+ "plonky2",
+ "plonky2_u32",
+ "rand",
+ "starky",
 ]
 
 [[package]]
