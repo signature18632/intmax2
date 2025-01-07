@@ -17,7 +17,7 @@ pub async fn prove_spent(
 ) -> Result<Json<ProveResponse>, Error> {
     let proof = state
         .prove_spent(&request.spent_witness)
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(ProveResponse { proof }))
 }
 
@@ -34,7 +34,7 @@ pub async fn prove_send(
             &request.spent_proof,
             &request.prev_proof,
         )
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(ProveResponse { proof }))
 }
 
@@ -45,7 +45,7 @@ pub async fn prove_update(
 ) -> Result<Json<ProveResponse>, Error> {
     let proof = state
         .prove_update(request.pubkey, &request.update_witness, &request.prev_proof)
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(ProveResponse { proof }))
 }
 
@@ -61,7 +61,7 @@ pub async fn prove_receive_transfer(
             &request.receive_transfer_witness,
             &request.prev_proof,
         )
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(ProveResponse { proof }))
 }
 
@@ -77,7 +77,7 @@ pub async fn prove_receive_deposit(
             &request.receive_deposit_witness,
             &request.prev_proof,
         )
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(ProveResponse { proof }))
 }
 
@@ -89,7 +89,7 @@ pub async fn prove_single_withdrawal(
     let request = request.into_inner();
     let proof = state
         .prove_single_withdrawal(&request.withdrawal_witness)
-        .map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(ProveResponse { proof }))
 }
 

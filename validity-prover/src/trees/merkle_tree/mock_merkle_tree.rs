@@ -38,7 +38,7 @@ impl<V: Leafable + Serialize + DeserializeOwned> MockMerkleTree<V> {
     pub fn new(height: usize) -> Self {
         let mut zero_hashes = vec![];
         let mut h = V::empty_leaf().hash();
-        zero_hashes.push(h.clone());
+        zero_hashes.push(h);
         for _ in 0..height {
             let new_h = Hasher::<V>::two_to_one(h, h);
             zero_hashes.push(new_h);
@@ -229,8 +229,8 @@ impl<V: Leafable + Serialize + DeserializeOwned> MockMerkleTree<V> {
     async fn get_last_timestamp(&self) -> u64 {
         let leaves = self.leaves.read().await.clone();
         let last_timestamp = leaves
-            .iter()
-            .map(|(_, leaves)| {
+            .values()
+            .map(|leaves| {
                 leaves
                     .iter()
                     .map(|leaf| leaf.timestamp_value)

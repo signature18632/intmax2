@@ -31,7 +31,7 @@ tokio = { version = "1", features = [
     "rt",
     "time",
 ] }
-reqwest = { version = "0.12.9", features = ["json"] }
+reqwest = { version = "0.12.12", features = ["json"] }
 serde_json = "1.0.133"
 serde = { version = "1.0.215", features = ["derive"] }
 ethers = "2.0"
@@ -42,13 +42,13 @@ sqlx = { version = "0.8.2", features = [
     "chrono",
     "uuid",
 ] }
-chrono = "0.4.38"
+chrono = "0.4.39"
 log = "0.4.22"
 uuid = "1.11.0"
 dotenv = "0.15.0"
 envy = "0.4.2"
 bincode = "1.3.3"
-thiserror = "1.0.64"
+thiserror = "2.0.3"
 hashbrown = "0.14.5"
 actix-web = "4.9.0"
 actix-cors = "0.7.0"

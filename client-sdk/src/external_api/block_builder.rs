@@ -25,6 +25,12 @@ impl BlockBuilderClient {
     }
 }
 
+impl Default for BlockBuilderClient {
+    fn default() -> Self {
+        BlockBuilderClient::new()
+    }
+}
+
 #[async_trait(?Send)]
 impl BlockBuilderClientInterface for BlockBuilderClient {
     async fn get_status(

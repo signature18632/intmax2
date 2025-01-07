@@ -51,6 +51,7 @@ pub async fn generate_intmax_account_from_eth_key(
 }
 
 /// Function to take a backup before calling the deposit function of the liquidity contract.
+///
 /// You can also get the pubkey_salt_hash from the return value.
 #[wasm_bindgen]
 pub async fn prepare_deposit(
@@ -80,12 +81,7 @@ pub async fn prepare_deposit(
             token_id,
         )
         .await
-        .map_err(|e| {
-            JsError::new(&format!(
-                "failed to prepare deposit call: {}",
-                e.to_string()
-            ))
-        })?;
+        .map_err(|e| JsError::new(&format!("failed to prepare deposit call: {}", e)))?;
     Ok(JsDepositResult::from_deposit_result(&deposit_result))
 }
 
@@ -143,6 +139,7 @@ pub async fn query_proposal(
 }
 
 /// Send the signed tx tree root to the block builder during taking a backup of the tx.
+///
 /// You need to call send_tx_request before calling this function.
 /// The return value is the tx result, which contains the tx tree root and transfer data.
 #[wasm_bindgen]
@@ -177,14 +174,14 @@ pub async fn query_and_finalize(
     let client = get_client(config);
     let tx_request_memo = tx_request_memo.to_tx_request_memo()?;
     let is_registration_block = tx_request_memo.is_registration_block;
-    let tx = tx_request_memo.tx.clone();
+    let tx = tx_request_memo.tx;
     let mut tries = 0;
     let proposal = loop {
         let proposal = client
-            .query_proposal(&block_builder_url, key, is_registration_block, tx)
+            .query_proposal(block_builder_url, key, is_registration_block, tx)
             .await?;
-        if proposal.is_some() {
-            break proposal.unwrap();
+        if let Some(p) = proposal {
+            break p;
         }
         if tries > config.block_builder_query_limit {
             return Err(JsError::new("Failed to get proposal"));
@@ -193,7 +190,7 @@ pub async fn query_and_finalize(
         sleep_for(config.block_builder_query_interval).await;
     };
     let tx_result = client
-        .finalize_tx(&block_builder_url, key, &tx_request_memo, &proposal)
+        .finalize_tx(block_builder_url, key, &tx_request_memo, &proposal)
         .await?;
     Ok(JsTxResult::from_tx_result(&tx_result))
 }

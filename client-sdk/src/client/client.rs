@@ -159,7 +159,7 @@ where
         transfers: Vec<Transfer>,
     ) -> Result<TxRequestMemo, ClientError> {
         // input validation
-        if transfers.len() == 0 {
+        if transfers.is_empty() {
             return Err(ClientError::TransferLenError(
                 "transfers is empty".to_string(),
             ));
@@ -297,7 +297,7 @@ where
         let common_tx_data = CommonTxData {
             spent_proof: memo.spent_proof.clone(),
             sender_prev_block_number: memo.prev_block_number,
-            tx: memo.tx.clone(),
+            tx: memo.tx,
             tx_index: proposal.tx_index,
             tx_merkle_proof: proposal.tx_merkle_proof.clone(),
             tx_tree_root: proposal.tx_tree_root,
@@ -315,7 +315,7 @@ where
         // save transfer data
         let mut transfer_tree = TransferTree::new(TRANSFER_TREE_HEIGHT);
         for transfer in &memo.transfers {
-            transfer_tree.push(transfer.clone());
+            transfer_tree.push(*transfer);
         }
 
         let mut all_transfer_data_vec = Vec::new();
@@ -326,7 +326,7 @@ where
                 prev_block_number: memo.prev_block_number,
                 prev_private_commitment: memo.prev_private_commitment,
                 tx_data: common_tx_data.clone(),
-                transfer: transfer.clone(),
+                transfer: *transfer,
                 transfer_index: i as u32,
                 transfer_merkle_proof,
             };

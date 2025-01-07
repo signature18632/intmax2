@@ -91,7 +91,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         };
         let response: SaveDataResponse = post_request(
             &self.base_url,
-            &format!("/store-vault-server/{}/save", data_type.to_string()),
+            &format!("/store-vault-server/{}/save", data_type),
             Some(&request),
         )
         .await?;
@@ -106,7 +106,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         let request = BatchSaveDataRequest { requests: data };
         let response: BatchSaveDataResponse = post_request(
             &self.base_url,
-            &format!("/store-vault-server/{}/batch-save", data_type.to_string()),
+            &format!("/store-vault-server/{}/batch-save", data_type),
             Some(&request),
         )
         .await?;
@@ -123,7 +123,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         };
         let response: GetDataResponse = get_request(
             &self.base_url,
-            &format!("/store-vault-server/{}/get", data_type.to_string()),
+            &format!("/store-vault-server/{}/get", data_type),
             Some(query),
         )
         .await?;
@@ -140,7 +140,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         };
         let response: BatchGetDataResponse = get_request(
             &self.base_url,
-            &format!("/store-vault-server/{}/batch-get", data_type.to_string()),
+            &format!("/store-vault-server/{}/batch-get", data_type),
             Some(query),
         )
         .await?;
@@ -156,10 +156,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         let query = GetDataAllAfterQuery { pubkey, timestamp };
         let response: GetDataAllAfterResponse = get_request(
             &self.base_url,
-            &format!(
-                "/store-vault-server/{}/get-all-after",
-                data_type.to_string()
-            ),
+            &format!("/store-vault-server/{}/get-all-after", data_type),
             Some(query),
         )
         .await?;

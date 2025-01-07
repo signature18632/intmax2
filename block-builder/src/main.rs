@@ -33,7 +33,7 @@ async fn main() -> std::io::Result<()> {
         env.rollup_contract_address,
         env.rollup_contract_deployed_block_number,
         env.block_builder_private_key,
-        eth_allowance_for_block.into(),
+        eth_allowance_for_block,
         &env.validity_prover_base_url,
     );
     let state = State::new(block_builder);

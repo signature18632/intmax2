@@ -52,16 +52,14 @@ pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProver
                     let mut meta = meta;
                     meta.block_number = Some(block_number);
                     settled.push((meta, transfer_data));
+                } else if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
+                    // timeout
+                    log::error!("Transfer {} is timeout", meta.uuid);
+                    timeout.push((meta, transfer_data));
                 } else {
-                    if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
-                        // timeout
-                        log::error!("Transfer {} is timeout", meta.uuid);
-                        timeout.push((meta, transfer_data));
-                    } else {
-                        // pending
-                        log::info!("Transfer {} is pending", meta.uuid);
-                        pending.push((meta, transfer_data));
-                    }
+                    // pending
+                    log::info!("Transfer {} is pending", meta.uuid);
+                    pending.push((meta, transfer_data));
                 }
             }
             Err(e) => {

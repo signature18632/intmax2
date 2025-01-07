@@ -23,6 +23,5 @@ pub fn setup_test() -> String {
         )
         .try_init()
         .unwrap();
-    let database_url = std::env::var("DATABASE_URL").unwrap();
-    database_url
+    std::env::var("DATABASE_URL").unwrap()
 }

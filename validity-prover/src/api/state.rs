@@ -11,7 +11,7 @@ pub struct State {
 
 impl State {
     pub async fn new(env: &Env) -> anyhow::Result<Self> {
-        let witness_generator = WitnessGenerator::new(&env).await?;
+        let witness_generator = WitnessGenerator::new(env).await?;
         let coordinator = ProverCoordinator::new(env).await?;
 
         log::info!("State initialized");

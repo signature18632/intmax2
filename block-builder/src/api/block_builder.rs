@@ -118,10 +118,8 @@ impl BlockBuilder {
                     pubkey, account_id,
                 ));
             }
-        } else {
-            if account_info.account_id.is_none() {
-                return Err(BlockBuilderError::AccountNotFound(pubkey));
-            }
+        } else if account_info.account_id.is_none() {
+            return Err(BlockBuilderError::AccountNotFound(pubkey));
         }
 
         // update state
@@ -178,12 +176,10 @@ impl BlockBuilder {
         if status.is_pausing() {
             return Err(BlockBuilderError::BlockBuilderIsPausing);
         }
-        if status.is_accepting_txs() {
-            if !status.is_request_contained(pubkey, tx) {
-                return Err(BlockBuilderError::TxRequestNotFound);
-            }
+        if status.is_accepting_txs() && !status.is_request_contained(pubkey, tx) {
+            return Err(BlockBuilderError::TxRequestNotFound);
         }
-        return Ok(status.query_proposal(pubkey, tx));
+        Ok(status.query_proposal(pubkey, tx))
     }
 
     // Post the signature by the user.

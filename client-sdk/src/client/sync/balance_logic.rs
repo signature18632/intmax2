@@ -69,7 +69,7 @@ pub async fn receive_deposit<V: ValidityProverClientInterface, B: BalanceProverC
         .await?;
     let deposit_witness = DepositWitness {
         deposit_salt: deposit_data.deposit_salt,
-        deposit_index: deposit_info.deposit_index as u32,
+        deposit_index: deposit_info.deposit_index,
         deposit: deposit_data.deposit().unwrap(),
         deposit_merkle_proof,
     };
@@ -94,13 +94,14 @@ pub async fn receive_deposit<V: ValidityProverClientInterface, B: BalanceProverC
             key,
             key.pubkey,
             &receive_deposit_witness,
-            &prev_balance_proof,
+            prev_balance_proof,
         )
         .await?;
 
     Ok(balance_proof)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
     balance_prover: &B,
@@ -123,8 +124,8 @@ pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProver
     }
     // Generate witness
     let transfer_witness = TransferWitness {
-        tx: transfer_data.tx_data.tx.clone(),
-        transfer: transfer_data.transfer.clone(),
+        tx: transfer_data.tx_data.tx,
+        transfer: transfer_data.transfer,
         transfer_index: transfer_data.transfer_index,
         transfer_merkle_proof: transfer_data.transfer_merkle_proof.clone(),
     };
@@ -156,7 +157,7 @@ pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProver
             key,
             key.pubkey,
             &receive_transfer_witness,
-            &prev_balance_proof,
+            prev_balance_proof,
         )
         .await?;
 
@@ -189,6 +190,13 @@ pub async fn update_send_by_sender<
             "tx block number is not greater than prev balance proof".to_string(),
         ));
     }
+    if prev_balance_pis.private_commitment != full_private_state.to_private_state().commitment() {
+        return Err(SyncError::InternalError(
+            "prev balance proof private commitment is not equal to full private state commitment"
+                .to_string(),
+        ));
+    }
+
     // get witness
     let validity_pis = validity_prover
         .get_validity_pis(tx_block_number)
@@ -197,6 +205,7 @@ pub async fn update_send_by_sender<
             "validity public inputs not found for block number {}",
             tx_block_number
         )))?;
+
     let sender_leaves = validity_prover
         .get_sender_leaves(tx_block_number)
         .await?
@@ -205,9 +214,9 @@ pub async fn update_send_by_sender<
             tx_block_number
         )))?;
     let tx_witness = TxWitness {
-        validity_pis,
-        sender_leaves,
-        tx: tx_data.common.tx.clone(),
+        validity_pis: validity_pis.clone(),
+        sender_leaves: sender_leaves.clone(),
+        tx: tx_data.common.tx,
         tx_index: tx_data.common.tx_index,
         tx_merkle_proof: tx_data.common.tx_merkle_proof.clone(),
     };
@@ -224,36 +233,47 @@ pub async fn update_send_by_sender<
         update_witness.get_last_block_number(),
         tx_block_number
     );
-    let spent_proof =
-        if tx_data.spent_witness.prev_private_state == full_private_state.to_private_state() {
-            // We can use the original spent proof if prev_private_state matches
-            let spent_proof = tx_data.common.spent_proof.clone();
 
-            // update private state
+    let sender_leaf = sender_leaves
+        .iter()
+        .find(|leaf| leaf.sender == key.pubkey)
+        .ok_or(SyncError::InternalError(
+            "sender leaf not found in sender leaves".to_string(),
+        ))?;
+    // update private state only if sender leaf has returned signature and validity_pis is valid
+    let update_private_state = sender_leaf.did_return_sig && validity_pis.is_valid_block;
+
+    let spent_proof = if tx_data.spent_witness.prev_private_state
+        == full_private_state.to_private_state()
+        && tx_data.spent_witness.tx.nonce == full_private_state.nonce
+    {
+        // We can use the original spent proof if prev_private_state matches
+        let spent_proof = tx_data.common.spent_proof.clone();
+
+        // update private state
+        if update_private_state {
             tx_data
                 .spent_witness
                 .update_private_state(full_private_state)
                 .map_err(|e| SyncError::FailedToUpdatePrivateState(e.to_string()))?;
-
-            spent_proof
-        } else {
-            // We regenerate spent proof
-            let spent_witness = generate_spent_witness(
-                full_private_state,
-                tx_data.spent_witness.tx.nonce,
-                &tx_data.spent_witness.transfers,
-            )
-            .await?;
-
-            // update private state
+        }
+        spent_proof
+    } else {
+        // We regenerate spent proof
+        let spent_witness = generate_spent_witness(
+            full_private_state,
+            tx_data.spent_witness.tx.nonce,
+            &tx_data.spent_witness.transfers,
+        )
+        .await?;
+        // update private state
+        if update_private_state {
             spent_witness
                 .update_private_state(full_private_state)
                 .map_err(|e| SyncError::FailedToUpdatePrivateState(e.to_string()))?;
-
-            balance_prover.prove_spent(key, &spent_witness).await?
-        };
-
-    // prove tx send
+        }
+        balance_prover.prove_spent(key, &spent_witness).await?
+    };
     let balance_proof = balance_prover
         .prove_send(
             key,
@@ -264,6 +284,14 @@ pub async fn update_send_by_sender<
             prev_balance_proof,
         )
         .await?;
+    let balance_pis = BalancePublicInputs::from_pis(&balance_proof.public_inputs);
+    if balance_pis.private_commitment != full_private_state.to_private_state().commitment() {
+        return Err(SyncError::InternalError(format!(
+            "balance proof new private commitment {} is not equal to full private state commitment{}",
+            balance_pis.private_commitment, full_private_state.to_private_state().commitment(
+        ))
+        ));
+    }
     Ok(balance_proof)
 }
 
@@ -316,7 +344,7 @@ pub async fn update_send_by_receiver<
     let tx_witness = TxWitness {
         validity_pis,
         sender_leaves,
-        tx: common_tx_data.tx.clone(),
+        tx: common_tx_data.tx,
         tx_index: common_tx_data.tx_index,
         tx_merkle_proof: common_tx_data.tx_merkle_proof.clone(),
     };
@@ -357,6 +385,7 @@ pub async fn update_send_by_receiver<
 }
 
 /// Update prev_balance_proof to block_number or do noting if already synced later than block_number.
+///
 /// Assumes that there are no send transactions between the block_number of prev_balance_proof and block_number.
 pub async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverClientInterface>(
     validity_prover: &V,
@@ -402,7 +431,7 @@ pub async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverCl
         )));
     }
     let balance_proof = balance_prover
-        .prove_update(key, key.pubkey, &update_witness, &prev_balance_proof)
+        .prove_update(key, key.pubkey, &update_witness, prev_balance_proof)
         .await?;
     Ok(balance_proof)
 }
@@ -412,7 +441,7 @@ pub async fn generate_spent_witness(
     tx_nonce: u32,
     transfers: &[Transfer],
 ) -> Result<SpentWitness, SyncError> {
-    let transfer_tree = generate_transfer_tree(&transfers);
+    let transfer_tree = generate_transfer_tree(transfers);
     let tx = Tx {
         nonce: tx_nonce,
         transfer_tree_root: transfer_tree.get_root(),

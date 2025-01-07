@@ -1,3 +1,4 @@
+#[allow(clippy::module_inception)]
 pub mod api;
 pub mod encode;
 pub mod error;

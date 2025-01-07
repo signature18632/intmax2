@@ -48,8 +48,11 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
+#[allow(clippy::upper_case_acronyms)]
 type ADB = SqlMerkleTree<IndexedMerkleLeaf>;
+#[allow(clippy::upper_case_acronyms)]
 type BDB = SqlMerkleTree<Bytes32>;
+#[allow(clippy::upper_case_acronyms)]
 type DDB = SqlMerkleTree<DepositHash>;
 
 const ACCOUNT_DB_TAG: u32 = 1;
@@ -420,10 +423,7 @@ impl WitnessGenerator {
             sqlx::query!("SELECT MAX(block_number) as last_block_number FROM validity_state")
                 .fetch_optional(&self.pool)
                 .await?;
-        let last_block_number = record
-            .map(|r| r.last_block_number) // Option<Option<i32>>
-            .flatten() // Option<i32>
-            .unwrap_or(0); // i32
+        let last_block_number = record.and_then(|r| r.last_block_number).unwrap_or(0); // i32
 
         Ok(last_block_number as u32)
     }

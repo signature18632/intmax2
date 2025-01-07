@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{fmt, str::FromStr};
 
 use async_trait::async_trait;
 use intmax2_zkp::{ethereum_types::u256::U256, utils::poseidon_hash_out::PoseidonHashOut};
@@ -23,14 +23,15 @@ pub enum DataType {
     Tx,
 }
 
-impl ToString for DataType {
-    fn to_string(&self) -> String {
-        match self {
+impl fmt::Display for DataType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let t = match self {
             DataType::Deposit => "deposit".to_string(),
             DataType::Transfer => "transfer".to_string(),
             DataType::Withdrawal => "withdrawal".to_string(),
             DataType::Tx => "tx".to_string(),
-        }
+        };
+        write!(f, "{}", t)
     }
 }
 
@@ -102,4 +103,19 @@ pub trait StoreVaultClientInterface {
     ) -> Result<(), ServerError>;
 
     async fn get_user_data(&self, pubkey: U256) -> Result<Option<Vec<u8>>, ServerError>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DataType;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_data_type() {
+        let deposit = DataType::from_str("deposit").unwrap();
+        assert_eq!(deposit.to_string(), "deposit");
+
+        let withdrawal = DataType::Withdrawal;
+        assert_eq!(withdrawal.to_string(), "withdrawal");
+    }
 }

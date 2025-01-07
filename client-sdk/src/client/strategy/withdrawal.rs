@@ -64,16 +64,14 @@ pub async fn fetch_withdrawal_info<
                     let mut meta = meta;
                     meta.block_number = Some(block_number);
                     settled.push((meta, transfer_data));
+                } else if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
+                    // timeout
+                    log::error!("Withdrawal {} is timeout", meta.uuid);
+                    timeout.push((meta, transfer_data));
                 } else {
-                    if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
-                        // timeout
-                        log::error!("Withdrawal {} is timeout", meta.uuid);
-                        timeout.push((meta, transfer_data));
-                    } else {
-                        // pending
-                        log::info!("Withdrawal {} is pending", meta.uuid);
-                        pending.push((meta, transfer_data));
-                    }
+                    // pending
+                    log::info!("Withdrawal {} is pending", meta.uuid);
+                    pending.push((meta, transfer_data));
                 }
             }
             Err(e) => {

@@ -66,7 +66,7 @@ mod test {
 
         for test_case in test_cases.iter() {
             let account = generate_intmax_account_from_eth_key(test_case.private_key);
-            assert_eq!(account.is_dummy, false);
+            assert!(!account.is_dummy);
             assert_eq!(account.pubkey.to_hex(), test_case.public_key);
         }
     }

@@ -229,7 +229,7 @@ impl RollupContract {
         for (event, meta) in events {
             blocks_posted_events.push(BlockPosted {
                 prev_block_hash: Bytes32::from_bytes_be(&event.prev_block_hash),
-                block_builder: Address::from_bytes_be(&event.block_builder.as_bytes()),
+                block_builder: Address::from_bytes_be(event.block_builder.as_bytes()),
                 timestamp: event.timestamp,
                 block_number: event.block_number.as_u32(),
                 deposit_tree_root: Bytes32::from_bytes_be(&event.deposit_tree_root),
@@ -261,7 +261,7 @@ impl RollupContract {
                 event.deposit_tree_root,
                 event.timestamp,
                 event.block_number,
-                &tx.input.to_vec(),
+                &tx.input,
             )
             .map_err(|e| {
                 BlockchainError::DecodeCallDataError(format!(
@@ -299,6 +299,7 @@ impl RollupContract {
         Ok(tx_hash)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn post_registration_block(
         &self,
         signer_private_key: H256,
@@ -338,6 +339,7 @@ impl RollupContract {
         Ok(tx_hash)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn post_non_registration_block(
         &self,
         signer_private_key: H256,
@@ -439,7 +441,7 @@ mod tests {
     #[tokio::test]
     async fn test_rollup_contract() -> anyhow::Result<()> {
         let anvil = Anvil::new().spawn();
-        let private_key: [u8; 32] = anvil.keys()[0].to_bytes().try_into().unwrap();
+        let private_key: [u8; 32] = anvil.keys()[0].to_bytes().into();
         let private_key = H256::from_slice(&private_key);
         let rpc_url = anvil.endpoint();
         let chain_id = anvil.chain_id();
@@ -476,7 +478,7 @@ mod tests {
         rollup_contract
             .post_non_registration_block(
                 private_key,
-                ethers::utils::parse_ether("1").unwrap().into(),
+                ethers::utils::parse_ether("1").unwrap(),
                 Bytes32::rand(&mut rng),
                 signature.expiry.into(),
                 signature.sender_flag,

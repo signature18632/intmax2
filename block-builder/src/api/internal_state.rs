@@ -48,6 +48,12 @@ pub enum BuilderState {
     ProposingBlock(ProposingBlockState), // after constructed the block, accepting signatures for the block
 }
 
+impl Default for BuilderState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BuilderState {
     pub fn new() -> Self {
         BuilderState::Pausing
@@ -62,24 +68,15 @@ impl BuilderState {
     }
 
     pub fn is_pausing(&self) -> bool {
-        match self {
-            BuilderState::Pausing => true,
-            _ => false,
-        }
+        matches!(self, BuilderState::Pausing)
     }
 
     pub fn is_accepting_txs(&self) -> bool {
-        match self {
-            BuilderState::AcceptingTxs(_) => true,
-            _ => false,
-        }
+        matches!(self, BuilderState::AcceptingTxs(_))
     }
 
     pub fn is_proposing_block(&self) -> bool {
-        match self {
-            BuilderState::ProposingBlock(_) => true,
-            _ => false,
-        }
+        matches!(self, BuilderState::ProposingBlock(_))
     }
 
     pub fn is_request_contained(&self, pubkey: U256, tx: Tx) -> bool {
@@ -165,7 +162,7 @@ impl BuilderState {
 
         let mut tx_tree = TxTree::new(TX_TREE_HEIGHT);
         for (_, tx) in sorted_and_padded_txs.iter() {
-            tx_tree.push(tx.clone());
+            tx_tree.push(*tx);
         }
         let tx_tree_root: Bytes32 = tx_tree.get_root().into();
 

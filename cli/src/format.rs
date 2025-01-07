@@ -23,29 +23,26 @@ pub fn format_token_info(
 ) -> Result<(EthU256, EthAddress, EthU256), FormatTokenInfoError> {
     match token_type {
         TokenType::NATIVE => Ok({
-            let amount = amount.ok_or_else(|| FormatTokenInfoError::MissingAmount)?;
+            let amount = amount.ok_or(FormatTokenInfoError::MissingAmount)?;
             (amount, EthAddress::zero(), EthU256::zero())
         }),
         TokenType::ERC20 => {
-            let amount = amount.ok_or_else(|| FormatTokenInfoError::MissingAmount)?;
-            let token_address =
-                token_address.ok_or_else(|| FormatTokenInfoError::MissingTokenAddress)?;
+            let amount = amount.ok_or(FormatTokenInfoError::MissingAmount)?;
+            let token_address = token_address.ok_or(FormatTokenInfoError::MissingTokenAddress)?;
             Ok((amount, token_address, EthU256::zero()))
         }
         TokenType::ERC721 => {
             if amount.is_some() {
-                return Err(FormatTokenInfoError::AmountShouldNotBeSpecified.into());
+                return Err(FormatTokenInfoError::AmountShouldNotBeSpecified);
             }
-            let token_address =
-                token_address.ok_or_else(|| FormatTokenInfoError::MissingTokenAddress)?;
-            let token_id = token_id.ok_or_else(|| FormatTokenInfoError::MissingTokenId)?;
+            let token_address = token_address.ok_or(FormatTokenInfoError::MissingTokenAddress)?;
+            let token_id = token_id.ok_or(FormatTokenInfoError::MissingTokenId)?;
             Ok((EthU256::one(), token_address, token_id))
         }
         TokenType::ERC1155 => {
-            let amount = amount.ok_or_else(|| FormatTokenInfoError::MissingAmount)?;
-            let token_address =
-                token_address.ok_or_else(|| FormatTokenInfoError::MissingTokenAddress)?;
-            let token_id = token_id.ok_or_else(|| FormatTokenInfoError::MissingTokenId)?;
+            let amount = amount.ok_or(FormatTokenInfoError::MissingAmount)?;
+            let token_address = token_address.ok_or(FormatTokenInfoError::MissingTokenAddress)?;
+            let token_id = token_id.ok_or(FormatTokenInfoError::MissingTokenId)?;
             Ok((amount, token_address, token_id))
         }
     }

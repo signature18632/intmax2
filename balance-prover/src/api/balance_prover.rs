@@ -63,7 +63,7 @@ impl BalanceProver {
             .balance_processor
             .balance_transition_processor
             .sender_processor
-            .prove_spent(&spent_witness)
+            .prove_spent(spent_witness)
             .map_err(|e| BalanceProverError::ProveSpentError(e.to_string()))?;
         Ok(spent_proof)
     }
@@ -124,7 +124,7 @@ impl BalanceProver {
     ) -> Result<ProofWithPublicInputs<F, C, D>, BalanceProverError> {
         let balance_proof = self
             .balance_processor
-            .prove_receive_deposit(pubkey, &receive_deposit_witness, prev_proof)
+            .prove_receive_deposit(pubkey, receive_deposit_witness, prev_proof)
             .map_err(|e| BalanceProverError::ProveReceiveDepositError(e.to_string()))?;
         Ok(balance_proof)
     }
