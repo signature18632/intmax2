@@ -1,7 +1,10 @@
 use std::{fmt, str::FromStr};
 
 use async_trait::async_trait;
-use intmax2_zkp::{ethereum_types::u256::U256, utils::poseidon_hash_out::PoseidonHashOut};
+use intmax2_zkp::{
+    common::signature::key_set::KeySet, ethereum_types::u256::U256,
+    utils::poseidon_hash_out::PoseidonHashOut,
+};
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
@@ -69,12 +72,14 @@ pub trait StoreVaultClientInterface {
         data_type: DataType,
         pubkey: U256,
         encrypted_data: &[u8],
+        signer: Option<KeySet>,
     ) -> Result<String, ServerError>;
 
     async fn save_data_batch(
         &self,
         data_type: DataType,
         data: Vec<(U256, Vec<u8>)>,
+        // signer: Option<KeySet>,
     ) -> Result<Vec<String>, ServerError>;
 
     async fn get_data(

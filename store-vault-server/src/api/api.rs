@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use actix_web::{
+    error::ErrorUnauthorized,
     get, post,
     web::{Data, Json, Path},
     Error,
@@ -11,12 +12,13 @@ use intmax2_interfaces::api::store_vault_server::{
         BatchGetDataQuery, BatchGetDataResponse, BatchSaveDataRequest, BatchSaveDataResponse,
         GetBalanceProofQuery, GetBalanceProofResponse, GetDataAllAfterQuery,
         GetDataAllAfterResponse, GetDataQuery, GetDataResponse, GetUserDataQuery,
-        GetUserDataResponse, SaveBalanceProofRequest, SaveDataRequest, SaveDataResponse,
+        GetUserDataResponse, SaveBalanceProofRequest, SaveDataRequest,
+        SaveDataRequestWithSignature, SaveDataResponse,
     },
 };
 use serde_qs::actix::QsQuery;
 
-use crate::api::state::State;
+use crate::{api::state::State, middleware::authorization::RequestWithSignature};
 
 #[post("/save-balance-proof")]
 pub async fn save_balance_proof(
@@ -50,12 +52,27 @@ pub async fn get_balance_proof(
 pub async fn save_data(
     state: Data<State>,
     path: Path<String>,
-    request: Json<SaveDataRequest>,
+    request: Json<SaveDataRequestWithSignature>,
 ) -> Result<Json<SaveDataResponse>, Error> {
     let data_type = path.into_inner();
+    println!("data_type: {:?}", data_type);
     let data_type = DataType::from_str(data_type.as_str())
         .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Invalid type: {}", e)))?;
+
     let request = request.into_inner();
+    match data_type {
+        DataType::Tx => {
+            let result = request.verify();
+            println!("Verifying signature for {:?}", result);
+            if let Err(err) = result {
+                return Err(ErrorUnauthorized(err));
+            }
+        }
+        _ => {
+            println!("No authorization required for {}", data_type);
+        }
+    }
+
     let uuid = state
         .store_vault_server
         .save_data(data_type, request.pubkey, request.data)

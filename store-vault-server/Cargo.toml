@@ -30,7 +30,3 @@ hashbrown = { workspace = true }
 actix-web = { workspace = true }
 actix-cors = { workspace = true }
 serde_qs = { workspace = true }
-ark-ec = "0.4.2"
-ark-bn254 = "0.4.0"
-rand = "0.8.5"
-num-traits = "0.2.19"

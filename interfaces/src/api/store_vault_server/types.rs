@@ -35,6 +35,7 @@ pub struct GetBalanceProofResponse {
     pub balance_proof: Option<ProofWithPublicInputs<F, C, D>>,
 }
 
+// #[serde(deny_unknown_fields)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveDataRequest {
@@ -47,7 +48,9 @@ pub struct SaveDataRequest {
 pub struct SaveDataRequestWithSignature {
     pub pubkey: U256,
     pub data: Vec<u8>,
-    pub signature: FlatG2,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<FlatG2>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -116,3 +119,18 @@ pub struct GetDataAllAfterQuery {
 pub struct GetDataAllAfterResponse {
     pub data: Vec<(MetaData, Vec<u8>)>,
 }
+
+// #[test]
+// fn test_json_deserialize() {
+//     let json_str = r#"
+//         {
+//             "pubkey": "0",
+//             "data": [],
+//             "email": "john@example.com"
+//         }
+//     "#;
+
+//     let user: SaveDataRequest = serde_json::from_str(json_str).unwrap();
+
+//     println!("pubkey: {}", user.pubkey);
+// }

@@ -137,7 +137,12 @@ where
         };
         let deposit_uuid = self
             .store_vault_server
-            .save_data(DataType::Deposit, pubkey, &deposit_data.encrypt(pubkey))
+            .save_data(
+                DataType::Deposit,
+                pubkey,
+                &deposit_data.encrypt(pubkey),
+                None,
+            )
             .await?;
 
         let result = DepositResult {
@@ -306,7 +311,12 @@ where
             spent_witness: memo.spent_witness.clone(),
         };
         self.store_vault_server
-            .save_data(DataType::Tx, key.pubkey, &tx_data.encrypt(key.pubkey))
+            .save_data(
+                DataType::Tx,
+                key.pubkey,
+                &tx_data.encrypt(key.pubkey),
+                Some(key),
+            )
             .await?;
 
         // save transfer data

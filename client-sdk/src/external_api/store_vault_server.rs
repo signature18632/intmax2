@@ -1,3 +1,4 @@
+use crate::utils::signature::{sign_message, verify_signature};
 use async_trait::async_trait;
 use intmax2_interfaces::{
     api::{
@@ -9,13 +10,16 @@ use intmax2_interfaces::{
                 BatchSaveDataResponse, GetBalanceProofQuery, GetBalanceProofResponse,
                 GetDataAllAfterQuery, GetDataAllAfterResponse, GetDataQuery, GetDataResponse,
                 GetUserDataQuery, GetUserDataResponse, SaveBalanceProofRequest, SaveDataRequest,
-                SaveDataResponse,
+                SaveDataRequestWithSignature, SaveDataResponse,
             },
         },
     },
     data::meta_data::MetaData,
 };
-use intmax2_zkp::{ethereum_types::u256::U256, utils::poseidon_hash_out::PoseidonHashOut};
+use intmax2_zkp::{
+    common::signature::key_set::KeySet, ethereum_types::u256::U256,
+    utils::poseidon_hash_out::PoseidonHashOut,
+};
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
@@ -79,15 +83,29 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         Ok(response.balance_proof)
     }
 
+    /// The signer is required for the API below:
+    /// - /tx/save
     async fn save_data(
         &self,
         data_type: DataType,
         pubkey: U256,
         encrypted_data: &[u8],
+        signer: Option<KeySet>,
     ) -> Result<String, ServerError> {
-        let request = SaveDataRequest {
+        let signature = if let Some(signer) = signer {
+            let message = encrypted_data.to_vec();
+            let signature = sign_message(signer.privkey, message.clone()).unwrap();
+            debug_assert!(verify_signature(signature.clone(), pubkey, message).is_ok());
+
+            Some(signature)
+        } else {
+            None
+        };
+
+        let request = SaveDataRequestWithSignature {
             pubkey,
             data: encrypted_data.to_vec(),
+            signature,
         };
         let response: SaveDataResponse = post_request(
             &self.base_url,
@@ -98,11 +116,28 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         Ok(response.uuid)
     }
 
+    /// The signer is required for the API below:
+    /// - /tx/save
     async fn save_data_batch(
         &self,
         data_type: DataType,
         data: Vec<(U256, Vec<u8>)>,
+        // signer: Option<KeySet>,
     ) -> Result<Vec<String>, ServerError> {
+        // let signature = if let Some(signer) = signer {
+        //     let message = encrypted_data.to_vec();
+        //     let signature = sign_message(signer.privkey, message.clone()).unwrap();
+        //     debug_assert!(verify_signature(signature.clone(), pubkey, message).is_ok());
+
+        //     Some(signature)
+        // } else {
+        //     None
+        // };
+
+        // let request = BatchSaveDataRequestWithSignature {
+        //     requests: data,
+        //     signature,
+        // };
         let request = BatchSaveDataRequest { requests: data };
         let response: BatchSaveDataResponse = post_request(
             &self.base_url,
@@ -167,6 +202,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         &self,
         pubkey: U256,
         encrypted_data: Vec<u8>,
+        // signer: Option<KeySet>,
     ) -> Result<(), ServerError> {
         let request = SaveDataRequest {
             pubkey,
