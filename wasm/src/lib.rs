@@ -55,6 +55,7 @@ pub async fn generate_intmax_account_from_eth_key(
 #[wasm_bindgen]
 pub async fn prepare_deposit(
     config: &Config,
+    depositor: &str,
     recipient: &str,
     amount: &str,
     token_type: u8,
@@ -62,6 +63,7 @@ pub async fn prepare_deposit(
     token_id: &str,
 ) -> Result<JsDepositResult, JsError> {
     init_logger();
+    let depositor = parse_address(depositor)?;
     let recipient = parse_h256_as_u256(recipient)?;
     let amount = parse_u256(amount)?;
     let token_type = TokenType::try_from(token_type).map_err(|e| JsError::new(&e))?;
@@ -69,7 +71,14 @@ pub async fn prepare_deposit(
     let token_id = parse_u256(token_id)?;
     let client = get_client(config);
     let deposit_result = client
-        .prepare_deposit(recipient, amount, token_type, token_address, token_id)
+        .prepare_deposit(
+            depositor,
+            recipient,
+            amount,
+            token_type,
+            token_address,
+            token_id,
+        )
         .await
         .map_err(|e| {
             JsError::new(&format!(
