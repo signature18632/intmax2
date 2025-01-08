@@ -16,13 +16,18 @@ pub fn parse_u256(input: &str) -> Result<U256, JsError> {
     Ok(input)
 }
 
+pub fn parse_bytes32(input: &str) -> Result<Bytes32, JsError> {
+    let input = Bytes32::from_hex(input).map_err(|_| JsError::new("Failed to parse as Bytes32"))?;
+    Ok(input)
+}
+
 pub fn parse_address(input: &str) -> Result<Address, JsError> {
     let input = Address::from_hex(input).map_err(|_| JsError::new("Failed to parse as Address"))?;
     Ok(input)
 }
 
 pub fn parse_poseidon_hashout(input: &str) -> Result<PoseidonHashOut, JsError> {
-    let input = Bytes32::from_hex(input).map_err(|_| JsError::new("Failed to parse as Bytes32"))?;
+    let input = parse_bytes32(input)?;
     Ok(input.reduce_to_hash_out())
 }
 
