@@ -250,13 +250,6 @@ where
                 );
                 return Ok(());
             }
-            Err(SyncError::BalanceProofNotFound) => {
-                log::error!(
-                    "Ignore tx: {} because of sender balance proof not found",
-                    meta.uuid
-                );
-                return Ok(());
-            }
             Err(e) => return Err(e),
         };
 
@@ -332,13 +325,6 @@ where
                     "Ignore tx: {} because of invalid transfer: {}",
                     meta.uuid,
                     e
-                );
-                return Ok(());
-            }
-            Err(SyncError::BalanceProofNotFound) => {
-                log::error!(
-                    "Ignore tx: {} because of sender balance proof not found",
-                    meta.uuid
                 );
                 return Ok(());
             }
@@ -500,14 +486,15 @@ where
                 spent_proof_pis.prev_private_commitment,
             )
             .await?
-            .ok_or(SyncError::BalanceProofNotFound)?;
-
+            .ok_or(SyncError::InvalidTransferError(
+                "sender prev balance proof not found".to_string(),
+            ))?;
         let new_sender_balance_proof = update_send_by_receiver(
             &self.validity_prover,
             &self.balance_prover,
             key,
             sender,
-            &Some(prev_sender_balance_proof),
+            &prev_sender_balance_proof,
             block_number,
             common_tx_data,
         )
