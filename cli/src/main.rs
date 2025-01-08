@@ -1,5 +1,6 @@
 use clap::Parser;
 use colored::Colorize as _;
+use ethers::types::H256;
 use intmax2_cli::{
     args::{Args, Commands},
     cli::{
@@ -11,7 +12,7 @@ use intmax2_cli::{
         sync::sync_withdrawals,
         utils::post_empty_block,
     },
-    format::{format_token_info, privkey_to_keyset, pubkey_to_keyset},
+    format::{format_token_info, privkey_to_keyset},
 };
 use intmax2_zkp::{
     common::signature::key_set::KeySet,
@@ -109,17 +110,9 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
         Commands::PostEmptyBlock => {
             post_empty_block().await?;
         }
-        Commands::Balance {
-            private_key,
-            public_key,
-        } => {
-            if let Some(private_key) = private_key {
-                let key = privkey_to_keyset(private_key);
-                balance(key).await?;
-            } else if let Some(public_key) = public_key {
-                let key = pubkey_to_keyset(public_key);
-                balance(key).await?;
-            }
+        Commands::Balance { private_key } => {
+            let key = generate_key(private_key);
+            balance(key).await?;
         }
         Commands::History { private_key } => {
             let key = privkey_to_keyset(private_key);
@@ -154,4 +147,19 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
         }
     }
     Ok(())
+}
+
+fn generate_key(private_key: Option<H256>) -> KeySet {
+    match private_key {
+        Some(private_key) => privkey_to_keyset(private_key),
+        None => {
+            let pubkey: H256 = std::env::var("PUBKEY").unwrap().parse().unwrap();
+            let mut rng = rand::thread_rng();
+            let mut key = KeySet::rand(&mut rng);
+            key.pubkey = BigUint::from_bytes_be(pubkey.as_bytes())
+                .try_into()
+                .unwrap();
+            key
+        }
+    }
 }

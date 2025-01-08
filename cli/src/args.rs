@@ -50,8 +50,6 @@ pub enum Commands {
     Balance {
         #[clap(long)]
         private_key: Option<H256>,
-        #[clap(long)]
-        public_key: Option<H256>,
     },
     History {
         #[clap(long)]
