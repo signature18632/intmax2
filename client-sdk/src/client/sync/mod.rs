@@ -242,11 +242,12 @@ where
             .await
         {
             Ok(proof) => proof,
-            Err(SyncError::SenderLastBlockNumberError {
-                balance_proof_block_number,
-                last_block_number,
-            }) => {
-                log::error!("Ignore tx: {} because of sender last block number error: balance_proof_block_number: {}, last_block_number: {}",meta.uuid, balance_proof_block_number, last_block_number);
+            Err(SyncError::InvalidTransferError(e)) => {
+                log::error!(
+                    "Ignore tx: {} because of invalid transfer: {}",
+                    meta.uuid,
+                    e
+                );
                 return Ok(());
             }
             Err(SyncError::BalanceProofNotFound) => {
@@ -326,11 +327,12 @@ where
             .await
         {
             Ok(proof) => proof,
-            Err(SyncError::SenderLastBlockNumberError {
-                balance_proof_block_number,
-                last_block_number,
-            }) => {
-                log::error!("Ignore tx: {} because of sender last block number error: balance_proof_block_number: {}, last_block_number: {}",meta.uuid, balance_proof_block_number, last_block_number);
+            Err(SyncError::InvalidTransferError(e)) => {
+                log::error!(
+                    "Ignore tx: {} because of invalid transfer: {}",
+                    meta.uuid,
+                    e
+                );
                 return Ok(());
             }
             Err(SyncError::BalanceProofNotFound) => {
