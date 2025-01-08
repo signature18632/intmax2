@@ -1,5 +1,5 @@
 import { cleanEnv, num, str, url } from 'envalid';
-import { Config, generate_intmax_account_from_eth_key, get_user_data, sync, } from '../pkg';
+import { Config, generate_intmax_account_from_eth_key, get_user_data, JsGenericAddress, JsTransfer, sync, } from '../pkg';
 import * as dotenv from 'dotenv';
 import { ethers } from 'ethers';
 dotenv.config();
@@ -74,6 +74,13 @@ async function main() {
         const balance = balances[i];
         console.log(`Token ${balance.token_index}: ${balance.amount}`);
     }
+
+    const recipient = new JsGenericAddress(false, ethers.ZeroAddress);
+    const transfer = new JsTransfer(recipient, 0, "100", ethers.ZeroHash);
+    const withdrawal = transfer.to_withdrawal();
+    const nullifier = withdrawal.nullifier;
+    const withdrawal_hash = withdrawal.hash();
+    console.log(`nullifier: ${nullifier}, withdrawal_hash: ${withdrawal_hash}`);
 }
 
 async function syncBalanceProof(config: Config, privateKey: string) {
