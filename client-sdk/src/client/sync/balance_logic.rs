@@ -26,6 +26,7 @@ use intmax2_zkp::{
         },
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
+    utils::leafable::Leafable,
 };
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
@@ -122,6 +123,13 @@ pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProver
             "receive block number is not greater than prev balance proof".to_string(),
         ));
     }
+    if sender_balance_pis
+        .last_tx_insufficient_flags
+        .random_access(transfer_data.transfer_index as usize)
+    {
+        return Err(SyncError::SenderInsufficientBalance);
+    }
+
     // Generate witness
     let transfer_witness = TransferWitness {
         tx: transfer_data.tx_data.tx,
@@ -243,37 +251,35 @@ pub async fn update_send_by_sender<
     // update private state only if sender leaf has returned signature and validity_pis is valid
     let update_private_state = sender_leaf.did_return_sig && validity_pis.is_valid_block;
 
-    let spent_proof = if tx_data.spent_witness.prev_private_state
-        == full_private_state.to_private_state()
-        && tx_data.spent_witness.tx.nonce == full_private_state.nonce
-    {
-        // We can use the original spent proof if prev_private_state matches
-        let spent_proof = tx_data.common.spent_proof.clone();
+    let spent_proof =
+        if tx_data.spent_witness.prev_private_state == full_private_state.to_private_state() {
+            // We can use the original spent proof if prev_private_state matches
+            let spent_proof = tx_data.common.spent_proof.clone();
 
-        // update private state
-        if update_private_state {
-            tx_data
-                .spent_witness
-                .update_private_state(full_private_state)
-                .map_err(|e| SyncError::FailedToUpdatePrivateState(e.to_string()))?;
-        }
-        spent_proof
-    } else {
-        // We regenerate spent proof
-        let spent_witness = generate_spent_witness(
-            full_private_state,
-            tx_data.spent_witness.tx.nonce,
-            &tx_data.spent_witness.transfers,
-        )
-        .await?;
-        // update private state
-        if update_private_state {
-            spent_witness
-                .update_private_state(full_private_state)
-                .map_err(|e| SyncError::FailedToUpdatePrivateState(e.to_string()))?;
-        }
-        balance_prover.prove_spent(key, &spent_witness).await?
-    };
+            // update private state
+            if update_private_state {
+                tx_data
+                    .spent_witness
+                    .update_private_state(full_private_state)
+                    .map_err(|e| SyncError::FailedToUpdatePrivateState(e.to_string()))?;
+            }
+            spent_proof
+        } else {
+            // We regenerate spent proof
+            let spent_witness = generate_spent_witness(
+                full_private_state,
+                tx_data.spent_witness.tx.nonce,
+                &tx_data.spent_witness.transfers,
+            )
+            .await?;
+            // update private state
+            if update_private_state {
+                spent_witness
+                    .update_private_state(full_private_state)
+                    .map_err(|e| SyncError::FailedToUpdatePrivateState(e.to_string()))?;
+            }
+            balance_prover.prove_spent(key, &spent_witness).await?
+        };
     let balance_proof = balance_prover
         .prove_send(
             key,
@@ -322,6 +328,12 @@ pub async fn update_send_by_receiver<
         return Err(SyncError::InternalError(
             "tx block number is not greater than prev balance proof".to_string(),
         ));
+    }
+    if prev_balance_pis.last_tx_hash != common_tx_data.tx.hash() {
+        return Err(SyncError::SenderLastTxHashMismatch {
+            last_tx_hash: prev_balance_pis.last_tx_hash,
+            tx_hash: common_tx_data.tx.hash(),
+        });
     }
 
     // get witness
