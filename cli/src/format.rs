@@ -1,6 +1,6 @@
 use ethers::types::{Address as EthAddress, H256, U256 as EthU256};
 use intmax2_interfaces::data::deposit_data::TokenType;
-use intmax2_zkp::common::signature::key_set::KeySet;
+use intmax2_zkp::{common::signature::key_set::KeySet, ethereum_types::u256::U256};
 use num_bigint::BigUint;
 
 #[derive(Debug, thiserror::Error)]
@@ -48,6 +48,16 @@ pub fn format_token_info(
     }
 }
 
-pub fn h256_to_keyset(h256: H256) -> KeySet {
-    KeySet::new(BigUint::from_bytes_be(h256.as_bytes()).into())
+pub fn privkey_to_keyset(privkey: H256) -> KeySet {
+    KeySet::new(BigUint::from_bytes_be(privkey.as_bytes()).into())
+}
+
+pub fn pubkey_to_keyset(pubkey: H256) -> KeySet {
+    let pubkey: U256 = BigUint::from_bytes_be(pubkey.as_bytes())
+        .try_into()
+        .unwrap();
+    let mut rng = rand::thread_rng();
+    let mut key = KeySet::rand(&mut rng);
+    key.pubkey = pubkey;
+    key
 }

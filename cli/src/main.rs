@@ -11,7 +11,7 @@ use intmax2_cli::{
         sync::sync_withdrawals,
         utils::post_empty_block,
     },
-    format::{format_token_info, h256_to_keyset},
+    format::{format_token_info, privkey_to_keyset, pubkey_to_keyset},
 };
 use intmax2_zkp::{
     common::signature::key_set::KeySet,
@@ -55,7 +55,7 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
             amount,
             token_index,
         } => {
-            let key = h256_to_keyset(private_key);
+            let key = privkey_to_keyset(private_key);
             let transfer_input = TransferInput {
                 recipient: to,
                 amount,
@@ -67,7 +67,7 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
             private_key,
             csv_path,
         } => {
-            let key = h256_to_keyset(private_key);
+            let key = privkey_to_keyset(private_key);
             let mut reader = csv::Reader::from_path(csv_path)?;
             let mut transfers = vec![];
             for result in reader.deserialize() {
@@ -87,7 +87,7 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
             token_address,
             token_id,
         } => {
-            let key = h256_to_keyset(private_key);
+            let key = privkey_to_keyset(private_key);
             let amount = amount.map(|x| x.into());
             let token_id = token_id.map(|x| x.into());
             let (amount, token_address, token_id) =
@@ -103,29 +103,37 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
             .await?;
         }
         Commands::SyncWithdrawals { private_key } => {
-            let key = h256_to_keyset(private_key);
+            let key = privkey_to_keyset(private_key);
             sync_withdrawals(key).await?;
         }
         Commands::PostEmptyBlock => {
             post_empty_block().await?;
         }
-        Commands::Balance { private_key } => {
-            let key = h256_to_keyset(private_key);
-            balance(key).await?;
+        Commands::Balance {
+            private_key,
+            public_key,
+        } => {
+            if let Some(private_key) = private_key {
+                let key = privkey_to_keyset(private_key);
+                balance(key).await?;
+            } else if let Some(public_key) = public_key {
+                let key = pubkey_to_keyset(public_key);
+                balance(key).await?;
+            }
         }
         Commands::History { private_key } => {
-            let key = h256_to_keyset(private_key);
+            let key = privkey_to_keyset(private_key);
             history(key).await?;
         }
         Commands::WithdrawalStatus { private_key } => {
-            let key = h256_to_keyset(private_key);
+            let key = privkey_to_keyset(private_key);
             withdrawal_status(key).await?;
         }
         Commands::ClaimWithdrawals {
             private_key,
             eth_private_key,
         } => {
-            let key = h256_to_keyset(private_key);
+            let key = privkey_to_keyset(private_key);
             claim_withdrawals(key, eth_private_key).await?;
         }
         Commands::GenerateKey => {
