@@ -127,7 +127,9 @@ pub async fn receive_transfer<V: ValidityProverClientInterface, B: BalanceProver
         .last_tx_insufficient_flags
         .random_access(transfer_data.transfer_index as usize)
     {
-        return Err(SyncError::SenderInsufficientBalance);
+        return Err(SyncError::InvalidTransferError(
+            "last_tx_insufficient_flags is true".to_string(),
+        ));
     }
 
     // Generate witness
@@ -330,10 +332,11 @@ pub async fn update_send_by_receiver<
         ));
     }
     if prev_balance_pis.last_tx_hash != common_tx_data.tx.hash() {
-        return Err(SyncError::SenderLastTxHashMismatch {
-            last_tx_hash: prev_balance_pis.last_tx_hash,
-            tx_hash: common_tx_data.tx.hash(),
-        });
+        return Err(SyncError::InvalidTransferError(format!(
+            "last_tx_hash mismatch last_tx_hash: {} != tx_hash: {}",
+            prev_balance_pis.last_tx_hash,
+            common_tx_data.tx.hash()
+        )));
     }
 
     // get witness
@@ -376,10 +379,10 @@ pub async fn update_send_by_receiver<
         tx_block_number
     );
     if prev_block_number < last_block_number {
-        return Err(SyncError::SenderLastBlockNumberError {
-            balance_proof_block_number: prev_block_number,
-            last_block_number,
-        });
+        return Err(SyncError::InternalError(format!(
+            "prev_block_number {} is less than last_block_number {}",
+            prev_block_number, last_block_number
+        )));
     }
     // prove tx send
     let balance_proof = balance_prover
