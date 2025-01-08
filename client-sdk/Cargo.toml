@@ -4,16 +4,16 @@ version.workspace = true
 edition = "2021"
 
 [dependencies]
-anyhow ={workspace = true} 
+anyhow ={ workspace = true }
 bincode = "1.3.3"
-plonky2 = {workspace = true} 
-intmax2-zkp = {workspace = true}
-intmax2-interfaces = {path = "../interfaces"}
+plonky2 = { workspace = true }
+intmax2-zkp = { workspace = true }
+intmax2-interfaces = { path = "../interfaces" }
 tokio = { workspace = true }
-reqwest = { workspace = true}
-ethers = {workspace = true}
-serde_json ={workspace = true}
-serde = { workspace = true}
+reqwest = { workspace = true }
+ethers = { workspace = true }
+serde_json ={ workspace = true }
+serde = { workspace = true }
 num-bigint = "0.4.6"
 config = "0.13"
 aes-gcm = "0.9"
