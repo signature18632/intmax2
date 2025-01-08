@@ -42,7 +42,7 @@ pub async fn fetch_tx_info<S: StoreVaultClientInterface, V: ValidityProverClient
     let mut timeout = Vec::new();
 
     let encrypted_data = store_vault_server
-        .get_data_all_after(DataType::Tx, key.pubkey, tx_lpt)
+        .get_data_all_after(DataType::Tx, key, tx_lpt)
         .await?;
     for (meta, encrypted_data) in encrypted_data {
         if processed_tx_uuids.contains(&meta.uuid) {

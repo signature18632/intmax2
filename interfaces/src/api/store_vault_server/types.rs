@@ -45,12 +45,18 @@ pub struct SaveDataRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AuthInfoForSaveData {
+    pub signature: FlatG2,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SaveDataRequestWithSignature {
     pub pubkey: U256,
     pub data: Vec<u8>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub signature: Option<FlatG2>,
+    pub auth: Option<AuthInfoForSaveData>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -79,6 +85,12 @@ pub struct GetUserDataQuery {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct GetUserDataRequestWithSignature {
+    pub auth: AuthInfoForGetData,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GetUserDataResponse {
     pub data: Option<Vec<u8>>,
 }
@@ -103,6 +115,14 @@ pub struct GetDataQuery {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AuthInfoForGetData {
+    pub signature: FlatG2,
+    pub pubkey: U256,
+    pub challenge: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BatchGetDataQuery {
     pub uuids: Vec<String>,
 }
@@ -112,6 +132,13 @@ pub struct BatchGetDataQuery {
 pub struct GetDataAllAfterQuery {
     pub pubkey: U256,
     pub timestamp: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetDataAllAfterRequestWithSignature {
+    pub timestamp: u64,
+    pub auth: AuthInfoForGetData,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

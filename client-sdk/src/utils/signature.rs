@@ -54,6 +54,17 @@ pub fn verify_signature(signature: FlatG2, pubkey: U256, message: Vec<u8>) -> an
     Ok(())
 }
 
+pub fn bytes_to_hex(bytes: &[u8]) -> String {
+    format!("0x{}", hex::encode(bytes))
+}
+
+pub fn hex_to_bytes(hex: &str) -> anyhow::Result<Vec<u8>> {
+    let data_hex = hex.strip_prefix("0x").ok_or(anyhow::anyhow!(
+        "Data should be a hex string with 0x prefix"
+    ))?;
+    hex::decode(&data_hex).map_err(|err| anyhow::anyhow!("Failed to decode hex: {}", err))
+}
+
 #[cfg(test)]
 mod test {
     use super::{sign_message, verify_signature};

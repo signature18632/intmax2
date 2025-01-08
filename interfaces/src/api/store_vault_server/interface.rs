@@ -79,13 +79,13 @@ pub trait StoreVaultClientInterface {
         &self,
         data_type: DataType,
         data: Vec<(U256, Vec<u8>)>,
-        // signer: Option<KeySet>,
     ) -> Result<Vec<String>, ServerError>;
 
     async fn get_data(
         &self,
         data_type: DataType,
         uuid: &str,
+        signer: KeySet,
     ) -> Result<Option<(MetaData, Vec<u8>)>, ServerError>;
 
     async fn get_data_batch(
@@ -97,17 +97,17 @@ pub trait StoreVaultClientInterface {
     async fn get_data_all_after(
         &self,
         data_type: DataType,
-        pubkey: U256,
+        signer: KeySet,
         timestamp: u64,
     ) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError>;
 
     async fn save_user_data(
         &self,
-        pubkey: U256,
+        signer: KeySet,
         encrypted_data: Vec<u8>,
     ) -> Result<(), ServerError>;
 
-    async fn get_user_data(&self, pubkey: U256) -> Result<Option<Vec<u8>>, ServerError>;
+    async fn get_user_data(&self, signer: KeySet) -> Result<Option<Vec<u8>>, ServerError>;
 }
 
 #[cfg(test)]
