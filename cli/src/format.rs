@@ -48,6 +48,6 @@ pub fn format_token_info(
     }
 }
 
-pub fn h256_to_keyset(h256: H256) -> KeySet {
-    KeySet::new(BigUint::from_bytes_be(h256.as_bytes()).into())
+pub fn privkey_to_keyset(privkey: H256) -> KeySet {
+    KeySet::new(BigUint::from_bytes_be(privkey.as_bytes()).into())
 }
