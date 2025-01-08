@@ -1,5 +1,5 @@
 use intmax2_interfaces::api::error::ServerError;
-use intmax2_zkp::ethereum_types::bytes32::Bytes32;
+use intmax2_zkp::{ethereum_types::bytes32::Bytes32, utils::poseidon_hash_out::PoseidonHashOut};
 
 use crate::client::strategy::error::StrategyError;
 
@@ -43,6 +43,15 @@ pub enum SyncError {
 
     #[error("Deposit info not found: {0}")]
     DepositInfoNotFound(Bytes32),
+
+    #[error("Sender's last tx hash mismatch last_tx_hash: {last_tx_hash} != tx_hash: {tx_hash}")]
+    SenderLastTxHashMismatch {
+        last_tx_hash: PoseidonHashOut,
+        tx_hash: PoseidonHashOut,
+    },
+
+    #[error("Sender insufficient balance")]
+    SenderInsufficientBalance,
 
     #[error("Sender's balance_proof_block_number: {balance_proof_block_number} < last_block_number: {last_block_number}")]
     SenderLastBlockNumberError {
