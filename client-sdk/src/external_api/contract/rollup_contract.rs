@@ -447,14 +447,14 @@ mod tests {
         let chain_id = anvil.chain_id();
 
         let rollup_contract = RollupContract::deploy(&rpc_url, chain_id, private_key).await?;
-        let zero_address = ethers::types::Address::zero();
+        let random_address = ethers::types::Address::random();
         rollup_contract
             .initialize(
                 private_key,
-                zero_address,
-                zero_address,
-                zero_address,
-                zero_address,
+                random_address,
+                random_address,
+                random_address,
+                random_address,
             )
             .await?;
 

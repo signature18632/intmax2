@@ -24,13 +24,6 @@ export interface WithdrawalInfo {
     withdrawal: Withdrawal;
 }
 
-export interface ContractWithdrawal {
-    recipient: Address;
-    tokenIndex: number;
-    amount: U256;
-    id: number;
-}
-
 export class ServerError extends Error {
     constructor(message: string) {
         super(message);
