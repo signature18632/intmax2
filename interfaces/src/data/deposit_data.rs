@@ -19,6 +19,7 @@ use super::encryption::{decrypt, encrypt};
 #[serde(rename_all = "camelCase")]
 pub struct DepositData {
     pub deposit_salt: Salt,
+    pub depositor: Address,        // The address of the depositor
     pub pubkey_salt_hash: Bytes32, // The poseidon hash of the pubkey and salt, to hide the pubkey
     pub amount: U256,              // The amount of the token, which is the amount of the deposit
 
@@ -114,9 +115,10 @@ impl DepositData {
 
     pub fn deposit(&self) -> Option<Deposit> {
         self.token_index.map(|token_index| Deposit {
+            depositor: self.depositor,
             pubkey_salt_hash: self.pubkey_salt_hash,
-            token_index,
             amount: self.amount,
+            token_index,
         })
     }
 

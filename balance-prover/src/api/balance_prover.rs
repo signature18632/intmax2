@@ -71,7 +71,7 @@ impl BalanceProver {
     pub fn prove_send(
         &self,
         pubkey: U256,
-        tx_witnes: &TxWitness,
+        tx_witness: &TxWitness,
         update_witness: &UpdateWitness<F, C, D>,
         spent_proof: &ProofWithPublicInputs<F, C, D>,
         prev_proof: &Option<ProofWithPublicInputs<F, C, D>>,
@@ -81,7 +81,7 @@ impl BalanceProver {
             .prove_send(
                 &self.validity_vd,
                 pubkey,
-                tx_witnes,
+                tx_witness,
                 update_witness,
                 spent_proof,
                 prev_proof,

@@ -38,6 +38,7 @@ async fn post_blocks() -> anyhow::Result<()> {
             priv_key_env.block_builder_private_key,
             ethers::utils::parse_ether("0.3").unwrap(),
             signature.tx_tree_root,
+            signature.expiry.into(),
             signature.sender_flag,
             signature.agg_pubkey,
             signature.agg_signature,

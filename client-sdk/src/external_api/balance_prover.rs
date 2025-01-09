@@ -55,8 +55,12 @@ impl BalanceProverClientInterface for BalanceProverClient {
         let request = ProveSpentRequest {
             spent_witness: spent_witness.clone(),
         };
-        let response: ProveResponse =
-            post_request(&self.base_url, "/balance-prover/prove-spent", &request).await?;
+        let response: ProveResponse = post_request(
+            &self.base_url,
+            "/balance-prover/prove-spent",
+            Some(&request),
+        )
+        .await?;
         Ok(response.proof)
     }
 
@@ -77,7 +81,7 @@ impl BalanceProverClientInterface for BalanceProverClient {
             prev_proof: prev_proof.clone(),
         };
         let response: ProveResponse =
-            post_request(&self.base_url, "/balance-prover/prove-send", &request).await?;
+            post_request(&self.base_url, "/balance-prover/prove-send", Some(&request)).await?;
         Ok(response.proof)
     }
 
@@ -93,8 +97,12 @@ impl BalanceProverClientInterface for BalanceProverClient {
             update_witness: update_witness.clone(),
             prev_proof: prev_proof.clone(),
         };
-        let response: ProveResponse =
-            post_request(&self.base_url, "/balance-prover/prove-update", &request).await?;
+        let response: ProveResponse = post_request(
+            &self.base_url,
+            "/balance-prover/prove-update",
+            Some(&request),
+        )
+        .await?;
         Ok(response.proof)
     }
 
@@ -113,7 +121,7 @@ impl BalanceProverClientInterface for BalanceProverClient {
         let response: ProveResponse = post_request(
             &self.base_url,
             "/balance-prover/prove-receive-transfer",
-            &request,
+            Some(&request),
         )
         .await?;
         Ok(response.proof)
@@ -134,7 +142,7 @@ impl BalanceProverClientInterface for BalanceProverClient {
         let response: ProveResponse = post_request(
             &self.base_url,
             "/balance-prover/prove-receive-deposit",
-            &request,
+            Some(&request),
         )
         .await?;
         Ok(response.proof)
@@ -151,7 +159,7 @@ impl BalanceProverClientInterface for BalanceProverClient {
         let response: ProveResponse = post_request(
             &self.base_url,
             "/balance-prover/prove-single-withdrawal",
-            &request,
+            Some(&request),
         )
         .await?;
         Ok(response.proof)

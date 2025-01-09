@@ -1,4 +1,4 @@
-use super::interface::DepositInfo;
+use super::interface::{DepositInfo, TransitionProofTask};
 use crate::api::validity_prover::interface::AccountInfo;
 use intmax2_zkp::{
     circuits::validity::validity_pis::ValidityPublicInputs,
@@ -11,7 +11,10 @@ use intmax2_zkp::{
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
 };
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
+use plonky2::{
+    field::goldilocks_field::GoldilocksField,
+    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
+};
 use serde::{Deserialize, Serialize};
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -128,4 +131,24 @@ pub struct GetAccountInfoQuery {
 #[serde(rename_all = "camelCase")]
 pub struct GetAccountInfoResponse {
     pub account_info: AccountInfo,
+}
+
+// Below are Coordinator API
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssignResponse {
+    pub task: Option<TransitionProofTask>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CompleteRequest {
+    pub block_number: u32,
+    pub transition_proof: ProofWithPublicInputs<F, C, D>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartBeatRequest {
+    pub block_number: u32,
 }

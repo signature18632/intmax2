@@ -40,9 +40,17 @@ pub async fn deposit(
     let amount = convert_u256(amount);
     let token_address = convert_address(token_address);
     let token_id = convert_u256(token_id);
+    let depositor = convert_address(get_address(liquidity_contract.chain_id, eth_private_key));
 
     let deposit_result = client
-        .prepare_deposit(key.pubkey, amount, token_type, token_address, token_id)
+        .prepare_deposit(
+            depositor,
+            key.pubkey,
+            amount,
+            token_type,
+            token_address,
+            token_id,
+        )
         .await?;
 
     let deposit_data = deposit_result.deposit_data;
@@ -92,6 +100,8 @@ pub async fn deposit(
 
     // relay deposits by self if local
     if is_local()? {
+        // let deposit_id
+
         let token_index = liquidity_contract
             .get_token_index(token_type, token_address, token_id)
             .await?

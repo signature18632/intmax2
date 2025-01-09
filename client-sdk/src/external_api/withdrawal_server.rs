@@ -57,7 +57,7 @@ impl WithdrawalServerClientInterface for WithdrawalServerClient {
         post_request::<_, ()>(
             &self.base_url,
             "/withdrawal-server/request-withdrawal",
-            &request,
+            Some(&request),
         )
         .await
     }
