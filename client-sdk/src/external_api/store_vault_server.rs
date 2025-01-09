@@ -162,7 +162,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         let response: GetDataAllAfterResponse = post_request(
             &self.base_url,
             &format!("/store-vault-server/{}/get-all-after", data_type),
-            &request,
+            Some(&request),
         )
         .await?;
         Ok(response.data)
@@ -193,7 +193,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         let response: GetUserDataResponse = post_request(
             &self.base_url,
             "/store-vault-server/get-user-data",
-            &request,
+            Some(&request),
         )
         .await?;
         Ok(response.data)

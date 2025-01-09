@@ -1,12 +1,25 @@
 use ark_bn254::{Bn254, Fq, Fr, G1Affine, G2Affine};
 use ark_ec::{pairing::Pairing, AffineRepr};
 use intmax2_zkp::{
-    common::signature::{flatten::FlatG2, sign::tx_tree_root_to_message_point},
+    common::signature::flatten::FlatG2,
     ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
 };
 use num_traits::identities::Zero;
-use plonky2_bn254::fields::recover::RecoverFromX;
+use plonky2::field::{goldilocks_field::GoldilocksField, types::Field};
+use plonky2_bn254::{
+    curves::g2::G2Target, fields::recover::RecoverFromX, utils::hash_to_g2::HashToG2,
+};
 use plonky2_keccak::utils::solidity_keccak256;
+
+pub fn hash_to_message_point(hash: Bytes32) -> G2Affine {
+    let elements = hash
+        .to_u32_vec()
+        .iter()
+        .map(|x| GoldilocksField::from_canonical_u32(*x))
+        .collect::<Vec<_>>();
+    let message_point = G2Target::<GoldilocksField, 2>::hash_to_g2(&elements);
+    message_point
+}
 
 /// Convert the message into a format that can be signed, using the same method as when signing the tx tree root.
 fn message_to_point(mut message: Vec<u8>) -> G2Affine {
@@ -23,7 +36,7 @@ fn message_to_point(mut message: Vec<u8>) -> G2Affine {
     let message_hash = solidity_keccak256(&message_u32_slice);
     let message = Bytes32::from_u32_slice(&message_hash);
 
-    tx_tree_root_to_message_point(message)
+    hash_to_message_point(message)
 }
 
 pub fn sign_message(priv_key: Fr, message: Vec<u8>) -> anyhow::Result<FlatG2> {
