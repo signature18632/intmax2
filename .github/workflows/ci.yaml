@@ -25,7 +25,6 @@ jobs:
           components: rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "rust-build"
           cache-on-failure: true
       - name: cargo fmt
         run: cargo fmt --check --all
@@ -41,7 +40,6 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "rust-build"
           cache-on-failure: true
       - name: Check docs
         run: cargo doc --no-deps
@@ -66,7 +64,6 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "rust-build"
           cache-on-failure: true
       - uses: r7kamura/rust-problem-matchers@v1
       - name: cargo clippy
@@ -98,7 +95,6 @@ jobs:
           toolchain: stable
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: "rust-build"
           cache-on-failure: true
       - uses: taiki-e/install-action@v2
         with:
