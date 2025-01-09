@@ -60,6 +60,20 @@ jobs:
     name: tests
     needs: clippy
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15.8
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - name: Install Rust Toolchain
@@ -69,6 +83,34 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
+      - name: Install Anvil
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
       - uses: r7kamura/rust-problem-matchers@v1
+      - name: Setup Environment Values
+        run: |
+          cp balance-prover/.env.example balance-prover/.env
+          cp block-builder/.env.example block-builder/.env
+          cp store-vault-server/.env.example store-vault-server/.env
+          cp validity-prover/.env.example validity-prover/.env
+          cp withdrawal-server/.env.example withdrawal-server/.env
+          cp tests/.env.example tests/.env
+      - name: Install sqlx-cli and setup databases
+        run: |
+          cargo install sqlx-cli
+          cd store-vault-server && sqlx database setup && cd -
+          cd validity-prover && sqlx database setup && cd -
+          cd withdrawal-server && sqlx database setup && cd -
+      - name: Start Anvil
+        run: |
+          anvil &
+          sleep 5
+      - name: Start Servers
+        run: |
+          cd store-vault-server && cargo run -r &
+          sleep 5
+        env:
+          ANVIL_IP_ADDR: 0.0.0.0
       - name: Run tests
-        run: cargo nextest run
+        run: cargo nextest run --profile ci

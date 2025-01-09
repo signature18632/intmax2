@@ -49,7 +49,7 @@ pub enum Commands {
     },
     Balance {
         #[clap(long)]
-        private_key: H256,
+        private_key: Option<H256>,
     },
     History {
         #[clap(long)]
