@@ -100,8 +100,6 @@ jobs:
         with:
           shared-key: "rust-build"
           cache-on-failure: true
-          max-size: 5G  # set max-size and cache-max-age, because this is last job
-          cache-max-age: 168 # 7 days in hours
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
