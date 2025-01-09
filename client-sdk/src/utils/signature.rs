@@ -17,8 +17,7 @@ pub fn hash_to_message_point(hash: Bytes32) -> G2Affine {
         .iter()
         .map(|x| GoldilocksField::from_canonical_u32(*x))
         .collect::<Vec<_>>();
-    let message_point = G2Target::<GoldilocksField, 2>::hash_to_g2(&elements);
-    message_point
+    G2Target::<GoldilocksField, 2>::hash_to_g2(&elements)
 }
 
 /// Convert the message into a format that can be signed, using the same method as when signing the tx tree root.
@@ -52,7 +51,7 @@ fn check_pairing(g1s: Vec<G1Affine>, g2s: Vec<G2Affine>) -> bool {
 }
 
 pub fn verify_signature(signature: FlatG2, pubkey: U256, message: Vec<u8>) -> anyhow::Result<()> {
-    let pubkey_x: Fq = pubkey.clone().into();
+    let pubkey_x: Fq = pubkey.into();
     let pubkey_g1 = G1Affine::recover_from_x(pubkey_x);
     let g1_generator_inv = -G1Affine::generator();
     let message_g2 = message_to_point(message);
@@ -75,7 +74,7 @@ pub fn hex_to_bytes(hex: &str) -> anyhow::Result<Vec<u8>> {
     let data_hex = hex.strip_prefix("0x").ok_or(anyhow::anyhow!(
         "Data should be a hex string with 0x prefix"
     ))?;
-    hex::decode(&data_hex).map_err(|err| anyhow::anyhow!("Failed to decode hex: {}", err))
+    hex::decode(data_hex).map_err(|err| anyhow::anyhow!("Failed to decode hex: {}", err))
 }
 
 #[cfg(test)]
@@ -92,9 +91,9 @@ mod test {
         assert!(verify_signature(signature.clone(), key.pubkey, message).is_ok());
 
         let different_message = vec![1, 2, 3, 4, 5, 6, 8];
-        assert!(!verify_signature(signature.clone(), key.pubkey, different_message).is_ok());
+        assert!(verify_signature(signature.clone(), key.pubkey, different_message).is_err());
 
         let different_message = vec![1, 2, 3, 4];
-        assert!(!verify_signature(signature, key.pubkey, different_message).is_ok());
+        assert!(verify_signature(signature, key.pubkey, different_message).is_err());
     }
 }
