@@ -32,7 +32,7 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
     let mut timeout = Vec::new();
 
     let encrypted_data = store_vault_server
-        .get_data_all_after(DataType::Deposit, key.pubkey, deposit_lpt)
+        .get_data_all_after(DataType::Deposit, key, deposit_lpt)
         .await?;
     for (meta, encrypted_data) in encrypted_data {
         if processed_deposit_uuids.contains(&meta.uuid) {

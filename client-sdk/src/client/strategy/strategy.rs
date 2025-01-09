@@ -86,7 +86,7 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
 ) -> Result<(Vec<Action>, PendingInfo), StrategyError> {
     log::info!("determine_sequence");
     let user_data = store_vault_server
-        .get_user_data(key.pubkey)
+        .get_user_data(key)
         .await?
         .map(|encrypted| UserData::decrypt(&encrypted, key))
         .transpose()
@@ -300,7 +300,7 @@ pub async fn determine_withdrawals<
 ) -> Result<(Vec<(MetaData, TransferData<F, C, D>)>, u64), StrategyError> {
     log::info!("determine_withdrawals");
     let user_data = store_vault_server
-        .get_user_data(key.pubkey)
+        .get_user_data(key)
         .await?
         .map(|encrypted| UserData::decrypt(&encrypted, key))
         .transpose()

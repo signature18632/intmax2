@@ -34,7 +34,7 @@ pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProver
     let mut timeout = Vec::new();
 
     let encrypted_data = store_vault_server
-        .get_data_all_after(DataType::Transfer, key.pubkey, transfer_lpt)
+        .get_data_all_after(DataType::Transfer, key, transfer_lpt)
         .await?;
     for (meta, encrypted_data) in encrypted_data {
         if processed_transfer_uuids.contains(&meta.uuid) {

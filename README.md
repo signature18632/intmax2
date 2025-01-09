@@ -62,13 +62,18 @@ Example port: 9002
 cd validity-prover && sqlx database setup && cargo run -r
 ```
 
-4. Start withdrawal-server.
+4. Start validity-prover-worker
+```bash
+cd validity-prover-worker && cargo run -r
+```
+
+5. Start withdrawal-serve
 Example port: 9003
 ```bash
 cd withdrawal-server && sqlx database setup && cargo run -r
 ```
 
-5. Start block-builder. 
+6. Start block-builder. 
 Example port: 9004
 ```bash
 cd block-builder && cargo run -r

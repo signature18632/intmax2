@@ -46,7 +46,7 @@ pub async fn fetch_withdrawal_info<
     let mut timeout = Vec::new();
 
     let encrypted_data = store_vault_server
-        .get_data_all_after(DataType::Withdrawal, key.pubkey, withdrawal_lpt)
+        .get_data_all_after(DataType::Withdrawal, key, withdrawal_lpt)
         .await?;
     for (meta, encrypted_data) in encrypted_data {
         if processed_withdrawal_uuids.contains(&meta.uuid) {
