@@ -14,21 +14,30 @@ struct ErrorResponse {
 pub async fn post_request<B: Serialize, R: DeserializeOwned>(
     base_url: &str,
     endpoint: &str,
-    body: &B,
+    body: Option<&B>,
 ) -> Result<R, ServerError> {
     let url = format!("{}{}", base_url, endpoint);
     let client = reqwest::Client::new();
-    let response = with_retry(|| async { client.post(&url).json(body).send().await })
-        .await
-        .map_err(|e| ServerError::NetworkError(e.to_string()))?;
-    let body_str = serde_json::to_string(body)
-        .map_err(|e| ServerError::SerializeError(format!("Failed to serialize body: {}", e)))?;
+    let response = if let Some(body) = body {
+        with_retry(|| async { client.post(&url).json(body).send().await }).await
+    } else {
+        with_retry(|| async { client.post(&url).send().await }).await
+    }
+    .map_err(|e| ServerError::NetworkError(e.to_string()))?;
 
+    // Serialize the body to a string for logging
+    let body_str = if let Some(body) = &body {
+        let body_str = serde_json::to_string(body)
+            .map_err(|e| ServerError::SerializeError(format!("Failed to serialize body: {}", e)))?;
+        Some(body_str)
+    } else {
+        None
+    };
     if is_debug_mode() {
-        let body_size = body_str.len();
+        let body_size = body_str.as_ref().map(|s| s.len()).unwrap_or(0);
         log::info!("POST request url: {} body size: {} bytes", url, body_size);
     }
-    handle_response(response, &url, &Some(body_str)).await
+    handle_response(response, &url, &body_str).await
 }
 
 pub async fn get_request<Q, R>(

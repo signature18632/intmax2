@@ -58,7 +58,7 @@ where
     pub async fn get_user_data(&self, key: KeySet) -> Result<UserData, SyncError> {
         let user_data = self
             .store_vault_server
-            .get_user_data(key.pubkey)
+            .get_user_data(key)
             .await?
             .map(|encrypted| UserData::decrypt(&encrypted, key))
             .transpose()
@@ -201,7 +201,7 @@ where
             .save_balance_proof(key.pubkey, &new_balance_proof)
             .await?;
         self.store_vault_server
-            .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
+            .save_user_data(key, user_data.encrypt(key.pubkey))
             .await?;
 
         Ok(())
@@ -290,7 +290,7 @@ where
             .save_balance_proof(key.pubkey, &new_balance_proof)
             .await?;
         self.store_vault_server
-            .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
+            .save_user_data(key, user_data.encrypt(key.pubkey))
             .await?;
 
         Ok(())
@@ -354,7 +354,7 @@ where
         let mut user_data = self.get_user_data(key).await?;
         user_data.processed_withdrawal_uuids.push(meta.uuid.clone());
         self.store_vault_server
-            .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
+            .save_user_data(key, user_data.encrypt(key.pubkey))
             .await?;
 
         Ok(())
@@ -365,7 +365,7 @@ where
         let mut user_data = self.get_user_data(key).await?;
         user_data.deposit_lpt = timestamp;
         self.store_vault_server
-            .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
+            .save_user_data(key, user_data.encrypt(key.pubkey))
             .await?;
         Ok(())
     }
@@ -375,7 +375,7 @@ where
         let mut user_data = self.get_user_data(key).await?;
         user_data.transfer_lpt = timestamp;
         self.store_vault_server
-            .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
+            .save_user_data(key, user_data.encrypt(key.pubkey))
             .await?;
         Ok(())
     }
@@ -385,7 +385,7 @@ where
         let mut user_data = self.get_user_data(key).await?;
         user_data.withdrawal_lpt = timestamp;
         self.store_vault_server
-            .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
+            .save_user_data(key, user_data.encrypt(key.pubkey))
             .await?;
         Ok(())
     }
@@ -447,7 +447,7 @@ where
             .await?;
         // save user data
         self.store_vault_server
-            .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
+            .save_user_data(key, user_data.encrypt(key.pubkey))
             .await?;
         Ok(())
     }
@@ -558,7 +558,7 @@ where
         // update user data
         user_data.block_number = to_block_number;
         self.store_vault_server
-            .save_user_data(key.pubkey, user_data.encrypt(key.pubkey))
+            .save_user_data(key, user_data.encrypt(key.pubkey))
             .await?;
 
         Ok(())

@@ -12,6 +12,7 @@ use std::io::{self};
 use store_vault_server::{
     api::{api::store_vault_server_scope, state::State},
     app::store_vault_server::StoreVaultServer,
+    // middleware::authorization::authorization_middleware,
     Env,
 };
 
@@ -41,6 +42,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .wrap(cors)
             .wrap(Logger::new("Request: %r | Status: %s | Duration: %Ts"))
+            // .wrap(from_fn(authorization_middleware))
             .app_data(JsonConfig::default().limit(35_000_000))
             .app_data(state.clone())
             .service(health_check)

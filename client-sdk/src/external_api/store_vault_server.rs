@@ -1,3 +1,4 @@
+use crate::utils::signature::{bytes_to_hex, sign_message, verify_signature};
 use async_trait::async_trait;
 use intmax2_interfaces::{
     api::{
@@ -5,17 +6,20 @@ use intmax2_interfaces::{
         store_vault_server::{
             interface::{DataType, StoreVaultClientInterface},
             types::{
-                BatchGetDataQuery, BatchGetDataResponse, BatchSaveDataRequest,
+                AuthInfoForGetData, AuthInfoForSaveData, BatchSaveDataRequest,
                 BatchSaveDataResponse, GetBalanceProofQuery, GetBalanceProofResponse,
-                GetDataAllAfterQuery, GetDataAllAfterResponse, GetDataQuery, GetDataResponse,
-                GetUserDataQuery, GetUserDataResponse, SaveBalanceProofRequest, SaveDataRequest,
-                SaveDataResponse,
+                GetDataAllAfterRequestWithSignature, GetDataAllAfterResponse,
+                GetUserDataRequestWithSignature, GetUserDataResponse, SaveBalanceProofRequest,
+                SaveDataRequestWithSignature, SaveDataResponse,
             },
         },
     },
     data::meta_data::MetaData,
 };
-use intmax2_zkp::{ethereum_types::u256::U256, utils::poseidon_hash_out::PoseidonHashOut};
+use intmax2_zkp::{
+    common::signature::key_set::KeySet, ethereum_types::u256::U256,
+    utils::poseidon_hash_out::PoseidonHashOut,
+};
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
@@ -54,7 +58,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         post_request::<_, ()>(
             &self.base_url,
             "/store-vault-server/save-balance-proof",
-            &request,
+            Some(&request),
         )
         .await
     }
@@ -79,35 +83,52 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         Ok(response.balance_proof)
     }
 
+    /// The signer is required for the API below:
+    /// - /tx/save
     async fn save_data(
         &self,
         data_type: DataType,
         pubkey: U256,
         encrypted_data: &[u8],
+        signer: Option<KeySet>,
     ) -> Result<String, ServerError> {
-        let request = SaveDataRequest {
+        let auth = if let Some(key) = signer {
+            let auth = self.generate_auth_info_for_posting(key, encrypted_data.to_vec())?;
+
+            Some(auth)
+        } else {
+            None
+        };
+
+        let request = SaveDataRequestWithSignature {
             pubkey,
             data: encrypted_data.to_vec(),
+            auth,
         };
         let response: SaveDataResponse = post_request(
             &self.base_url,
             &format!("/store-vault-server/{}/save", data_type),
-            &request,
+            Some(&request),
         )
         .await?;
         Ok(response.uuid)
     }
 
+    /// The signer is required for the API below:
+    /// - /tx/save
     async fn save_data_batch(
         &self,
         data_type: DataType,
         data: Vec<(U256, Vec<u8>)>,
     ) -> Result<Vec<String>, ServerError> {
+        if data_type == DataType::Tx {
+            panic!("Batch save is not supported for tx data");
+        }
         let request = BatchSaveDataRequest { requests: data };
         let response: BatchSaveDataResponse = post_request(
             &self.base_url,
             &format!("/store-vault-server/{}/batch-save", data_type),
-            &request,
+            Some(&request),
         )
         .await?;
         Ok(response.uuids)
@@ -115,49 +136,33 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
 
     async fn get_data(
         &self,
-        data_type: DataType,
-        uuid: &str,
+        _data_type: DataType,
+        _uuid: &str,
+        _signer: KeySet,
     ) -> Result<Option<(MetaData, Vec<u8>)>, ServerError> {
-        let query = GetDataQuery {
-            uuid: uuid.to_string(),
-        };
-        let response: GetDataResponse = get_request(
-            &self.base_url,
-            &format!("/store-vault-server/{}/get", data_type),
-            Some(query),
-        )
-        .await?;
-        Ok(response.data)
+        unimplemented!()
     }
 
     async fn get_data_batch(
         &self,
-        data_type: DataType,
-        uuids: &[String],
+        _data_type: DataType,
+        _uuids: &[String],
     ) -> Result<Vec<Option<(MetaData, Vec<u8>)>>, ServerError> {
-        let query = BatchGetDataQuery {
-            uuids: uuids.to_vec(),
-        };
-        let response: BatchGetDataResponse = get_request(
-            &self.base_url,
-            &format!("/store-vault-server/{}/batch-get", data_type),
-            Some(query),
-        )
-        .await?;
-        Ok(response.data)
+        unimplemented!()
     }
 
     async fn get_data_all_after(
         &self,
         data_type: DataType,
-        pubkey: U256,
+        signer: KeySet,
         timestamp: u64,
     ) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError> {
-        let query = GetDataAllAfterQuery { pubkey, timestamp };
-        let response: GetDataAllAfterResponse = get_request(
+        let auth = self.generate_auth_info_for_fetching(signer).await?;
+        let request = GetDataAllAfterRequestWithSignature { timestamp, auth };
+        let response: GetDataAllAfterResponse = post_request(
             &self.base_url,
             &format!("/store-vault-server/{}/get-all-after", data_type),
-            Some(query),
+            Some(&request),
         )
         .await?;
         Ok(response.data)
@@ -165,29 +170,62 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
 
     async fn save_user_data(
         &self,
-        pubkey: U256,
+        signer: KeySet,
         encrypted_data: Vec<u8>,
     ) -> Result<(), ServerError> {
-        let request = SaveDataRequest {
-            pubkey,
+        let auth = self.generate_auth_info_for_posting(signer, encrypted_data.clone())?;
+        let request = SaveDataRequestWithSignature {
+            pubkey: signer.pubkey,
             data: encrypted_data,
+            auth: Some(auth),
         };
         post_request::<_, ()>(
             &self.base_url,
             "/store-vault-server/save-user-data",
-            &request,
+            Some(&request),
         )
         .await
     }
 
-    async fn get_user_data(&self, pubkey: U256) -> Result<Option<Vec<u8>>, ServerError> {
-        let query = GetUserDataQuery { pubkey };
-        let response: GetUserDataResponse = get_request(
+    async fn get_user_data(&self, signer: KeySet) -> Result<Option<Vec<u8>>, ServerError> {
+        let auth = self.generate_auth_info_for_fetching(signer).await?;
+        let request = GetUserDataRequestWithSignature { auth };
+        let response: GetUserDataResponse = post_request(
             &self.base_url,
             "/store-vault-server/get-user-data",
-            Some(query),
+            Some(&request),
         )
         .await?;
         Ok(response.data)
+    }
+}
+
+impl StoreVaultServerClient {
+    async fn generate_auth_info_for_fetching(
+        &self,
+        key: KeySet,
+    ) -> Result<AuthInfoForGetData, ServerError> {
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let challenge = [timestamp.to_be_bytes().to_vec(), vec![0; 24]].concat();
+        let challenge_hex = bytes_to_hex(&challenge);
+        let signature = sign_message(key.privkey, challenge.clone()).unwrap();
+        Ok(AuthInfoForGetData {
+            signature,
+            pubkey: key.pubkey,
+            challenge: challenge_hex,
+        })
+    }
+
+    fn generate_auth_info_for_posting(
+        &self,
+        key: KeySet,
+        data: Vec<u8>,
+    ) -> Result<AuthInfoForSaveData, ServerError> {
+        let signature = sign_message(key.privkey, data.clone()).unwrap();
+        debug_assert!(verify_signature(signature.clone(), key.pubkey, data).is_ok());
+        Ok(AuthInfoForSaveData { signature })
     }
 }

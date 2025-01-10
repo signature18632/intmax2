@@ -108,6 +108,7 @@ where
     /// Back up deposit information before calling the contract's deposit function
     pub async fn prepare_deposit(
         &self,
+        depositor: Address,
         pubkey: U256,
         amount: U256,
         token_type: TokenType,
@@ -128,6 +129,7 @@ where
         let pubkey_salt_hash = get_pubkey_salt_hash(pubkey, deposit_salt);
         let deposit_data = DepositData {
             deposit_salt,
+            depositor,
             pubkey_salt_hash,
             amount,
             token_type,
@@ -137,7 +139,12 @@ where
         };
         let deposit_uuid = self
             .store_vault_server
-            .save_data(DataType::Deposit, pubkey, &deposit_data.encrypt(pubkey))
+            .save_data(
+                DataType::Deposit,
+                pubkey,
+                &deposit_data.encrypt(pubkey),
+                None,
+            )
             .await?;
 
         let result = DepositResult {
@@ -306,7 +313,12 @@ where
             spent_witness: memo.spent_witness.clone(),
         };
         self.store_vault_server
-            .save_data(DataType::Tx, key.pubkey, &tx_data.encrypt(key.pubkey))
+            .save_data(
+                DataType::Tx,
+                key.pubkey,
+                &tx_data.encrypt(key.pubkey),
+                Some(key),
+            )
             .await?;
 
         // save transfer data

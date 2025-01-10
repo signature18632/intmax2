@@ -1,16 +1,14 @@
 use intmax2_client_sdk::external_api::contract::rollup_contract::RollupContract;
 use intmax2_interfaces::api::validity_prover::interface::{AccountInfo, DepositInfo};
 use intmax2_zkp::{
-    circuits::validity::{
-        validity_pis::ValidityPublicInputs, validity_processor::ValidityProcessor,
-    },
+    circuits::validity::validity_pis::ValidityPublicInputs,
     common::{
         block::Block,
         trees::{
             account_tree::AccountMembershipProof, block_hash_tree::BlockHashMerkleProof,
             deposit_tree::DepositMerkleProof, sender_tree::SenderLeaf,
         },
-        witness::update_witness::UpdateWitness,
+        witness::{update_witness::UpdateWitness, validity_witness::ValidityWitness},
     },
     constants::{ACCOUNT_TREE_HEIGHT, BLOCK_HASH_TREE_HEIGHT, DEPOSIT_TREE_HEIGHT},
     ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait as _},
@@ -25,7 +23,14 @@ use plonky2::{
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
 use sqlx::{postgres::PgPoolOptions, PgPool};
-use std::{sync::OnceLock, time::Duration};
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+use tokio::time::interval;
 
 use super::{error::ValidityProverError, observer::Observer};
 use crate::{
@@ -54,8 +59,14 @@ const ACCOUNT_DB_TAG: u32 = 1;
 const BLOCK_DB_TAG: u32 = 2;
 const DEPOSIT_DB_TAG: u32 = 3;
 
-pub struct ValidityProver {
-    validity_processor: OnceLock<ValidityProcessor<F, C, D>>,
+#[derive(Clone)]
+pub struct Config {
+    pub sync_interval: u64,
+}
+
+#[derive(Clone)]
+pub struct WitnessGenerator {
+    config: Config,
     observer: Observer,
     account_tree: HistoricalAccountTree<ADB>,
     block_tree: HistoricalBlockHashTree<BDB>,
@@ -63,8 +74,12 @@ pub struct ValidityProver {
     pool: PgPool,
 }
 
-impl ValidityProver {
+impl WitnessGenerator {
     pub async fn new(env: &Env) -> Result<Self, ValidityProverError> {
+        let config = Config {
+            sync_interval: env.sync_interval,
+        };
+
         let rollup_contract = RollupContract::new(
             &env.l2_rpc_url,
             env.l2_chain_id,
@@ -78,7 +93,6 @@ impl ValidityProver {
             env.database_timeout,
         )
         .await?;
-        let validity_processor = OnceLock::new();
 
         let pool = PgPoolOptions::new()
             .max_connections(env.database_max_connections)
@@ -114,29 +128,8 @@ impl ValidityProver {
             account_tree.len(last_timestamp).await?
         );
 
-        // Initialize state if empty
-        let count = sqlx::query!("SELECT COUNT(*) as count FROM validity_state")
-            .fetch_one(&pool)
-            .await?
-            .count
-            .unwrap_or(0);
-
-        if count == 0 {
-            let mut tx = pool.begin().await?;
-            sqlx::query!("INSERT INTO validity_state (id, last_block_number) VALUES (1, 0)")
-                .execute(&mut *tx)
-                .await?;
-            sqlx::query!(
-                "INSERT INTO sender_leaves (block_number, leaves) VALUES (0, $1)",
-                serde_json::to_value::<Vec<SenderLeaf>>(vec![])?
-            )
-            .execute(&mut *tx)
-            .await?;
-            tx.commit().await?;
-        }
-
         Ok(Self {
-            validity_processor,
+            config,
             observer,
             pool,
             account_tree,
@@ -173,19 +166,13 @@ impl ValidityProver {
         log::info!("Start sync validity prover");
         self.sync_observer().await?;
 
-        let last_block_number = self.get_block_number().await?;
+        let last_block_number = self.get_last_block_number().await?;
         let next_block_number = self.observer.get_next_block_number().await?;
 
         for block_number in (last_block_number + 1)..next_block_number {
             log::info!(
                 "Sync validity prover: syncing block number {}",
                 block_number
-            );
-
-            let prev_validity_proof = self.get_validity_proof(block_number - 1).await?;
-            assert!(
-                prev_validity_proof.is_some() || block_number == 1,
-                "prev validity proof not found"
             );
 
             let full_block = self.observer.get_full_block(block_number).await?;
@@ -227,39 +214,23 @@ impl ValidityProver {
             .await
             .map_err(|e| ValidityProverError::FailedToUpdateTrees(e.to_string()))?;
 
-            let validity_proof = self
-                .validity_processor()
-                .prove(&prev_validity_proof, &validity_witness)
-                .map_err(|e| ValidityProverError::ValidityProveError(e.to_string()))?;
-
-            log::info!(
-                "Sync validity prover: block number {} validity proof generated",
-                block_number
-            );
-
             // Update database state
+            let mut tx = self.pool.begin().await?;
             sqlx::query!(
-                "UPDATE validity_state SET last_block_number = $1 WHERE id = 1",
+                "INSERT INTO validity_state (block_number, validity_witness, sender_leaves) VALUES ($1, $2, $3)",
+                block_number as i32,
+                serde_json::to_value(&validity_witness)?,
+                serde_json::to_value(&block_witness.get_sender_tree().leaves())?,
+            )
+            .execute(tx.as_mut())
+            .await?;
+
+            sqlx::query!(
+                "INSERT INTO prover_tasks (block_number, assigned, completed) VALUES ($1, FALSE, FALSE)
+                 ON CONFLICT (block_number) DO NOTHING",
                 block_number as i32
             )
-            .execute(&self.pool)
-            .await?;
-
-            sqlx::query!(
-                "INSERT INTO validity_proofs (block_number, proof) VALUES ($1, $2)",
-                block_number as i32,
-                serde_json::to_value(&validity_proof)?
-            )
-            .execute(&self.pool)
-            .await?;
-
-            sqlx::query!(
-                "INSERT INTO sender_leaves (block_number, leaves) VALUES ($1, $2)",
-                block_number as i32,
-                serde_json::to_value(&block_witness.get_sender_tree().leaves())?
-            )
-            .execute(&self.pool)
-            .await?;
+            .execute(tx.as_mut()).await?;
 
             let tx_tree_root = full_block.signature.tx_tree_root;
             if tx_tree_root != Bytes32::default()
@@ -271,11 +242,12 @@ impl ValidityProver {
                     tx_tree_root.to_bytes_be(),
                     block_number as i32
                 )
-                .execute(&self.pool)
+                .execute(tx.as_mut())
                 .await?;
             }
-        }
 
+            tx.commit().await?;
+        }
         log::info!("End of sync validity prover");
         Ok(())
     }
@@ -314,7 +286,7 @@ impl ValidityProver {
     }
 
     pub async fn get_account_id(&self, pubkey: U256) -> Result<Option<u64>, ValidityProverError> {
-        let last_block_number = self.get_block_number().await?;
+        let last_block_number = self.get_last_block_number().await?;
         let index = self
             .account_tree
             .index(last_block_number as u64, pubkey)
@@ -323,7 +295,7 @@ impl ValidityProver {
     }
 
     pub async fn get_account_info(&self, pubkey: U256) -> Result<AccountInfo, ValidityProverError> {
-        let block_number = self.get_block_number().await?;
+        let block_number = self.get_last_block_number().await?;
         let account_id = self.account_tree.index(block_number as u64, pubkey).await?;
         Ok(AccountInfo {
             block_number,
@@ -357,8 +329,29 @@ impl ValidityProver {
         &self,
         block_number: u32,
     ) -> Result<Option<ValidityPublicInputs>, ValidityProverError> {
-        let validity_proof = self.get_validity_proof(block_number).await?;
-        Ok(validity_proof.map(|proof| ValidityPublicInputs::from_pis(&proof.public_inputs)))
+        if block_number == 0 {
+            return Ok(Some(ValidityPublicInputs::genesis()));
+        }
+        let record = sqlx::query!(
+            r#"
+            SELECT validity_witness
+            FROM validity_state
+            WHERE block_number = $1
+            "#,
+            block_number as i32,
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        let validity_pis = match record {
+            Some(record) => {
+                let validity_witness: ValidityWitness =
+                    serde_json::from_value(record.validity_witness.clone())?;
+                let validity_pis = validity_witness.to_validity_pis()?;
+                Some(validity_pis)
+            }
+            None => None,
+        };
+        Ok(validity_pis)
     }
 
     pub async fn get_sender_leaves(
@@ -366,7 +359,7 @@ impl ValidityProver {
         block_number: u32,
     ) -> Result<Option<Vec<SenderLeaf>>, ValidityProverError> {
         let record = sqlx::query!(
-            "SELECT leaves FROM sender_leaves WHERE block_number = $1",
+            "SELECT sender_leaves FROM validity_state WHERE block_number = $1",
             block_number as i32
         )
         .fetch_optional(&self.pool)
@@ -374,7 +367,7 @@ impl ValidityProver {
 
         match record {
             Some(r) => {
-                let leaves: Vec<SenderLeaf> = serde_json::from_value(r.leaves)?;
+                let leaves: Vec<SenderLeaf> = serde_json::from_value(r.sender_leaves)?;
                 Ok(Some(leaves))
             }
             None => Ok(None),
@@ -410,12 +403,29 @@ impl ValidityProver {
         Ok(proof)
     }
 
-    pub async fn get_block_number(&self) -> Result<u32, ValidityProverError> {
-        let record = sqlx::query!("SELECT last_block_number FROM validity_state WHERE id = 1")
-            .fetch_one(&self.pool)
-            .await?;
+    pub async fn get_latest_validity_proof_block_number(&self) -> Result<u32, ValidityProverError> {
+        let record = sqlx::query!(
+            r#"
+            SELECT block_number
+            FROM validity_proofs
+            ORDER BY block_number DESC
+            LIMIT 1
+            "#,
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        let block_number = record.map(|r| r.block_number as u32).unwrap_or(0);
+        Ok(block_number)
+    }
 
-        Ok(record.last_block_number as u32)
+    pub async fn get_last_block_number(&self) -> Result<u32, ValidityProverError> {
+        let record =
+            sqlx::query!("SELECT MAX(block_number) as last_block_number FROM validity_state")
+                .fetch_optional(&self.pool)
+                .await?;
+        let last_block_number = record.and_then(|r| r.last_block_number).unwrap_or(0); // i32
+
+        Ok(last_block_number as u32)
     }
 
     pub async fn get_next_deposit_index(&self) -> Result<u32, ValidityProverError> {
@@ -437,7 +447,33 @@ impl ValidityProver {
         }))
     }
 
-    pub fn validity_processor(&self) -> &ValidityProcessor<F, C, D> {
-        self.validity_processor.get_or_init(ValidityProcessor::new)
+    pub fn job(self) {
+        let is_syncing = Arc::new(AtomicBool::new(false));
+        let is_syncing_clone = is_syncing.clone();
+        actix_web::rt::spawn(async move {
+            let mut interval = interval(Duration::from_secs(self.config.sync_interval));
+            loop {
+                interval.tick().await;
+
+                // Skip if previous task is still running
+                if is_syncing_clone.load(Ordering::SeqCst) {
+                    log::warn!("Previous sync task is still running, skipping this interval");
+                    continue;
+                }
+
+                is_syncing_clone.store(true, Ordering::SeqCst);
+
+                match self.sync().await {
+                    Ok(_) => {
+                        log::debug!("Sync task completed successfully");
+                    }
+                    Err(e) => {
+                        log::error!("Error in sync task: {:?}", e);
+                    }
+                }
+                // Reset the flag after task completion
+                is_syncing_clone.store(false, Ordering::SeqCst);
+            }
+        });
     }
 }

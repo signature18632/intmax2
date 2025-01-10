@@ -15,6 +15,7 @@ const BACKWARD_SYNC_BLOCK_NUMBER: u64 = 1000;
 const MAX_TRIES: u32 = 3;
 const SLEEP_TIME: u64 = 10;
 
+#[derive(Clone)]
 pub struct Observer {
     rollup_contract: RollupContract,
     pool: PgPool,
@@ -397,12 +398,12 @@ impl Observer {
 
     async fn sync_blocks(&self) -> Result<(), ObserverError> {
         let mut tries = 0;
-        if tries >= MAX_TRIES {
-            return Err(ObserverError::FullBlockSyncError(
-                "Max tries exceeded".to_string(),
-            ));
-        }
         loop {
+            if tries >= MAX_TRIES {
+                return Err(ObserverError::FullBlockSyncError(
+                    "Max tries exceeded".to_string(),
+                ));
+            }
             match self.try_sync_block().await {
                 Ok((full_blocks, to_block)) => {
                     let mut tx = self.pool.begin().await?;

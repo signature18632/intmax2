@@ -71,3 +71,24 @@ pub enum ValidityProverError {
     #[error("Input error {0}")]
     InputError(String),
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum ProverCoordinatorError {
+    #[error("Database error: {0}")]
+    DBError(#[from] sqlx::Error),
+
+    #[error("Deserialization error: {0}")]
+    DeserializationError(#[from] serde_json::Error),
+
+    #[error("Failed to generate validity proof: {0}")]
+    FailedToGenerateValidityProof(String),
+
+    #[error("Transition proof verification error: {0}")]
+    TransitionProofVerificationError(String),
+
+    #[error("Validity witness not found for block number {0}")]
+    ValidityWitnessNotFound(u32),
+
+    #[error("Failed to convert validity pis: {0}")]
+    FailedToConvertValidityPis(String),
+}

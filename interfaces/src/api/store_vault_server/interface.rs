@@ -1,7 +1,10 @@
 use std::{fmt, str::FromStr};
 
 use async_trait::async_trait;
-use intmax2_zkp::{ethereum_types::u256::U256, utils::poseidon_hash_out::PoseidonHashOut};
+use intmax2_zkp::{
+    common::signature::key_set::KeySet, ethereum_types::u256::U256,
+    utils::poseidon_hash_out::PoseidonHashOut,
+};
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
@@ -69,6 +72,7 @@ pub trait StoreVaultClientInterface {
         data_type: DataType,
         pubkey: U256,
         encrypted_data: &[u8],
+        signer: Option<KeySet>,
     ) -> Result<String, ServerError>;
 
     async fn save_data_batch(
@@ -81,6 +85,7 @@ pub trait StoreVaultClientInterface {
         &self,
         data_type: DataType,
         uuid: &str,
+        signer: KeySet,
     ) -> Result<Option<(MetaData, Vec<u8>)>, ServerError>;
 
     async fn get_data_batch(
@@ -92,17 +97,17 @@ pub trait StoreVaultClientInterface {
     async fn get_data_all_after(
         &self,
         data_type: DataType,
-        pubkey: U256,
+        signer: KeySet,
         timestamp: u64,
     ) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError>;
 
     async fn save_user_data(
         &self,
-        pubkey: U256,
+        signer: KeySet,
         encrypted_data: Vec<u8>,
     ) -> Result<(), ServerError>;
 
-    async fn get_user_data(&self, pubkey: U256) -> Result<Option<Vec<u8>>, ServerError>;
+    async fn get_user_data(&self, signer: KeySet) -> Result<Option<Vec<u8>>, ServerError>;
 }
 
 #[cfg(test)]
