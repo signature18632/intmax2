@@ -237,7 +237,6 @@ mod test {
     }
 
     fn encrypt_with_unsupported_version(pubkey: U256, data: &[u8]) -> Vec<u8> {
-        // todo: add encryption
         let sender = EciesSender::new(pubkey);
         let mut encrypted_data = BytesMut::new();
         sender.encrypt_message(data, &mut encrypted_data);
