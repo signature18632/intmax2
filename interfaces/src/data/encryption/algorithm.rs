@@ -54,8 +54,6 @@ pub struct EciesSender {
 
 impl EciesSender {
     pub fn new(receiver_public_key: U256) -> Self {
-        // let nonce = rng.gen();
-        // let ephemeral_secret_key = SecretKey::new(&mut rng);
         Self {
             receiver_public_key,
         }
