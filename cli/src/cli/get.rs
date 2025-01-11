@@ -102,6 +102,7 @@ fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
             token_id,
             token_index,
             amount,
+            is_eligible,
             depositor,
             pubkey_salt_hash,
             is_included,
@@ -117,6 +118,7 @@ fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
                     pubkey_salt_hash: *pubkey_salt_hash,
                     amount: *amount,
                     token_index: idx,
+                    is_eligible: *is_eligible,
                 }
                 .hash()
             });

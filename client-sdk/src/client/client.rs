@@ -132,6 +132,7 @@ where
             depositor,
             pubkey_salt_hash,
             amount,
+            is_eligible: true, // always true before determined by predicate
             token_type,
             token_address,
             token_id,
