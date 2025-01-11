@@ -3,6 +3,7 @@ use aes::{
     Aes128,
 };
 use alloy_primitives::B128;
+use ark_std::Zero;
 use ctr::Ctr64BE;
 use intmax2_zkp::{
     common::signature::key_set::KeySet,
@@ -40,6 +41,10 @@ pub(crate) fn decrypt(key: KeySet, encrypted_data: &[u8]) -> anyhow::Result<Vec<
         anyhow::bail!("Unsupported version");
     }
 
+    if key.privkey.is_zero() {
+        anyhow::bail!("Invalid private key");
+    }
+
     let mut encrypted_data = encrypted_data.to_vec();
     let receiver = EciesReceiver::new(key);
     let decrypted_data = receiver.decrypt_message(&mut encrypted_data)?;
@@ -64,8 +69,9 @@ impl EciesSender {
 
         out.reserve(U256_SIZE + 16 + data.len() + 32);
 
-        let total_size: u16 = u16::try_from(U256_SIZE + 16 + data.len() + 32).unwrap();
-        out.extend_from_slice(&total_size.to_be_bytes());
+        let total_size = U256_SIZE + 16 + data.len() + 32;
+        let auth_tag: u16 = u16::try_from(total_size % 65536).unwrap(); // TODO: Is it correct?
+        out.extend_from_slice(&auth_tag.to_be_bytes());
 
         let key = KeySet::rand(&mut rng);
         out.extend_from_slice(&key.pubkey.to_bytes_be()); // 32 bytes
@@ -87,7 +93,7 @@ impl EciesSender {
         let tag = hmac_sha256(
             mac_key.as_ref(),
             &[iv.as_slice(), &encrypted],
-            &total_size.to_be_bytes(),
+            &auth_tag.to_be_bytes(),
         );
 
         out.extend_from_slice(iv.as_slice());
