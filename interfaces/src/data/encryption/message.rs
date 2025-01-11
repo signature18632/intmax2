@@ -1,5 +1,5 @@
 //! These functions reference reth.
-//! https://github.com/paradigmxyz/reth/blob/main/crates/net/ecies/src/algorithm.rs
+//! <https://github.com/paradigmxyz/reth/blob/main/crates/net/ecies/src/algorithm.rs>
 
 use aes::{
     cipher::{KeyIvInit, StreamCipher},

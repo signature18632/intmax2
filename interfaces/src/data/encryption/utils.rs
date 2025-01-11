@@ -1,6 +1,6 @@
 //! These functions reference reth.
-//! https://github.com/paradigmxyz/reth/blob/main/crates/net/ecies/src/algorithm.rs
-//! https://github.com/paradigmxyz/reth/blob/main/crates/net/ecies/src/util.rs
+//! <https://github.com/paradigmxyz/reth/blob/main/crates/net/ecies/src/algorithm.rs>
+//! <https://github.com/paradigmxyz/reth/blob/main/crates/net/ecies/src/util.rs>
 
 use alloy_primitives::B256;
 use ark_bn254::{g1::G1Affine, Fr};
@@ -26,11 +26,11 @@ pub(crate) fn hmac_sha256(key: &[u8], input: &[&[u8]], auth_data: &[u8]) -> B256
 }
 
 pub(crate) fn ecdh_x(remote_public_key_x: &U256, secret_key: &Fr) -> U256 {
-    let pubkey_x = remote_public_key_x.clone().into();
-    let pubkey_g1 = G1Affine::recover_from_x(pubkey_x);
+    let pubkey_x = *remote_public_key_x;
+    let pubkey_g1 = G1Affine::recover_from_x(pubkey_x.into());
     let ecdh_key = G1Affine::from(pubkey_g1 * secret_key);
 
-    U256::from(ecdh_key.x().unwrap().clone())
+    U256::from(*ecdh_key.x().unwrap())
 }
 
 pub(crate) fn kdf(secret: U256, s1: &[u8], dest: &mut [u8]) {
