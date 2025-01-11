@@ -15,7 +15,7 @@ impl RequestWithSignature for SaveDataRequestWithSignature {
 
         verify_signature(
             self.auth.clone().unwrap().signature,
-            self.pubkey.clone(),
+            self.pubkey,
             self.data.clone(),
         )
     }
@@ -28,7 +28,7 @@ impl RequestWithSignature for AuthInfoForGetData {
             anyhow::bail!("Challenge should be a 32-byte hex string");
         }
 
-        verify_signature(self.signature.clone(), self.pubkey.clone(), challenge)
+        verify_signature(self.signature.clone(), self.pubkey, challenge)
     }
 }
 

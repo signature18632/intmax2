@@ -242,17 +242,11 @@ where
             .await
         {
             Ok(proof) => proof,
-            Err(SyncError::SenderLastBlockNumberError {
-                balance_proof_block_number,
-                last_block_number,
-            }) => {
-                log::error!("Ignore tx: {} because of sender last block number error: balance_proof_block_number: {}, last_block_number: {}",meta.uuid, balance_proof_block_number, last_block_number);
-                return Ok(());
-            }
-            Err(SyncError::BalanceProofNotFound) => {
+            Err(SyncError::InvalidTransferError(e)) => {
                 log::error!(
-                    "Ignore tx: {} because of sender balance proof not found",
-                    meta.uuid
+                    "Ignore tx: {} because of invalid transfer: {}",
+                    meta.uuid,
+                    e
                 );
                 return Ok(());
             }
@@ -326,17 +320,11 @@ where
             .await
         {
             Ok(proof) => proof,
-            Err(SyncError::SenderLastBlockNumberError {
-                balance_proof_block_number,
-                last_block_number,
-            }) => {
-                log::error!("Ignore tx: {} because of sender last block number error: balance_proof_block_number: {}, last_block_number: {}",meta.uuid, balance_proof_block_number, last_block_number);
-                return Ok(());
-            }
-            Err(SyncError::BalanceProofNotFound) => {
+            Err(SyncError::InvalidTransferError(e)) => {
                 log::error!(
-                    "Ignore tx: {} because of sender balance proof not found",
-                    meta.uuid
+                    "Ignore tx: {} because of invalid transfer: {}",
+                    meta.uuid,
+                    e
                 );
                 return Ok(());
             }
@@ -498,14 +486,15 @@ where
                 spent_proof_pis.prev_private_commitment,
             )
             .await?
-            .ok_or(SyncError::BalanceProofNotFound)?;
-
+            .ok_or(SyncError::InvalidTransferError(
+                "sender prev balance proof not found".to_string(),
+            ))?;
         let new_sender_balance_proof = update_send_by_receiver(
             &self.validity_prover,
             &self.balance_prover,
             key,
             sender,
-            &Some(prev_sender_balance_proof),
+            &prev_sender_balance_proof,
             block_number,
             common_tx_data,
         )

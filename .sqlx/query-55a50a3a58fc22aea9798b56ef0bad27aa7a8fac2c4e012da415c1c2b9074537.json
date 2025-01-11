@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT last_block_number FROM validity_state WHERE id = 1",
+  "query": "SELECT MAX(block_number) as last_block_number FROM validity_state",
   "describe": {
     "columns": [
       {
@@ -13,8 +13,8 @@
       "Left": []
     },
     "nullable": [
-      false
+      null
     ]
   },
-  "hash": "eeab09c62a63401afa201f81eec02d1f6de54ac37c0ff06e612f46ea1817dec8"
+  "hash": "55a50a3a58fc22aea9798b56ef0bad27aa7a8fac2c4e012da415c1c2b9074537"
 }

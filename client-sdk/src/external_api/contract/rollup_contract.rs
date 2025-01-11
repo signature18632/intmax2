@@ -47,6 +47,7 @@ pub struct DepositLeafInserted {
 pub struct BlockPosted {
     pub prev_block_hash: Bytes32,
     pub block_builder: Address,
+    pub timestamp: u64,
     pub block_number: u32,
     pub deposit_tree_root: Bytes32,
     pub signature_hash: Bytes32,
@@ -229,6 +230,7 @@ impl RollupContract {
             blocks_posted_events.push(BlockPosted {
                 prev_block_hash: Bytes32::from_bytes_be(&event.prev_block_hash),
                 block_builder: Address::from_bytes_be(event.block_builder.as_bytes()),
+                timestamp: event.timestamp,
                 block_number: event.block_number.as_u32(),
                 deposit_tree_root: Bytes32::from_bytes_be(&event.deposit_tree_root),
                 signature_hash: Bytes32::from_bytes_be(&event.signature_hash),
@@ -257,6 +259,7 @@ impl RollupContract {
                 functions,
                 event.prev_block_hash,
                 event.deposit_tree_root,
+                event.timestamp,
                 event.block_number,
                 &tx.input,
             )
@@ -302,6 +305,7 @@ impl RollupContract {
         signer_private_key: H256,
         msg_value: ethers::types::U256,
         tx_tree_root: Bytes32,
+        expiry: u64,
         sender_flag: Bytes16,
         agg_pubkey: FlatG1,
         agg_signature: FlatG2,
@@ -321,6 +325,7 @@ impl RollupContract {
         let mut tx = contract
             .post_registration_block(
                 tx_tree_root,
+                expiry,
                 sender_flag,
                 agg_pubkey,
                 agg_signature,
@@ -340,6 +345,7 @@ impl RollupContract {
         signer_private_key: H256,
         msg_value: ethers::types::U256,
         tx_tree_root: Bytes32,
+        expiry: u64,
         sender_flag: Bytes16,
         agg_pubkey: FlatG1,
         agg_signature: FlatG2,
@@ -358,6 +364,7 @@ impl RollupContract {
         let mut tx = contract
             .post_non_registration_block(
                 tx_tree_root,
+                expiry,
                 sender_flag,
                 agg_pubkey,
                 agg_signature,
@@ -440,26 +447,26 @@ mod tests {
         let chain_id = anvil.chain_id();
 
         let rollup_contract = RollupContract::deploy(&rpc_url, chain_id, private_key).await?;
-        let zero_address = ethers::types::Address::zero();
+        let random_address = ethers::types::Address::random();
         rollup_contract
             .initialize(
                 private_key,
-                zero_address,
-                zero_address,
-                zero_address,
-                zero_address,
+                random_address,
+                random_address,
+                random_address,
+                random_address,
             )
             .await?;
 
         let mut rng = rand::thread_rng();
         let (keys, signature) = SignatureContent::rand(&mut rng);
         let pubkeys = keys.iter().map(|e| e.pubkey).collect::<Vec<_>>();
-
         rollup_contract
             .post_registration_block(
                 private_key,
                 0.into(),
                 signature.tx_tree_root,
+                signature.expiry.into(),
                 signature.sender_flag,
                 signature.agg_pubkey.clone(),
                 signature.agg_signature.clone(),
@@ -473,6 +480,7 @@ mod tests {
                 private_key,
                 ethers::utils::parse_ether("1").unwrap(),
                 Bytes32::rand(&mut rng),
+                signature.expiry.into(),
                 signature.sender_flag,
                 signature.agg_pubkey,
                 signature.agg_signature,

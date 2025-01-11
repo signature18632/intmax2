@@ -62,7 +62,7 @@ impl LiquidityContract {
     pub async fn initialize(
         &self,
         signer_private_key: H256,
-        adim: EthAddress,
+        admin: EthAddress,
         l_1_scroll_messenger: EthAddress,
         rollup: EthAddress,
         withdrawal: EthAddress,
@@ -72,7 +72,7 @@ impl LiquidityContract {
     ) -> Result<H256, BlockchainError> {
         let contract = self.get_contract_with_signer(signer_private_key).await?;
         let mut tx = contract.initialize(
-            adim,
+            admin,
             l_1_scroll_messenger,
             rollup,
             withdrawal,

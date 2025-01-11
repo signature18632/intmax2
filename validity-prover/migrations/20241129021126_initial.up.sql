@@ -1,22 +1,22 @@
 -- Observer tables
-CREATE TABLE observer_block_sync_eth_block_num (
+CREATE TABLE IF NOT EXISTS observer_block_sync_eth_block_num (
     singleton_key BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton_key),
     block_sync_eth_block_num BIGINT NOT NULL
 );
 
-CREATE TABLE observer_deposit_sync_eth_block_num (
+CREATE TABLE IF NOT EXISTS observer_deposit_sync_eth_block_num (
    singleton_key BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (singleton_key),
    deposit_sync_eth_block_num BIGINT NOT NULL
 );
 
-CREATE TABLE full_blocks (
+CREATE TABLE IF NOT EXISTS full_blocks (
     block_number INTEGER PRIMARY KEY,
     eth_block_number BIGINT NOT NULL,
     eth_tx_index BIGINT NOT NULL,
     full_block JSONB NOT NULL
 );
 
-CREATE TABLE deposit_leaf_events (
+CREATE TABLE IF NOT EXISTS deposit_leaf_events (
     deposit_index INTEGER PRIMARY KEY,
     deposit_hash BYTEA NOT NULL,
     eth_block_number BIGINT NOT NULL,
@@ -24,26 +24,32 @@ CREATE TABLE deposit_leaf_events (
 );
 
 -- Validity prover tables
-CREATE TABLE validity_state (
-    id SERIAL PRIMARY KEY,
-    last_block_number INTEGER NOT NULL
+CREATE TABLE IF NOT EXISTS validity_state (
+   block_number INTEGER NOT NULL PRIMARY KEY,
+   validity_witness JSONB NOT NULL,
+   sender_leaves JSONB NOT NULL
 );
 
-CREATE TABLE validity_proofs (
-    block_number INTEGER PRIMARY KEY,
-    proof JSONB NOT NULL
-);
-
-CREATE TABLE tx_tree_roots (
+CREATE TABLE IF NOT EXISTS tx_tree_roots (
     tx_tree_root BYTEA PRIMARY KEY,
     block_number INTEGER NOT NULL
 );
 
-CREATE TABLE sender_leaves (
+CREATE TABLE IF NOT EXISTS validity_proofs (
     block_number INTEGER PRIMARY KEY,
-    leaves JSONB NOT NULL
+    proof JSONB NOT NULL
 );
 
+-- Prover coordinator tables
+CREATE TABLE IF NOT EXISTS prover_tasks (
+    block_number INTEGER PRIMARY KEY,
+    assigned BOOLEAN NOT NULL,
+    assigned_at TIMESTAMP,
+    last_heartbeat TIMESTAMP,
+    completed BOOLEAN NOT NULL,
+    completed_at TIMESTAMP,
+    transition_proof JSONB 
+);
 
 --- Merkle tree tables
 CREATE TABLE IF NOT EXISTS hash_nodes (

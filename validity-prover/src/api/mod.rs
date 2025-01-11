@@ -1,6 +1,3 @@
-#[allow(clippy::module_inception)]
-pub mod api;
-pub mod error;
-pub mod observer;
+pub mod coordinator;
 pub mod state;
-pub mod validity_prover;
+pub mod witness_generator;
