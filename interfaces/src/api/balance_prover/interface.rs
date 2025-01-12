@@ -34,7 +34,7 @@ pub trait BalanceProverClientInterface {
         &self,
         key: KeySet,
         pubkey: U256,
-        tx_witnes: &TxWitness,
+        tx_witness: &TxWitness,
         update_witness: &UpdateWitness<F, C, D>,
         spent_proof: &ProofWithPublicInputs<F, C, D>,
         prev_proof: &Option<ProofWithPublicInputs<F, C, D>>,

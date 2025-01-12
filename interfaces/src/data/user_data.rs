@@ -8,7 +8,7 @@ use intmax2_zkp::{
         signature::key_set::KeySet,
         trees::asset_tree::AssetLeaf,
     },
-    ethereum_types::u256::U256,
+    ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
     utils::poseidon_hash_out::PoseidonHashOut,
 };
 use sha2::{Digest as _, Sha256};
@@ -67,9 +67,9 @@ impl UserData {
     }
 
     /// Calculate the digest of the user data
-    pub fn digest(&self) -> [u8; 32] {
+    pub fn digest(&self) -> Bytes32 {
         let digest = Sha256::digest(self.to_bytes());
-        digest.into()
+        Bytes32::from_bytes_be(digest.as_slice())
     }
 
     pub fn block_number(&self) -> Result<u32> {
@@ -170,7 +170,6 @@ mod tests {
     #[test]
     fn test_user_data_digest() {
         let user_data = super::UserData::new(0.into());
-        let digest = user_data.digest();
-        assert_eq!(digest.len(), 32);
+        let _digest = user_data.digest();
     }
 }
