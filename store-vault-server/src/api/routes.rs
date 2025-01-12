@@ -1,35 +1,27 @@
-use std::str::FromStr;
-
+use crate::api::state::State;
 use actix_web::{
     error::ErrorUnauthorized,
-    get, post,
-    web::{Data, Json, Path},
+    post,
+    web::{Data, Json},
     Error,
 };
-use intmax2_interfaces::api::store_vault_server::{
-    interface::DataType,
-    types::{
-        BatchGetDataQuery, BatchGetDataResponse, BatchSaveDataRequest, BatchSaveDataResponse,
-        GetBalanceProofQuery, GetBalanceProofResponse, GetDataAllAfterRequestWithSignature,
-        GetDataAllAfterResponse, GetDataQuery, GetDataResponse, GetUserDataRequestWithSignature,
-        GetUserDataResponse, SaveBalanceProofRequest, SaveDataRequestWithSignature,
-        SaveDataResponse,
-    },
+use intmax2_interfaces::api::store_vault_server::types::{
+    BatchSaveDataRequest, BatchSaveDataResponse, GetDataAllAfterRequest, GetDataAllAfterResponse,
+    GetUserDataRequest, GetUserDataResponse, SaveUserDataRequest,
 };
-use serde_qs::actix::QsQuery;
-
-use crate::{api::state::State, app::authorization::RequestWithSignature as _};
 
 #[post("/save-user-data")]
 pub async fn save_user_data(
     state: Data<State>,
-    request: Json<SaveDataRequestWithSignature>,
+    request: Json<SaveUserDataRequest>,
 ) -> Result<Json<()>, Error> {
-    let request = request.into_inner();
-    request.verify().map_err(ErrorUnauthorized)?;
+    request
+        .auth
+        .verify(&request.content())
+        .map_err(ErrorUnauthorized)?;
     state
         .store_vault_server
-        .save_user_data(request.pubkey, request.data)
+        .save_user_data(request.auth.pubkey, request.prev_digest, &request.data)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(()))
@@ -38,11 +30,12 @@ pub async fn save_user_data(
 #[post("/get-user-data")]
 pub async fn get_user_data(
     state: Data<State>,
-    request: Json<GetUserDataRequestWithSignature>,
+    request: Json<GetUserDataRequest>,
 ) -> Result<Json<GetUserDataResponse>, Error> {
-    let request = request.into_inner();
-    request.auth.verify().map_err(ErrorUnauthorized)?;
-
+    request
+        .auth
+        .verify(&request.content())
+        .map_err(ErrorUnauthorized)?;
     let data = state
         .store_vault_server
         .get_user_data(request.auth.pubkey)
@@ -51,62 +44,41 @@ pub async fn get_user_data(
     Ok(Json(GetUserDataResponse { data }))
 }
 
-#[post("/{type}/batch-save")]
+#[post("/batch-save")]
 pub async fn batch_save_data(
     state: Data<State>,
-    path: Path<String>,
     request: Json<BatchSaveDataRequest>,
 ) -> Result<Json<BatchSaveDataResponse>, Error> {
     const MAX_BATCH_SIZE: usize = 1000;
-
-    let data_type = path.into_inner();
-    let data_type = DataType::from_str(data_type.as_str())
-        .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Invalid type: {}", e)))?;
-
-    let requests = request.into_inner().requests;
-    match data_type {
-        DataType::Tx => {
-            return Err(actix_web::error::ErrorBadRequest(format!(
-                "data_type {} is not supported",
-                data_type
-            )));
-        }
-        _ => {
-            println!("No authorization required for {}", data_type);
-        }
-    }
-
-    if requests.len() > MAX_BATCH_SIZE {
+    if request.data.len() > MAX_BATCH_SIZE {
         return Err(actix_web::error::ErrorBadRequest(format!(
             "Batch size exceeds maximum limit of {}",
             MAX_BATCH_SIZE
         )));
     }
 
+    let content = request.content();
+    request.auth.verify(&content).map_err(ErrorUnauthorized)?;
     let uuids = state
         .store_vault_server
-        .batch_save_data(data_type, requests)
+        .batch_save_data(&request.data)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
-
     Ok(Json(BatchSaveDataResponse { uuids }))
 }
 
-#[post("/{type}/get-all-after")]
+#[post("/get-all-after")]
 pub async fn get_data_all_after(
     state: Data<State>,
-    path: Path<String>,
-    request: Json<GetDataAllAfterRequestWithSignature>,
+    request: Json<GetDataAllAfterRequest>,
 ) -> Result<Json<GetDataAllAfterResponse>, Error> {
-    let data_type = path.into_inner();
-    let data_type = DataType::from_str(data_type.as_str())
-        .map_err(|e| actix_web::error::ErrorInternalServerError(format!("Invalid type: {}", e)))?;
-    let request = request.into_inner();
-    request.auth.verify().map_err(ErrorUnauthorized)?;
-
+    request
+        .auth
+        .verify(&request.content())
+        .map_err(ErrorUnauthorized)?;
     let data = state
         .store_vault_server
-        .get_data_all_after(data_type, request.auth.pubkey, request.timestamp)
+        .get_data_all_after(request.data_type, request.auth.pubkey, request.timestamp)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetDataAllAfterResponse { data }))

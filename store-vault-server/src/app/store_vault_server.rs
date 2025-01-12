@@ -2,7 +2,10 @@ use std::time::Duration;
 
 use anyhow::{anyhow, Ok, Result};
 use intmax2_interfaces::{
-    api::store_vault_server::interface::{DataType, SaveDataEntry},
+    api::store_vault_server::{
+        interface::{DataType, SaveDataEntry},
+        types::DataWithMetaData,
+    },
     data::meta_data::MetaData,
     utils::digest::get_digest,
 };
@@ -52,7 +55,7 @@ impl StoreVaultServer {
         &self,
         pubkey: U256,
         prev_digest: Option<Bytes32>,
-        encrypted_data: Vec<u8>,
+        encrypted_data: &[u8],
     ) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         let result = self.get_user_data_and_digest(&mut tx, pubkey).await?;
@@ -77,7 +80,7 @@ impl StoreVaultServer {
             ));
         }
         let pubkey_hex = pubkey.to_hex();
-        let digest = get_digest(&encrypted_data);
+        let digest = get_digest(encrypted_data);
         let digest_serialized = bincode::serialize(&digest).unwrap();
         sqlx::query!(
             r#"
@@ -161,7 +164,7 @@ impl StoreVaultServer {
         data_type: DataType,
         pubkey: U256,
         timestamp: u64,
-    ) -> Result<Vec<(MetaData, Vec<u8>)>> {
+    ) -> Result<Vec<DataWithMetaData>> {
         let pubkey_hex = pubkey.to_hex();
 
         let records = sqlx::query!(
@@ -186,7 +189,10 @@ impl StoreVaultServer {
                     timestamp: r.timestamp as u64,
                     block_number: None,
                 };
-                (meta_data, r.encrypted_data)
+                DataWithMetaData {
+                    meta_data,
+                    data: r.encrypted_data,
+                }
             })
             .collect();
 
