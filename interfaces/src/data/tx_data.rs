@@ -24,6 +24,10 @@ pub struct TxData {
     pub tx_merkle_proof: TxMerkleProof,
     pub tx_tree_root: Bytes32,
     pub spent_witness: SpentWitness, // to update sender's private state
+
+    // Ephemeral key to query the transfer common data
+    // This is not necessary for sender but added for logging purpose
+    pub ephemeral_common_key: U256,
 }
 
 impl TxData {
