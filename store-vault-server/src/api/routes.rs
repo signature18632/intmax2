@@ -7,7 +7,8 @@ use actix_web::{
 };
 use intmax2_interfaces::api::store_vault_server::types::{
     BatchSaveDataRequest, BatchSaveDataResponse, GetDataAllAfterRequest, GetDataAllAfterResponse,
-    GetUserDataRequest, GetUserDataResponse, SaveUserDataRequest,
+    GetSenderProofSetRequest, GetSenderProofSetResponse, GetUserDataRequest, GetUserDataResponse,
+    SaveSenderProofSetRequest, SaveUserDataRequest,
 };
 
 #[post("/save-user-data")]
@@ -44,6 +45,40 @@ pub async fn get_user_data(
     Ok(Json(GetUserDataResponse { data }))
 }
 
+#[post("/save-sender-proof-set")]
+pub async fn save_sender_proof_set(
+    state: Data<State>,
+    request: Json<SaveSenderProofSetRequest>,
+) -> Result<Json<()>, Error> {
+    request
+        .auth
+        .verify(&request.content())
+        .map_err(ErrorUnauthorized)?;
+    state
+        .store_vault_server
+        .save_sender_proof_set(request.auth.pubkey, &request.data)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+    Ok(Json(()))
+}
+
+#[post("/get-sender-proof-set")]
+pub async fn get_sender_proof_set(
+    state: Data<State>,
+    request: Json<GetSenderProofSetRequest>,
+) -> Result<Json<GetSenderProofSetResponse>, Error> {
+    request
+        .auth
+        .verify(&request.content())
+        .map_err(ErrorUnauthorized)?;
+    let data = state
+        .store_vault_server
+        .get_sender_proof_set(request.auth.pubkey)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+    Ok(Json(GetSenderProofSetResponse { data }))
+}
+
 #[post("/batch-save")]
 pub async fn batch_save_data(
     state: Data<State>,
@@ -71,7 +106,6 @@ pub async fn batch_save_data(
             }
         }
     }
-
     let uuids = state
         .store_vault_server
         .batch_save_data(&request.data)
@@ -101,6 +135,8 @@ pub fn store_vault_server_scope() -> actix_web::Scope {
     actix_web::web::scope("/store-vault-server")
         .service(save_user_data)
         .service(get_user_data)
+        .service(save_sender_proof_set)
+        .service(get_sender_proof_set)
         .service(batch_save_data)
         .service(get_data_all_after)
 }
