@@ -2,7 +2,6 @@ use serde::Deserialize;
 
 pub mod api;
 pub mod app;
-pub mod middleware;
 
 #[derive(Deserialize)]
 pub struct Env {

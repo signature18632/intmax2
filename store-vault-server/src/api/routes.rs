@@ -18,7 +18,7 @@ use intmax2_interfaces::api::store_vault_server::{
 };
 use serde_qs::actix::QsQuery;
 
-use crate::{api::state::State, middleware::authorization::RequestWithSignature};
+use crate::{api::state::State, app::authorization::RequestWithSignature as _};
 
 #[post("/save-balance-proof")]
 pub async fn save_balance_proof(

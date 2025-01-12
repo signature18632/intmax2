@@ -10,7 +10,7 @@ use server_common::{
 };
 use std::io::{self};
 use store_vault_server::{
-    api::{api::store_vault_server_scope, state::State},
+    api::{routes::store_vault_server_scope, state::State},
     app::store_vault_server::StoreVaultServer,
     // middleware::authorization::authorization_middleware,
     Env,
