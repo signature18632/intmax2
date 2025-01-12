@@ -160,12 +160,8 @@ mod tests {
             &balance_vd.verifier_only,
             vec![].into_iter().collect(),
         );
-        println!("proof generated");
         let compressed = CompressedBalanceProof::new(&proof).unwrap();
-        println!("compressed");
         let _decompress = compressed.decompress().unwrap();
-        println!("decompressed");
-        let json_str = serde_json::to_string(&compressed).unwrap();
-        println!("json_str: {}", json_str);
+        let _json_str = serde_json::to_string(&compressed).unwrap();
     }
 }
