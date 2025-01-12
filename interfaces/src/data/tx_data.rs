@@ -1,3 +1,4 @@
+use ark_std::Zero;
 use plonky2::{
     field::extension::Extendable, hash::hash_types::RichField, plonk::config::GenericConfig,
 };
@@ -45,6 +46,10 @@ where
     }
 
     pub fn decrypt(bytes: &[u8], key: KeySet) -> anyhow::Result<Self> {
+        if key.privkey.is_zero() {
+            anyhow::bail!("Invalid private key");
+        }
+
         let data = decrypt(key, bytes)?;
         let data = Self::from_bytes(&data)?;
         data.validate(key)?;

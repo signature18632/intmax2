@@ -22,6 +22,7 @@ pub struct DepositData {
     pub depositor: Address,        // The address of the depositor
     pub pubkey_salt_hash: Bytes32, // The poseidon hash of the pubkey and salt, to hide the pubkey
     pub amount: U256,              // The amount of the token, which is the amount of the deposit
+    pub is_eligible: bool,         // Whether the depositor is eligible to mining rewards
 
     // token info
     pub token_type: TokenType,
@@ -119,6 +120,7 @@ impl DepositData {
             pubkey_salt_hash: self.pubkey_salt_hash,
             amount: self.amount,
             token_index,
+            is_eligible: self.is_eligible,
         })
     }
 
