@@ -1,15 +1,12 @@
 use hashbrown::HashMap;
 use plonky2::{
-    field::{extension::Extendable, goldilocks_field::GoldilocksField},
-    hash::hash_types::RichField,
-    plonk::{
-        config::{GenericConfig, PoseidonGoldilocksConfig},
-        proof::ProofWithPublicInputs,
-    },
+    field::goldilocks_field::GoldilocksField,
+    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
 use serde::{Deserialize, Serialize};
 
 use intmax2_zkp::{
+    circuits::balance::balance_processor::get_prev_balance_pis,
     common::{
         private_state::{FullPrivateState, PrivateState},
         signature::key_set::KeySet,
@@ -35,7 +32,6 @@ const D: usize = 2;
 pub struct UserData {
     pub pubkey: U256,
 
-    pub block_number: u32,
     pub full_private_state: FullPrivateState,
 
     pub balance_proof: Option<ProofWithPublicInputs<F, C, D>>,
@@ -57,7 +53,6 @@ impl UserData {
     pub fn new(pubkey: U256) -> Self {
         Self {
             pubkey,
-            block_number: 0,
             full_private_state: FullPrivateState::new(),
 
             balance_proof: None,
@@ -72,6 +67,11 @@ impl UserData {
             processed_tx_uuids: vec![],
             processed_withdrawal_uuids: vec![],
         }
+    }
+
+    pub fn block_number(&self) -> u32 {
+        let balance_pis = get_prev_balance_pis(self.pubkey, &self.balance_proof);
+        balance_pis.public_state.block_number
     }
 
     pub fn digest(&self) -> [u8; 32] {
@@ -138,11 +138,7 @@ impl Balances {
     }
 
     /// Update the balance with the transfer data
-    pub fn add_transfer<F, C, const D: usize>(&mut self, transfer_data: &TransferData<F, C, D>)
-    where
-        F: RichField + Extendable<D>,
-        C: GenericConfig<D, F = F>,
-    {
+    pub fn add_transfer(&mut self, transfer_data: &TransferData) {
         let token_index = transfer_data.transfer.token_index;
         let prev_asset_leaf = self.0.get(&token_index).cloned().unwrap_or_default();
         let new_asset_leaf = prev_asset_leaf.add(transfer_data.transfer.amount);
@@ -151,11 +147,7 @@ impl Balances {
 
     /// Update the balance with the tx data
     /// Returns whether the tx will case insufficient balance
-    pub fn sub_tx<F, C, const D: usize>(&mut self, tx_data: &TxData<F, C, D>) -> bool
-    where
-        F: RichField + Extendable<D>,
-        C: GenericConfig<D, F = F>,
-    {
+    pub fn sub_tx<F, C, const D: usize>(&mut self, tx_data: &TxData) -> bool {
         let transfers = &tx_data.spent_witness.transfers;
         let mut is_insufficient = false;
         for transfer in transfers.iter() {
