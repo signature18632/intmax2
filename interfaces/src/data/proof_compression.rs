@@ -16,7 +16,7 @@ type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
 #[derive(Debug, thiserror::Error)]
-pub enum CompressError {
+pub enum ProofCompressError {
     #[error("Compression error")]
     CompressionError,
 
@@ -30,7 +30,7 @@ pub enum CompressError {
     DeserializationError,
 }
 
-type Result<T> = std::result::Result<T, CompressError>;
+type Result<T> = std::result::Result<T, ProofCompressError>;
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -68,17 +68,53 @@ impl CompressedValidityProof {
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompressedTransitionProof(#[serde_as(as = "Base64")] pub Vec<u8>);
+
+impl CompressedTransitionProof {
+    pub fn new(input: &ProofWithPublicInputs<F, C, D>) -> Result<Self> {
+        let transition_vd = CircuitVerifiers::load().get_transition_vd();
+        let serialized = serialize(&transition_vd, input)?;
+        Ok(Self(serialized))
+    }
+    pub fn decompress(&self) -> Result<ProofWithPublicInputs<F, C, D>> {
+        let transition_vd = CircuitVerifiers::load().get_transition_vd();
+        let proof = deserialize(&transition_vd, &self.0)?;
+        Ok(proof)
+    }
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompressedSingleWithdrawalProof(#[serde_as(as = "Base64")] pub Vec<u8>);
+
+impl CompressedSingleWithdrawalProof {
+    pub fn new(input: &ProofWithPublicInputs<F, C, D>) -> Result<Self> {
+        let single_withdrawal_vd = CircuitVerifiers::load().get_single_withdrawal_vd();
+        let serialized = serialize(&single_withdrawal_vd, input)?;
+        Ok(Self(serialized))
+    }
+    pub fn decompress(&self) -> Result<ProofWithPublicInputs<F, C, D>> {
+        let single_withdrawal_vd = CircuitVerifiers::load().get_single_withdrawal_vd();
+        let proof = deserialize(&single_withdrawal_vd, &self.0)?;
+        Ok(proof)
+    }
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompressedSpentProof(#[serde_as(as = "Base64")] pub Vec<u8>);
 
 impl CompressedSpentProof {
     pub fn new(input: &ProofWithPublicInputs<F, C, D>) -> Result<Self> {
-        let validity_vd = CircuitVerifiers::load().get_validity_vd();
-        let serialized = serialize(&validity_vd, input)?;
+        // We don't have spent_vd yet because of serialization issues
+        let serialized =
+            bincode::serialize(input).map_err(|_| ProofCompressError::SerializationError)?;
         Ok(Self(serialized))
     }
     pub fn decompress(&self) -> Result<ProofWithPublicInputs<F, C, D>> {
-        let validity_vd = CircuitVerifiers::load().get_validity_vd();
-        let proof = deserialize(&validity_vd, &self.0)?;
+        // Deserialize directly because we don't have spent_vd yet
+        let proof: ProofWithPublicInputs<F, C, D> =
+            bincode::deserialize(&self.0).map_err(|_| ProofCompressError::DeserializationError)?;
         Ok(proof)
     }
 }
@@ -90,9 +126,9 @@ fn serialize(
     let compressed = input
         .clone()
         .compress(&vd.verifier_only.circuit_digest, &vd.common)
-        .map_err(|_| CompressError::CompressionError)?;
+        .map_err(|_| ProofCompressError::CompressionError)?;
     let serialized =
-        bincode::serialize(&compressed).map_err(|_| CompressError::SerializationError)?;
+        bincode::serialize(&compressed).map_err(|_| ProofCompressError::SerializationError)?;
     Ok(serialized)
 }
 
@@ -101,10 +137,10 @@ fn deserialize(
     bytes: &[u8],
 ) -> Result<ProofWithPublicInputs<F, C, D>> {
     let compressed: CompressedProofWithPublicInputs<F, C, D> =
-        bincode::deserialize(bytes).map_err(|_| CompressError::DeserializationError)?;
+        bincode::deserialize(bytes).map_err(|_| ProofCompressError::DeserializationError)?;
     let proof = compressed
         .decompress(&vd.verifier_only.circuit_digest, &vd.common)
-        .map_err(|_| CompressError::DecompressionError)?;
+        .map_err(|_| ProofCompressError::DecompressionError)?;
     Ok(proof)
 }
 

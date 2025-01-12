@@ -1,4 +1,4 @@
-pub mod compress;
+pub mod proof_compression;
 pub mod deposit_data;
 pub mod encryption;
 pub mod meta_data;
