@@ -1,4 +1,3 @@
-use ark_std::Zero;
 use serde::{Deserialize, Serialize};
 
 use intmax2_zkp::{
@@ -7,9 +6,15 @@ use intmax2_zkp::{
         witness::spent_witness::SpentWitness,
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
+    utils::poseidon_hash_out::PoseidonHashOut,
 };
 
-use super::encryption::algorithm::{decrypt, encrypt};
+type Result<T> = std::result::Result<T, DataError>;
+
+use super::{
+    encryption::algorithm::{decrypt, encrypt},
+    error::DataError,
+};
 
 // tx data for syncing sender's balance proof
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -26,7 +31,7 @@ impl TxData {
         bincode::serialize(self).unwrap()
     }
 
-    fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let data = bincode::deserialize(bytes)?;
         Ok(data)
     }
@@ -35,23 +40,21 @@ impl TxData {
         encrypt(pubkey, &self.to_bytes())
     }
 
-    pub fn decrypt(bytes: &[u8], key: KeySet) -> anyhow::Result<Self> {
-        if key.privkey.is_zero() {
-            anyhow::bail!("Invalid private key");
-        }
-
-        let data = decrypt(key, bytes)?;
+    pub fn decrypt(bytes: &[u8], key: KeySet) -> Result<Self> {
+        let data = decrypt(key, bytes).map_err(|e| DataError::DecryptionError(e.to_string()))?;
         let data = Self::from_bytes(&data)?;
         data.validate(key)?;
         Ok(data)
     }
 
-    pub fn validate(&self, _key: KeySet) -> anyhow::Result<()> {
-        self.tx_merkle_proof.verify(
-            &self.spent_witness.tx,
-            self.tx_index as u64,
-            self.tx_tree_root.try_into()?,
-        )?;
+    pub fn validate(&self, _key: KeySet) -> Result<()> {
+        let tx_tree_root: PoseidonHashOut = self
+            .tx_tree_root
+            .try_into()
+            .map_err(|_| DataError::ValidationError("Invalid tx_tree_root".to_string()))?;
+        self.tx_merkle_proof
+            .verify(&self.spent_witness.tx, self.tx_index as u64, tx_tree_root)
+            .map_err(|_| DataError::ValidationError("Invalid tx_merkle_proof".to_string()))?;
         Ok(())
     }
 }

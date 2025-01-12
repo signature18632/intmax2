@@ -16,7 +16,7 @@ type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
 #[derive(Debug, thiserror::Error)]
-pub enum ProofCompressError {
+pub enum ProofCompressionError {
     #[error("Compression error")]
     CompressionError,
 
@@ -30,7 +30,7 @@ pub enum ProofCompressError {
     DeserializationError,
 }
 
-type Result<T> = std::result::Result<T, ProofCompressError>;
+type Result<T> = std::result::Result<T, ProofCompressionError>;
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,13 +108,13 @@ impl CompressedSpentProof {
     pub fn new(input: &ProofWithPublicInputs<F, C, D>) -> Result<Self> {
         // We don't have spent_vd yet because of serialization issues
         let serialized =
-            bincode::serialize(input).map_err(|_| ProofCompressError::SerializationError)?;
+            bincode::serialize(input).map_err(|_| ProofCompressionError::SerializationError)?;
         Ok(Self(serialized))
     }
     pub fn decompress(&self) -> Result<ProofWithPublicInputs<F, C, D>> {
         // Deserialize directly because we don't have spent_vd yet
-        let proof: ProofWithPublicInputs<F, C, D> =
-            bincode::deserialize(&self.0).map_err(|_| ProofCompressError::DeserializationError)?;
+        let proof: ProofWithPublicInputs<F, C, D> = bincode::deserialize(&self.0)
+            .map_err(|_| ProofCompressionError::DeserializationError)?;
         Ok(proof)
     }
 }
@@ -126,9 +126,9 @@ fn serialize(
     let compressed = input
         .clone()
         .compress(&vd.verifier_only.circuit_digest, &vd.common)
-        .map_err(|_| ProofCompressError::CompressionError)?;
+        .map_err(|_| ProofCompressionError::CompressionError)?;
     let serialized =
-        bincode::serialize(&compressed).map_err(|_| ProofCompressError::SerializationError)?;
+        bincode::serialize(&compressed).map_err(|_| ProofCompressionError::SerializationError)?;
     Ok(serialized)
 }
 
@@ -137,10 +137,10 @@ fn deserialize(
     bytes: &[u8],
 ) -> Result<ProofWithPublicInputs<F, C, D>> {
     let compressed: CompressedProofWithPublicInputs<F, C, D> =
-        bincode::deserialize(bytes).map_err(|_| ProofCompressError::DeserializationError)?;
+        bincode::deserialize(bytes).map_err(|_| ProofCompressionError::DeserializationError)?;
     let proof = compressed
         .decompress(&vd.verifier_only.circuit_digest, &vd.common)
-        .map_err(|_| ProofCompressError::DecompressionError)?;
+        .map_err(|_| ProofCompressionError::DecompressionError)?;
     Ok(proof)
 }
 

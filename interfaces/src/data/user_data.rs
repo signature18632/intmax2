@@ -1,8 +1,4 @@
 use hashbrown::HashMap;
-use plonky2::{
-    field::goldilocks_field::GoldilocksField,
-    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
-};
 use serde::{Deserialize, Serialize};
 
 use intmax2_zkp::{
@@ -20,21 +16,22 @@ use sha2::{Digest as _, Sha256};
 use super::{
     deposit_data::DepositData,
     encryption::algorithm::{decrypt, encrypt},
+    error::DataError,
+    proof_compression::CompressedBalanceProof,
     transfer_data::TransferData,
     tx_data::TxData,
 };
 
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
+type Result<T> = std::result::Result<T, DataError>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UserData {
     pub pubkey: U256,
 
     pub full_private_state: FullPrivateState,
 
-    pub balance_proof: Option<ProofWithPublicInputs<F, C, D>>,
+    pub balance_proof: Option<CompressedBalanceProof>,
 
     // The latest unix timestamp of processed (incorporated into the balance proof or rejected)
     // actions
@@ -69,21 +66,27 @@ impl UserData {
         }
     }
 
-    pub fn block_number(&self) -> u32 {
-        let balance_pis = get_prev_balance_pis(self.pubkey, &self.balance_proof);
-        balance_pis.public_state.block_number
-    }
-
+    /// Calculate the digest of the user data
     pub fn digest(&self) -> [u8; 32] {
         let digest = Sha256::digest(self.to_bytes());
         digest.into()
+    }
+
+    pub fn block_number(&self) -> Result<u32> {
+        let balance_proof = self
+            .balance_proof
+            .as_ref()
+            .map(|bp| bp.decompress())
+            .transpose()?;
+        let balance_pis = get_prev_balance_pis(self.pubkey, &balance_proof);
+        Ok(balance_pis.public_state.block_number)
     }
 
     fn to_bytes(&self) -> Vec<u8> {
         bincode::serialize(&self).unwrap()
     }
 
-    fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let user_data = bincode::deserialize(bytes)?;
         Ok(user_data)
     }
@@ -92,11 +95,12 @@ impl UserData {
         encrypt(pubkey, &self.to_bytes())
     }
 
-    pub fn decrypt(bytes: &[u8], key: KeySet) -> anyhow::Result<Self> {
-        let data = decrypt(key, bytes)?;
+    pub fn decrypt(bytes: &[u8], key: KeySet) -> Result<Self> {
+        let data = decrypt(key, bytes).map_err(|e| DataError::DecryptionError(e.to_string()))?;
         let data = Self::from_bytes(&data)?;
         Ok(data)
     }
+
     pub fn private_state(&self) -> PrivateState {
         self.full_private_state.to_private_state()
     }
