@@ -8,6 +8,7 @@ use serde_with::{base64::Base64, serde_as};
 #[serde(rename_all = "camelCase")]
 pub struct BatchSaveDataRequest {
     pub data: Vec<SaveDataEntry>,
+    pub pubkey: U256,
     pub expiry: u64,
     pub signature: FlatG2,
 }
@@ -46,5 +47,14 @@ pub struct GetDataAllAfterQuery {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetDataAllAfterResponse {
-    pub data: Vec<(MetaData, Vec<u8>)>,
+    pub data: Vec<DataWithMetaData>,
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DataWithMetaData {
+    pub meta_data: MetaData,
+    #[serde_as(as = "Base64")]
+    pub data: Vec<u8>,
 }

@@ -2,10 +2,13 @@ use serde::{Deserialize, Serialize};
 
 use intmax2_zkp::{
     common::{
-        signature::key_set::KeySet, transfer::Transfer, trees::transfer_tree::TransferMerkleProof,
+        signature::key_set::KeySet,
+        transfer::Transfer,
+        trees::{transfer_tree::TransferMerkleProof, tx_tree::TxMerkleProof},
         tx::Tx,
     },
-    ethereum_types::u256::U256,
+    ethereum_types::{bytes32::Bytes32, u256::U256},
+    utils::poseidon_hash_out::PoseidonHashOut,
 };
 
 use super::{
@@ -19,11 +22,14 @@ type Result<T> = std::result::Result<T, DataError>;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferData {
-    // Ephemeral key to query the transfer common data
-    pub ephemeral_common_key: U256,
+    // Ephemeral key to query the sender proof set
+    pub sender_proof_set_ephemeral_key: U256,
 
     pub sender: U256,
     pub tx: Tx,
+    pub tx_index: u32,
+    pub tx_merkle_proof: TxMerkleProof,
+    pub tx_tree_root: Bytes32,
     pub transfer: Transfer,
     pub transfer_index: u32,
     pub transfer_merkle_proof: TransferMerkleProof,
@@ -51,6 +57,13 @@ impl TransferData {
     }
 
     pub fn validate(&self, _key: KeySet) -> Result<()> {
+        let tx_tree_root: PoseidonHashOut = self
+            .tx_tree_root
+            .try_into()
+            .map_err(|_| DataError::ValidationError("Invalid tx_tree_root".to_string()))?;
+        self.tx_merkle_proof
+            .verify(&self.tx, self.tx_index as u64, tx_tree_root)
+            .map_err(|_| DataError::ValidationError("Invalid tx_merkle_proof".to_string()))?;
         self.transfer_merkle_proof
             .verify(
                 &self.transfer,

@@ -1,8 +1,7 @@
 use intmax2_zkp::{
     circuits::balance::{balance_pis::BalancePublicInputs, send::spent_circuit::SpentPublicInputs},
-    common::{signature::key_set::KeySet, trees::tx_tree::TxMerkleProof, tx::Tx},
-    ethereum_types::{bytes32::Bytes32, u256::U256},
-    utils::poseidon_hash_out::PoseidonHashOut,
+    common::signature::key_set::KeySet,
+    ethereum_types::u256::U256,
 };
 use serde::{Deserialize, Serialize};
 
@@ -19,16 +18,12 @@ type Result<T> = std::result::Result<T, DataError>;
 /// Common data for all transfers in a batch transfer
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct TransferCommonData {
-    pub tx: Tx,
-    pub tx_index: u32,
-    pub tx_merkle_proof: TxMerkleProof,
-    pub tx_tree_root: Bytes32,
+pub struct SenderProofSet {
     pub spent_proof: CompressedSpentProof,
     pub prev_balance_proof: CompressedBalanceProof,
 }
 
-impl TransferCommonData {
+impl SenderProofSet {
     fn to_bytes(&self) -> Vec<u8> {
         bincode::serialize(self).unwrap()
     }
@@ -50,14 +45,6 @@ impl TransferCommonData {
     }
 
     pub fn validate(&self, _key: KeySet) -> Result<()> {
-        let tx_tree_root: PoseidonHashOut = self
-            .tx_tree_root
-            .try_into()
-            .map_err(|_| DataError::ValidationError("Invalid tx_tree_root".to_string()))?;
-        self.tx_merkle_proof
-            .verify(&self.tx, self.tx_index as u64, tx_tree_root)
-            .map_err(|_| DataError::ValidationError("Invalid tx_merkle_proof".to_string()))?;
-
         // skip spent proof verification because spent circuit cannot be deserialized for now.
         let spent_proof = self.spent_proof.decompress()?;
         let prev_balance_proof = self.prev_balance_proof.decompress()?;
@@ -69,12 +56,6 @@ impl TransferCommonData {
         let prev_balance_pis = BalancePublicInputs::from_pis(&prev_balance_proof.public_inputs);
 
         // Validation of public inputs
-        if spent_pis.tx != self.tx {
-            return Err(DataError::ValidationError(format!(
-                "Invalid spent proof: tx mismatch: {:?} != {:?}",
-                spent_pis.tx, self.tx
-            )));
-        }
         if !spent_pis.is_valid {
             return Err(DataError::ValidationError(
                 "Invalid spent proof: is_valid is false".to_string(),
