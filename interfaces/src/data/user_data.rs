@@ -19,7 +19,7 @@ use sha2::{Digest as _, Sha256};
 
 use super::{
     deposit_data::DepositData,
-    encryption::{decrypt, encrypt},
+    encryption::algorithm::{decrypt, encrypt},
     transfer_data::TransferData,
     tx_data::TxData,
 };

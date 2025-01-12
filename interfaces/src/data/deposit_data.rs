@@ -13,7 +13,7 @@ use intmax2_zkp::{
     utils::leafable::Leafable,
 };
 
-use super::encryption::{decrypt, encrypt};
+use super::encryption::algorithm::{decrypt, encrypt};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

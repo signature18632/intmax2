@@ -11,7 +11,7 @@ use intmax2_zkp::{
     ethereum_types::{bytes32::Bytes32, u256::U256},
 };
 
-use super::encryption::{decrypt, encrypt};
+use super::encryption::algorithm::{decrypt, encrypt};
 
 // backup data for receiving transfers
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -9,7 +9,7 @@ use intmax2_zkp::{
     ethereum_types::{bytes32::Bytes32, u256::U256},
 };
 
-use super::encryption::{decrypt, encrypt};
+use super::encryption::algorithm::{decrypt, encrypt};
 
 // tx data for syncing sender's balance proof
 #[derive(Clone, Debug, Serialize, Deserialize)]
