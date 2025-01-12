@@ -22,7 +22,7 @@ type Result<T> = std::result::Result<T, DataError>;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferData {
-    // Ephemeral key to query the sender's prev balance proof and spent proof
+    // Ephemeral key to query the sender's proof set
     pub ephemeral_privkey: U256,
 
     // Info to update the sender's balance proof

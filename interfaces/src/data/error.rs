@@ -13,4 +13,7 @@ pub enum DataError {
 
     #[error("Validation error: {0}")]
     ValidationError(String),
+
+    #[error("Invalid token type")]
+    InvalidTokenType,
 }

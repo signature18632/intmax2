@@ -1,7 +1,5 @@
-use std::{fmt, str::FromStr};
-
-use anyhow::{bail, ensure};
 use serde::{Deserialize, Serialize};
+use std::{fmt, str::FromStr};
 
 use intmax2_zkp::{
     common::{
@@ -13,7 +11,12 @@ use intmax2_zkp::{
     utils::leafable::Leafable,
 };
 
-use super::encryption::algorithm::{decrypt, encrypt};
+use super::{
+    encryption::algorithm::{decrypt, encrypt},
+    error::DataError,
+};
+
+type Result<T> = std::result::Result<T, DataError>;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,15 +45,15 @@ pub enum TokenType {
 }
 
 impl FromStr for TokenType {
-    type Err = anyhow::Error;
+    type Err = String;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
+    fn from_str(s: &str) -> std::result::Result<Self, String> {
         match s {
             "NATIVE" => Ok(Self::NATIVE),
             "ERC20" => Ok(Self::ERC20),
             "ERC721" => Ok(Self::ERC721),
             "ERC1155" => Ok(Self::ERC1155),
-            _ => bail!("invalid token type"),
+            _ => Err("invalid token type".to_string()),
         }
     }
 }
@@ -70,7 +73,7 @@ impl fmt::Display for TokenType {
 impl TryFrom<u8> for TokenType {
     type Error = String;
 
-    fn try_from(value: u8) -> Result<Self, Self::Error> {
+    fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
         match value {
             0 => Ok(Self::NATIVE),
             1 => Ok(Self::ERC20),
@@ -86,7 +89,7 @@ impl DepositData {
         bincode::serialize(self).unwrap()
     }
 
-    fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let data = bincode::deserialize(bytes)?;
         Ok(data)
     }
@@ -95,18 +98,19 @@ impl DepositData {
         encrypt(pubkey, &self.to_bytes())
     }
 
-    pub fn decrypt(bytes: &[u8], key: KeySet) -> anyhow::Result<Self> {
-        let data = decrypt(key, bytes)?;
+    pub fn decrypt(bytes: &[u8], key: KeySet) -> Result<Self> {
+        let data = decrypt(key, bytes).map_err(|e| DataError::DecryptionError(e.to_string()))?;
         let data = Self::from_bytes(&data)?;
         data.validate(key)?;
         Ok(data)
     }
 
-    fn validate(&self, key: KeySet) -> anyhow::Result<()> {
-        ensure!(
-            self.pubkey_salt_hash == get_pubkey_salt_hash(key.pubkey, self.deposit_salt),
-            "invalid pubkey_salt_hash"
-        );
+    fn validate(&self, key: KeySet) -> Result<()> {
+        if self.pubkey_salt_hash != get_pubkey_salt_hash(key.pubkey, self.deposit_salt) {
+            return Err(DataError::ValidationError(
+                "Invalid pubkey_salt_hash".to_string(),
+            ));
+        }
         Ok(())
     }
 
