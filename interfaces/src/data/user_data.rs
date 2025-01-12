@@ -1,6 +1,11 @@
 use hashbrown::HashMap;
 use plonky2::{
-    field::extension::Extendable, hash::hash_types::RichField, plonk::config::GenericConfig,
+    field::{extension::Extendable, goldilocks_field::GoldilocksField},
+    hash::hash_types::RichField,
+    plonk::{
+        config::{GenericConfig, PoseidonGoldilocksConfig},
+        proof::ProofWithPublicInputs,
+    },
 };
 use serde::{Deserialize, Serialize};
 
@@ -13,6 +18,7 @@ use intmax2_zkp::{
     ethereum_types::u256::U256,
     utils::poseidon_hash_out::PoseidonHashOut,
 };
+use sha2::{Digest as _, Sha256};
 
 use super::{
     deposit_data::DepositData,
@@ -21,12 +27,18 @@ use super::{
     tx_data::TxData,
 };
 
+type F = GoldilocksField;
+type C = PoseidonGoldilocksConfig;
+const D: usize = 2;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserData {
     pub pubkey: U256,
 
     pub block_number: u32,
     pub full_private_state: FullPrivateState,
+
+    pub balance_proof: Option<ProofWithPublicInputs<F, C, D>>,
 
     // The latest unix timestamp of processed (incorporated into the balance proof or rejected)
     // actions
@@ -48,6 +60,8 @@ impl UserData {
             block_number: 0,
             full_private_state: FullPrivateState::new(),
 
+            balance_proof: None,
+
             deposit_lpt: 0,
             transfer_lpt: 0,
             tx_lpt: 0,
@@ -58,6 +72,11 @@ impl UserData {
             processed_tx_uuids: vec![],
             processed_withdrawal_uuids: vec![],
         }
+    }
+
+    pub fn digest(&self) -> [u8; 32] {
+        let digest = Sha256::digest(self.to_bytes());
+        digest.into()
     }
 
     fn to_bytes(&self) -> Vec<u8> {
@@ -147,5 +166,15 @@ impl Balances {
             self.0.insert(token_index, new_asset_leaf);
         }
         is_insufficient
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_user_data_digest() {
+        let user_data = super::UserData::new(0.into());
+        let digest = user_data.digest();
+        assert_eq!(digest.len(), 32);
     }
 }
