@@ -1,19 +1,17 @@
 use super::interface::{DataType, SaveDataEntry};
 use crate::{data::meta_data::MetaData, utils::signature::Auth};
+use intmax2_zkp::ethereum_types::bytes32::Bytes32;
 use serde::{Deserialize, Serialize};
 use serde_with::{base64::Base64, serde_as};
 
+#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BatchSaveDataRequest {
-    pub data: Vec<SaveDataEntry>,
+pub struct SaveUserDataRequest {
+    #[serde_as(as = "Base64")]
+    pub data: Vec<u8>,
+    pub prev_digest: Option<Bytes32>,
     pub auth: Auth,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BatchSaveDataResponse {
-    pub uuids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,6 +26,19 @@ pub struct GetUserDataRequest {
 pub struct GetUserDataResponse {
     #[serde_as(as = "Option<Base64>")]
     pub data: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchSaveDataRequest {
+    pub data: Vec<SaveDataEntry>,
+    pub auth: Auth,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BatchSaveDataResponse {
+    pub uuids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
