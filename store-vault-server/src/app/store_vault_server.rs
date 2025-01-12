@@ -122,6 +122,42 @@ impl StoreVaultServer {
         Ok(record.map(|r| (r.encrypted_data, Bytes32::from_bytes_be(&r.digest))))
     }
 
+    pub async fn save_sender_proof_set(
+        &self,
+        ephemeral_pubkey: U256,
+        encrypted_data: &[u8],
+    ) -> Result<()> {
+        let pubkey_hex = ephemeral_pubkey.to_hex();
+        sqlx::query!(
+            r#"
+            INSERT INTO encrypted_sender_proof_set (pubkey, encrypted_data)
+            VALUES ($1, $2)
+            ON CONFLICT (pubkey) DO NOTHING
+            "#,
+            pubkey_hex,
+            encrypted_data
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn get_sender_proof_set(&self, ephemeral_pubkey: U256) -> Result<Vec<u8>> {
+        let pubkey_hex = ephemeral_pubkey.to_hex();
+        let record = sqlx::query!(
+            r#"
+            SELECT encrypted_data FROM encrypted_sender_proof_set WHERE pubkey = $1
+            "#,
+            pubkey_hex
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        if record.is_none() {
+            return Err(anyhow!("Sender proof set not found"));
+        }
+        Ok(record.unwrap().encrypted_data)
+    }
+
     pub async fn batch_save_data(&self, entries: &[SaveDataEntry]) -> Result<Vec<String>> {
         // Prepare values for bulk insert
         let data_types: Vec<i32> = entries.iter().map(|entry| entry.data_type as i32).collect();

@@ -56,9 +56,22 @@ pub async fn batch_save_data(
             MAX_BATCH_SIZE
         )));
     }
+    request
+        .auth
+        .verify(&request.content())
+        .map_err(ErrorUnauthorized)?;
+    let pubkey = request.auth.pubkey;
+    for entry in &request.data {
+        if entry.data_type.need_auth() {
+            if entry.pubkey != pubkey {
+                return Err(ErrorUnauthorized(format!(
+                    "Data type {:?} requires auth but given pubkey is different",
+                    entry.data_type,
+                )));
+            }
+        }
+    }
 
-    let content = request.content();
-    request.auth.verify(&content).map_err(ErrorUnauthorized)?;
     let uuids = state
         .store_vault_server
         .batch_save_data(&request.data)
