@@ -66,6 +66,23 @@ impl CompressedValidityProof {
     }
 }
 
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompressedSpentProof(#[serde_as(as = "Base64")] pub Vec<u8>);
+
+impl CompressedSpentProof {
+    pub fn new(input: &ProofWithPublicInputs<F, C, D>) -> Result<Self> {
+        let validity_vd = CircuitVerifiers::load().get_validity_vd();
+        let serialized = serialize(&validity_vd, input)?;
+        Ok(Self(serialized))
+    }
+    pub fn decompress(&self) -> Result<ProofWithPublicInputs<F, C, D>> {
+        let validity_vd = CircuitVerifiers::load().get_validity_vd();
+        let proof = deserialize(&validity_vd, &self.0)?;
+        Ok(proof)
+    }
+}
+
 fn serialize(
     vd: &VerifierCircuitData<F, C, D>,
     input: &ProofWithPublicInputs<F, C, D>,
