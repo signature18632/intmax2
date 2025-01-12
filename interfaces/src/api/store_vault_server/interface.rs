@@ -19,6 +19,18 @@ pub enum DataType {
     Tx,
 }
 
+impl DataType {
+    // Returns true if the data type requires authentication when saving.
+    pub fn need_auth(&self) -> bool {
+        match self {
+            DataType::Deposit => false,
+            DataType::Transfer => false,
+            DataType::Withdrawal => true,
+            DataType::Tx => true,
+        }
+    }
+}
+
 impl fmt::Display for DataType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let t = match self {

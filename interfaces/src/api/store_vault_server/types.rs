@@ -14,10 +14,22 @@ pub struct SaveUserDataRequest {
     pub auth: Auth,
 }
 
+impl SaveUserDataRequest {
+    pub fn content(&self) -> Vec<u8> {
+        bincode::serialize(&(self.data.clone(), self.prev_digest)).unwrap()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetUserDataRequest {
     pub auth: Auth,
+}
+
+impl GetUserDataRequest {
+    pub fn content(&self) -> Vec<u8> {
+        vec![]
+    }
 }
 
 #[serde_as]
@@ -28,11 +40,52 @@ pub struct GetUserDataResponse {
     pub data: Option<Vec<u8>>,
 }
 
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveSenderProofSetRequest {
+    #[serde_as(as = "Base64")]
+    pub data: Vec<u8>,
+    pub auth: Auth,
+}
+
+impl SaveSenderProofSetRequest {
+    pub fn content(&self) -> Vec<u8> {
+        bincode::serialize(&self.data).unwrap()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetSenderProofSetRequest {
+    pub auth: Auth,
+}
+
+impl GetSenderProofSetRequest {
+    pub fn content(&self) -> Vec<u8> {
+        vec![]
+    }
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetSenderProofSetResponse {
+    #[serde_as(as = "Base64")]
+    pub data: Vec<u8>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BatchSaveDataRequest {
     pub data: Vec<SaveDataEntry>,
     pub auth: Auth,
+}
+
+impl BatchSaveDataRequest {
+    pub fn content(&self) -> Vec<u8> {
+        bincode::serialize(&self.data).unwrap()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,9 +96,16 @@ pub struct BatchSaveDataResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetDataAllAfterQuery {
+pub struct GetDataAllAfterRequest {
     pub data_type: DataType,
+    pub timestamp: u64,
     pub auth: Auth,
+}
+
+impl GetDataAllAfterRequest {
+    pub fn content(&self) -> Vec<u8> {
+        bincode::serialize(&(self.data_type, self.timestamp)).unwrap()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
