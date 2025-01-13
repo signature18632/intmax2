@@ -1,9 +1,9 @@
 [workspace]
 members = [
-    # "cli",
+    "cli",
     "client-sdk",
     "interfaces",
-    # "wasm",
+    "wasm",
     "balance-prover",
     "store-vault-server",
     "validity-prover",
