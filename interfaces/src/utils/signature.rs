@@ -29,7 +29,8 @@ pub struct SignContent {
 }
 
 impl Auth {
-    pub fn sign(key: KeySet, expiry: u64, content: &[u8]) -> Self {
+    pub fn sign(key: KeySet, time_to_expiry: u64, content: &[u8]) -> Self {
+        let expiry = current_time() + time_to_expiry;
         let sign_content = SignContent {
             pubkey: key.pubkey,
             content: content.to_vec(),
@@ -47,11 +48,7 @@ impl Auth {
     }
 
     pub fn verify(&self, content: &[u8]) -> anyhow::Result<()> {
-        if self.expiry
-            < std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)?
-                .as_secs()
-        {
+        if self.expiry < current_time() {
             anyhow::bail!("Signature expired");
         }
         let sign_content = SignContent {
@@ -63,6 +60,18 @@ impl Auth {
         let digest = sha2::Sha256::digest(&serialized);
         let hash = Bytes32::from_bytes_be(&digest);
         verify_signature(self.signature.clone(), self.pubkey, hash)
+    }
+}
+
+pub trait Signable {
+    fn content(&self) -> Vec<u8>;
+
+    fn sign(&self, key: KeySet, time_to_expiry: u64) -> Auth {
+        Auth::sign(key, time_to_expiry, &self.content())
+    }
+
+    fn verify(&self, auth: &Auth) -> anyhow::Result<()> {
+        auth.verify(&self.content())
     }
 }
 
@@ -84,6 +93,13 @@ pub fn verify_signature(signature: FlatG2, pubkey: U256, hash: Bytes32) -> anyho
         anyhow::bail!("Invalid signature");
     }
     Ok(())
+}
+
+fn current_time() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs()
 }
 
 fn hash_to_message_point(hash: Bytes32) -> G2Affine {
@@ -121,11 +137,7 @@ mod test {
         let mut rnd = rand::thread_rng();
         let key = KeySet::rand(&mut rnd);
         let content = b"test";
-        let current_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        let auth = super::Auth::sign(key, current_time + 10, content);
+        let auth = super::Auth::sign(key, 10, content);
         assert!(auth.verify(content).is_ok());
     }
 }
