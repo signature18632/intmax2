@@ -63,18 +63,6 @@ impl Auth {
     }
 }
 
-pub trait Signable {
-    fn content(&self) -> Vec<u8>;
-
-    fn sign(&self, key: KeySet, time_to_expiry: u64) -> Auth {
-        Auth::sign(key, time_to_expiry, &self.content())
-    }
-
-    fn verify(&self, auth: &Auth) -> anyhow::Result<()> {
-        auth.verify(&self.content())
-    }
-}
-
 pub fn sign_message(priv_key: Fr, hash: Bytes32) -> anyhow::Result<FlatG2> {
     let message_point = hash_to_message_point(hash);
     let signature: G2Affine = (message_point * priv_key).into();

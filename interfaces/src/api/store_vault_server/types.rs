@@ -1,8 +1,5 @@
 use super::interface::{DataType, SaveDataEntry};
-use crate::{
-    data::meta_data::MetaData,
-    utils::signature::{Auth, Signable},
-};
+use crate::{data::meta_data::MetaData, utils::signature::Auth};
 use intmax2_zkp::ethereum_types::bytes32::Bytes32;
 use serde::{Deserialize, Serialize};
 use serde_with::{base64::Base64, serde_as};
@@ -17,8 +14,8 @@ pub struct SaveUserDataRequest {
     pub auth: Auth,
 }
 
-impl Signable for SaveUserDataRequest {
-    fn content(&self) -> Vec<u8> {
+impl SaveUserDataRequest {
+    pub fn content(&self) -> Vec<u8> {
         bincode::serialize(&(self.data.clone(), self.prev_digest)).unwrap()
     }
 }
@@ -29,8 +26,8 @@ pub struct GetUserDataRequest {
     pub auth: Auth,
 }
 
-impl Signable for GetUserDataRequest {
-    fn content(&self) -> Vec<u8> {
+impl GetUserDataRequest {
+    pub fn content(&self) -> Vec<u8> {
         vec![]
     }
 }
@@ -52,8 +49,8 @@ pub struct SaveSenderProofSetRequest {
     pub auth: Auth,
 }
 
-impl Signable for SaveSenderProofSetRequest {
-    fn content(&self) -> Vec<u8> {
+impl SaveSenderProofSetRequest {
+    pub fn content(&self) -> Vec<u8> {
         bincode::serialize(&self.data).unwrap()
     }
 }
@@ -64,8 +61,8 @@ pub struct GetSenderProofSetRequest {
     pub auth: Auth,
 }
 
-impl Signable for GetSenderProofSetRequest {
-    fn content(&self) -> Vec<u8> {
+impl GetSenderProofSetRequest {
+    pub fn content(&self) -> Vec<u8> {
         vec![]
     }
 }
@@ -85,8 +82,8 @@ pub struct BatchSaveDataRequest {
     pub auth: Auth,
 }
 
-impl Signable for BatchSaveDataRequest {
-    fn content(&self) -> Vec<u8> {
+impl BatchSaveDataRequest {
+    pub fn content(&self) -> Vec<u8> {
         bincode::serialize(&self.data).unwrap()
     }
 }
@@ -105,8 +102,8 @@ pub struct GetDataAllAfterRequest {
     pub auth: Auth,
 }
 
-impl Signable for GetDataAllAfterRequest {
-    fn content(&self) -> Vec<u8> {
+impl GetDataAllAfterRequest {
+    pub fn content(&self) -> Vec<u8> {
         bincode::serialize(&(self.data_type, self.timestamp)).unwrap()
     }
 }
