@@ -7,12 +7,11 @@ use actix_web::{
 };
 use intmax2_interfaces::{
     api::store_vault_server::types::{
-        BatchSaveDataRequest, BatchSaveDataResponse, GetDataAllAfterRequest,
-        GetDataAllAfterResponse, GetSenderProofSetRequest, GetSenderProofSetResponse,
-        GetUserDataRequest, GetUserDataResponse, SaveSenderProofSetRequest, SaveUserDataRequest,
-        WithAuth,
+        GetDataAllAfterRequest, GetDataAllAfterResponse, GetSenderProofSetRequest,
+        GetSenderProofSetResponse, GetUserDataRequest, GetUserDataResponse, SaveDataBatchRequest,
+        SaveDataBatchResponse, SaveSenderProofSetRequest, SaveUserDataRequest,
     },
-    utils::signature::Signable,
+    utils::signature::{Signable, WithAuth},
 };
 
 #[post("/save-user-data")]
@@ -24,10 +23,11 @@ pub async fn save_user_data(
         .inner
         .verify(&request.auth)
         .map_err(ErrorUnauthorized)?;
+    let pubkey = request.auth.pubkey;
     let request = &request.inner;
     state
         .store_vault_server
-        .save_user_data(request.auth.pubkey, request.prev_digest, &request.data)
+        .save_user_data(pubkey, request.prev_digest, &request.data)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(()))
@@ -42,10 +42,10 @@ pub async fn get_user_data(
         .inner
         .verify(&request.auth)
         .map_err(ErrorUnauthorized)?;
-    let request = &request.inner;
+    let pubkey = request.auth.pubkey;
     let data = state
         .store_vault_server
-        .get_user_data(request.auth.pubkey)
+        .get_user_data(pubkey)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetUserDataResponse { data }))
@@ -60,10 +60,11 @@ pub async fn save_sender_proof_set(
         .inner
         .verify(&request.auth)
         .map_err(ErrorUnauthorized)?;
-    let request = &request.inner;
+    let data = &request.inner.data;
+    let pubkey = request.auth.pubkey;
     state
         .store_vault_server
-        .save_sender_proof_set(request.auth.pubkey, &request.data)
+        .save_sender_proof_set(pubkey, data)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(()))
@@ -78,10 +79,10 @@ pub async fn get_sender_proof_set(
         .inner
         .verify(&request.auth)
         .map_err(ErrorUnauthorized)?;
-    let request = &request.inner;
+    let pubkey = request.auth.pubkey;
     let data = state
         .store_vault_server
-        .get_sender_proof_set(request.auth.pubkey)
+        .get_sender_proof_set(pubkey)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetSenderProofSetResponse { data }))
@@ -90,23 +91,24 @@ pub async fn get_sender_proof_set(
 #[post("/batch-save")]
 pub async fn batch_save_data(
     state: Data<State>,
-    request: Json<WithAuth<BatchSaveDataRequest>>,
-) -> Result<Json<BatchSaveDataResponse>, Error> {
+    request: Json<WithAuth<SaveDataBatchRequest>>,
+) -> Result<Json<SaveDataBatchResponse>, Error> {
     request
         .inner
         .verify(&request.auth)
         .map_err(ErrorUnauthorized)?;
-    let request = &request.inner;
+    let pubkey = request.auth.pubkey;
+    let entries = &request.inner.data;
 
     const MAX_BATCH_SIZE: usize = 1000;
-    if request.data.len() > MAX_BATCH_SIZE {
+    if entries.len() > MAX_BATCH_SIZE {
         return Err(actix_web::error::ErrorBadRequest(format!(
             "Batch size exceeds maximum limit of {}",
             MAX_BATCH_SIZE
         )));
     }
-    let pubkey = request.auth.pubkey;
-    for entry in &request.data {
+
+    for entry in entries {
         if entry.data_type.need_auth() {
             if entry.pubkey != pubkey {
                 return Err(ErrorUnauthorized(format!(
@@ -118,10 +120,10 @@ pub async fn batch_save_data(
     }
     let uuids = state
         .store_vault_server
-        .batch_save_data(&request.data)
+        .batch_save_data(entries)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
-    Ok(Json(BatchSaveDataResponse { uuids }))
+    Ok(Json(SaveDataBatchResponse { uuids }))
 }
 
 #[post("/get-all-after")]
@@ -133,10 +135,11 @@ pub async fn get_data_all_after(
         .inner
         .verify(&request.auth)
         .map_err(ErrorUnauthorized)?;
+    let pubkey = request.auth.pubkey;
     let request = &request.inner;
     let data = state
         .store_vault_server
-        .get_data_all_after(request.data_type, request.auth.pubkey, request.timestamp)
+        .get_data_all_after(request.data_type, pubkey, request.timestamp)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetDataAllAfterResponse { data }))
