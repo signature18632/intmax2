@@ -36,9 +36,7 @@ use crate::{
 };
 
 use super::{
-    config::ClientConfig,
-    error::ClientError,
-    sync::{balance_logic::generate_spent_witness, utils::get_balance_proof},
+    config::ClientConfig, error::ClientError, history::{fetch_history, HistoryEntry}, sync::{balance_logic::generate_spent_witness, utils::get_balance_proof}
 };
 
 pub struct Client<
@@ -406,7 +404,7 @@ where
         Ok(withdrawal_info)
     }
 
-    // pub async fn fetch_history(&self, key: KeySet) -> Result<Vec<HistoryEntry>, ClientError> {
-    //     fetch_history(self, key).await
-    // }
+    pub async fn fetch_history(&self, key: KeySet) -> Result<Vec<HistoryEntry>, ClientError> {
+        fetch_history(self, key).await
+    }
 }
