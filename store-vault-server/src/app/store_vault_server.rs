@@ -66,7 +66,8 @@ impl StoreVaultServer {
             r#"
             INSERT INTO encrypted_user_data (pubkey, encrypted_data, digest, timestamp)
             VALUES ($1, $2, $3, $4)
-            ON CONFLICT (pubkey) DO UPDATE SET encrypted_data = EXCLUDED.encrypted_data
+            ON CONFLICT (pubkey) DO UPDATE SET encrypted_data = EXCLUDED.encrypted_data,
+            digest = EXCLUDED.digest, timestamp = EXCLUDED.timestamp
             "#,
             pubkey_hex,
             encrypted_data,
@@ -243,7 +244,9 @@ mod tests {
             .await?;
 
         let got_encrypted_user_data = store_vault_server.get_user_data(key.pubkey).await?;
-        assert_eq!(got_encrypted_user_data.unwrap(), encrypted);
+        assert_eq!(got_encrypted_user_data.as_ref().unwrap(), &encrypted);
+        let digest2 = get_digest(&got_encrypted_user_data.unwrap());
+        assert_eq!(digest, digest2);
 
         user_data.deposit_lpt = 1;
         let encrypted = user_data.encrypt(key.pubkey);
