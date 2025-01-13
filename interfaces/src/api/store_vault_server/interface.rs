@@ -8,7 +8,9 @@ use intmax2_zkp::{
 use serde::{Deserialize, Serialize};
 use serde_with::{base64::Base64, serde_as};
 
-use crate::{api::error::ServerError, data::meta_data::MetaData};
+use crate::api::error::ServerError;
+
+use super::types::DataWithMetaData;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
@@ -72,20 +74,19 @@ pub trait StoreVaultClientInterface {
     async fn save_user_data(
         &self,
         key: KeySet,
-        prev_digest: Bytes32,
+        prev_digest: Option<Bytes32>,
         encrypted_data: &[u8],
     ) -> Result<(), ServerError>;
 
     async fn get_user_data(&self, key: KeySet) -> Result<Option<Vec<u8>>, ServerError>;
 
-    async fn save_transfer_common_data(
+    async fn save_sender_proof_set(
         &self,
         ephemeral_key: KeySet,
         encrypted_data: &[u8],
     ) -> Result<(), ServerError>;
 
-    async fn get_transfer_common_data(&self, ephemeral_key: KeySet)
-        -> Result<Vec<u8>, ServerError>;
+    async fn get_sender_proof_set(&self, ephemeral_key: KeySet) -> Result<Vec<u8>, ServerError>;
 
     async fn save_data_batch(
         &self,
@@ -96,9 +97,9 @@ pub trait StoreVaultClientInterface {
     async fn get_data_all_after(
         &self,
         data_type: DataType,
-        signer: KeySet,
+        key: KeySet,
         timestamp: u64,
-    ) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError>;
+    ) -> Result<Vec<DataWithMetaData>, ServerError>;
 }
 
 #[cfg(test)]

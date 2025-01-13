@@ -14,6 +14,7 @@ use intmax2_zkp::{
 use super::{
     encryption::algorithm::{decrypt, encrypt},
     error::DataError,
+    sender_proof_set::SenderProofSet,
 };
 
 type Result<T> = std::result::Result<T, DataError>;
@@ -24,6 +25,8 @@ type Result<T> = std::result::Result<T, DataError>;
 pub struct TransferData {
     // Ephemeral key to query the sender proof set
     pub sender_proof_set_ephemeral_key: U256,
+    // After fetching sender proof set, this will be filled
+    pub sender_proof_set: Option<SenderProofSet>,
 
     pub sender: U256,
     pub tx: Tx,
@@ -72,5 +75,9 @@ impl TransferData {
             )
             .map_err(|_| DataError::ValidationError("Invalid transfer_merkle_proof".to_string()))?;
         Ok(())
+    }
+
+    pub fn set_sender_proof_set(&mut self, sender_proof_set: SenderProofSet) {
+        self.sender_proof_set = Some(sender_proof_set);
     }
 }

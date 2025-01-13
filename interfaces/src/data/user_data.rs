@@ -144,7 +144,7 @@ impl Balances {
 
     /// Update the balance with the tx data
     /// Returns whether the tx will case insufficient balance
-    pub fn sub_tx<F, C, const D: usize>(&mut self, tx_data: &TxData) -> bool {
+    pub fn sub_tx(&mut self, tx_data: &TxData) -> bool {
         let transfers = &tx_data.spent_witness.transfers;
         let mut is_insufficient = false;
         for transfer in transfers.iter() {

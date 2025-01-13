@@ -22,6 +22,13 @@ pub struct Auth {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WithAuth<T> {
+    pub inner: T,
+    pub auth: Auth,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SignContent {
     pub pubkey: U256,
     pub content: Vec<u8>,
@@ -60,6 +67,19 @@ impl Auth {
         let digest = sha2::Sha256::digest(&serialized);
         let hash = Bytes32::from_bytes_be(&digest);
         verify_signature(self.signature.clone(), self.pubkey, hash)
+    }
+}
+
+pub trait Signable: Sized {
+    fn content(&self) -> Vec<u8>;
+
+    fn sign(self, key: KeySet, time_to_expiry: u64) -> WithAuth<Self> {
+        let auth = Auth::sign(key, time_to_expiry, &self.content());
+        WithAuth { inner: self, auth }
+    }
+
+    fn verify(&self, auth: &Auth) -> anyhow::Result<()> {
+        auth.verify(&self.content())
     }
 }
 

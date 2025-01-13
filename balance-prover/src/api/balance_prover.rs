@@ -1,5 +1,4 @@
-use intmax2_client_sdk::utils::circuit_verifiers::CircuitVerifiers;
-
+use intmax2_interfaces::utils::circuit_verifiers::CircuitVerifiers;
 use intmax2_zkp::{
     circuits::withdrawal::single_withdrawal_circuit::SingleWithdrawalCircuit,
     common::witness::{

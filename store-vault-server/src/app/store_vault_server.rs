@@ -220,13 +220,13 @@ impl StoreVaultServer {
         let result = records
             .into_iter()
             .map(|r| {
-                let meta_data = MetaData {
+                let meta = MetaData {
                     uuid: r.uuid,
                     timestamp: r.timestamp as u64,
                     block_number: None,
                 };
                 DataWithMetaData {
-                    meta_data,
+                    meta,
                     data: r.encrypted_data,
                 }
             })

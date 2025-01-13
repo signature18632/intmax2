@@ -1,16 +1,17 @@
 [workspace]
 members = [
-    "cli",
+    # "cli",
     "client-sdk",
     "interfaces",
-    "wasm",
+    # "wasm",
     "balance-prover",
     "store-vault-server",
     "validity-prover",
     "block-builder",
     "withdrawal-server",
     "tests",
-    "server-common", "validity-prover-worker",
+    "validity-prover-worker",
+    "server-common",
 ]
 resolver = "2"
 

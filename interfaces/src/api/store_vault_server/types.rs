@@ -1,5 +1,5 @@
 use super::interface::{DataType, SaveDataEntry};
-use crate::{data::meta_data::MetaData, utils::signature::Auth};
+use crate::{data::meta_data::MetaData, utils::signature::Signable};
 use intmax2_zkp::ethereum_types::bytes32::Bytes32;
 use serde::{Deserialize, Serialize};
 use serde_with::{base64::Base64, serde_as};
@@ -11,23 +11,20 @@ pub struct SaveUserDataRequest {
     #[serde_as(as = "Base64")]
     pub data: Vec<u8>,
     pub prev_digest: Option<Bytes32>,
-    pub auth: Auth,
 }
 
-impl SaveUserDataRequest {
-    pub fn content(&self) -> Vec<u8> {
+impl Signable for SaveUserDataRequest {
+    fn content(&self) -> Vec<u8> {
         bincode::serialize(&(self.data.clone(), self.prev_digest)).unwrap()
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetUserDataRequest {
-    pub auth: Auth,
-}
+pub struct GetUserDataRequest;
 
-impl GetUserDataRequest {
-    pub fn content(&self) -> Vec<u8> {
+impl Signable for GetUserDataRequest {
+    fn content(&self) -> Vec<u8> {
         vec![]
     }
 }
@@ -46,23 +43,20 @@ pub struct GetUserDataResponse {
 pub struct SaveSenderProofSetRequest {
     #[serde_as(as = "Base64")]
     pub data: Vec<u8>,
-    pub auth: Auth,
 }
 
-impl SaveSenderProofSetRequest {
-    pub fn content(&self) -> Vec<u8> {
+impl Signable for SaveSenderProofSetRequest {
+    fn content(&self) -> Vec<u8> {
         bincode::serialize(&self.data).unwrap()
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetSenderProofSetRequest {
-    pub auth: Auth,
-}
+pub struct GetSenderProofSetRequest;
 
-impl GetSenderProofSetRequest {
-    pub fn content(&self) -> Vec<u8> {
+impl Signable for GetSenderProofSetRequest {
+    fn content(&self) -> Vec<u8> {
         vec![]
     }
 }
@@ -77,20 +71,19 @@ pub struct GetSenderProofSetResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BatchSaveDataRequest {
+pub struct SaveDataBatchRequest {
     pub data: Vec<SaveDataEntry>,
-    pub auth: Auth,
 }
 
-impl BatchSaveDataRequest {
-    pub fn content(&self) -> Vec<u8> {
+impl Signable for SaveDataBatchRequest {
+    fn content(&self) -> Vec<u8> {
         bincode::serialize(&self.data).unwrap()
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BatchSaveDataResponse {
+pub struct SaveDataBatchResponse {
     pub uuids: Vec<String>,
 }
 
@@ -99,11 +92,10 @@ pub struct BatchSaveDataResponse {
 pub struct GetDataAllAfterRequest {
     pub data_type: DataType,
     pub timestamp: u64,
-    pub auth: Auth,
 }
 
-impl GetDataAllAfterRequest {
-    pub fn content(&self) -> Vec<u8> {
+impl Signable for GetDataAllAfterRequest {
+    fn content(&self) -> Vec<u8> {
         bincode::serialize(&(self.data_type, self.timestamp)).unwrap()
     }
 }
@@ -118,7 +110,7 @@ pub struct GetDataAllAfterResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DataWithMetaData {
-    pub meta_data: MetaData,
+    pub meta: MetaData,
     #[serde_as(as = "Base64")]
     pub data: Vec<u8>,
 }
