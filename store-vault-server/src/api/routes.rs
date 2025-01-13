@@ -5,21 +5,26 @@ use actix_web::{
     web::{Data, Json},
     Error,
 };
-use intmax2_interfaces::api::store_vault_server::types::{
-    BatchSaveDataRequest, BatchSaveDataResponse, GetDataAllAfterRequest, GetDataAllAfterResponse,
-    GetSenderProofSetRequest, GetSenderProofSetResponse, GetUserDataRequest, GetUserDataResponse,
-    SaveSenderProofSetRequest, SaveUserDataRequest,
+use intmax2_interfaces::{
+    api::store_vault_server::types::{
+        BatchSaveDataRequest, BatchSaveDataResponse, GetDataAllAfterRequest,
+        GetDataAllAfterResponse, GetSenderProofSetRequest, GetSenderProofSetResponse,
+        GetUserDataRequest, GetUserDataResponse, SaveSenderProofSetRequest, SaveUserDataRequest,
+        WithAuth,
+    },
+    utils::signature::Signable,
 };
 
 #[post("/save-user-data")]
 pub async fn save_user_data(
     state: Data<State>,
-    request: Json<SaveUserDataRequest>,
+    request: Json<WithAuth<SaveUserDataRequest>>,
 ) -> Result<Json<()>, Error> {
     request
-        .auth
-        .verify(&request.content())
+        .inner
+        .verify(&request.auth)
         .map_err(ErrorUnauthorized)?;
+    let request = &request.inner;
     state
         .store_vault_server
         .save_user_data(request.auth.pubkey, request.prev_digest, &request.data)
@@ -31,12 +36,13 @@ pub async fn save_user_data(
 #[post("/get-user-data")]
 pub async fn get_user_data(
     state: Data<State>,
-    request: Json<GetUserDataRequest>,
+    request: Json<WithAuth<GetUserDataRequest>>,
 ) -> Result<Json<GetUserDataResponse>, Error> {
     request
-        .auth
-        .verify(&request.content())
+        .inner
+        .verify(&request.auth)
         .map_err(ErrorUnauthorized)?;
+    let request = &request.inner;
     let data = state
         .store_vault_server
         .get_user_data(request.auth.pubkey)
@@ -48,12 +54,13 @@ pub async fn get_user_data(
 #[post("/save-sender-proof-set")]
 pub async fn save_sender_proof_set(
     state: Data<State>,
-    request: Json<SaveSenderProofSetRequest>,
+    request: Json<WithAuth<SaveSenderProofSetRequest>>,
 ) -> Result<Json<()>, Error> {
     request
-        .auth
-        .verify(&request.content())
+        .inner
+        .verify(&request.auth)
         .map_err(ErrorUnauthorized)?;
+    let request = &request.inner;
     state
         .store_vault_server
         .save_sender_proof_set(request.auth.pubkey, &request.data)
@@ -65,12 +72,13 @@ pub async fn save_sender_proof_set(
 #[post("/get-sender-proof-set")]
 pub async fn get_sender_proof_set(
     state: Data<State>,
-    request: Json<GetSenderProofSetRequest>,
+    request: Json<WithAuth<GetSenderProofSetRequest>>,
 ) -> Result<Json<GetSenderProofSetResponse>, Error> {
     request
-        .auth
-        .verify(&request.content())
+        .inner
+        .verify(&request.auth)
         .map_err(ErrorUnauthorized)?;
+    let request = &request.inner;
     let data = state
         .store_vault_server
         .get_sender_proof_set(request.auth.pubkey)
@@ -82,8 +90,14 @@ pub async fn get_sender_proof_set(
 #[post("/batch-save")]
 pub async fn batch_save_data(
     state: Data<State>,
-    request: Json<BatchSaveDataRequest>,
+    request: Json<WithAuth<BatchSaveDataRequest>>,
 ) -> Result<Json<BatchSaveDataResponse>, Error> {
+    request
+        .inner
+        .verify(&request.auth)
+        .map_err(ErrorUnauthorized)?;
+    let request = &request.inner;
+
     const MAX_BATCH_SIZE: usize = 1000;
     if request.data.len() > MAX_BATCH_SIZE {
         return Err(actix_web::error::ErrorBadRequest(format!(
@@ -91,10 +105,6 @@ pub async fn batch_save_data(
             MAX_BATCH_SIZE
         )));
     }
-    request
-        .auth
-        .verify(&request.content())
-        .map_err(ErrorUnauthorized)?;
     let pubkey = request.auth.pubkey;
     for entry in &request.data {
         if entry.data_type.need_auth() {
@@ -117,12 +127,13 @@ pub async fn batch_save_data(
 #[post("/get-all-after")]
 pub async fn get_data_all_after(
     state: Data<State>,
-    request: Json<GetDataAllAfterRequest>,
+    request: Json<WithAuth<GetDataAllAfterRequest>>,
 ) -> Result<Json<GetDataAllAfterResponse>, Error> {
     request
-        .auth
-        .verify(&request.content())
+        .inner
+        .verify(&request.auth)
         .map_err(ErrorUnauthorized)?;
+    let request = &request.inner;
     let data = state
         .store_vault_server
         .get_data_all_after(request.data_type, request.auth.pubkey, request.timestamp)
