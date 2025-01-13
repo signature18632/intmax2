@@ -27,7 +27,6 @@ use intmax2_zkp::{
         },
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
-    utils::leafable::Leafable,
 };
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
