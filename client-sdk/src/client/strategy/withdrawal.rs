@@ -1,15 +1,14 @@
 use intmax2_interfaces::{
     api::{
-        store_vault_server::interface::{DataType, StoreVaultClientInterface},
+        store_vault_server::{
+            interface::{DataType, StoreVaultClientInterface},
+            types::DataWithMetaData,
+        },
         validity_prover::interface::ValidityProverClientInterface,
     },
     data::{meta_data::MetaData, transfer_data::TransferData},
 };
-use plonky2::{
-    field::{extension::Extendable, goldilocks_field::GoldilocksField},
-    hash::hash_types::RichField,
-    plonk::config::{GenericConfig, PoseidonGoldilocksConfig},
-};
+use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 
 use intmax2_zkp::common::signature::key_set::KeySet;
 
@@ -20,14 +19,10 @@ type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
 #[derive(Debug, Clone)]
-pub struct WithdrawalInfo<F, C, const D: usize>
-where
-    F: RichField + Extendable<D>,
-    C: GenericConfig<D, F = F>,
-{
-    pub settled: Vec<(MetaData, TransferData<F, C, D>)>,
-    pub pending: Vec<(MetaData, TransferData<F, C, D>)>,
-    pub timeout: Vec<(MetaData, TransferData<F, C, D>)>,
+pub struct WithdrawalInfo {
+    pub settled: Vec<(MetaData, TransferData)>,
+    pub pending: Vec<(MetaData, TransferData)>,
+    pub timeout: Vec<(MetaData, TransferData)>,
 }
 
 pub async fn fetch_withdrawal_info<
@@ -40,7 +35,7 @@ pub async fn fetch_withdrawal_info<
     withdrawal_lpt: u64,
     processed_withdrawal_uuids: &[String],
     tx_timeout: u64,
-) -> Result<WithdrawalInfo<F, C, D>, StrategyError> {
+) -> Result<WithdrawalInfo, StrategyError> {
     let mut settled = Vec::new();
     let mut pending = Vec::new();
     let mut timeout = Vec::new();
@@ -48,14 +43,14 @@ pub async fn fetch_withdrawal_info<
     let encrypted_data = store_vault_server
         .get_data_all_after(DataType::Withdrawal, key, withdrawal_lpt)
         .await?;
-    for (meta, encrypted_data) in encrypted_data {
+    for DataWithMetaData { meta, data } in encrypted_data {
         if processed_withdrawal_uuids.contains(&meta.uuid) {
             log::info!("Withdrawal {} is already processed", meta.uuid);
             continue;
         }
-        match TransferData::decrypt(&encrypted_data, key) {
+        match TransferData::decrypt(&data, key) {
             Ok(transfer_data) => {
-                let tx_tree_root = transfer_data.tx_data.tx_tree_root;
+                let tx_tree_root = transfer_data.tx_tree_root;
                 let block_number = validity_prover
                     .get_block_number_by_tx_tree_root(tx_tree_root)
                     .await?;

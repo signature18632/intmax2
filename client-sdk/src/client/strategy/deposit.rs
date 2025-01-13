@@ -1,6 +1,9 @@
 use intmax2_interfaces::{
     api::{
-        store_vault_server::interface::{DataType, StoreVaultClientInterface},
+        store_vault_server::{
+            interface::{DataType, StoreVaultClientInterface},
+            types::DataWithMetaData,
+        },
         validity_prover::interface::ValidityProverClientInterface,
     },
     data::{deposit_data::DepositData, meta_data::MetaData},
@@ -31,15 +34,15 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
     let mut pending = Vec::new();
     let mut timeout = Vec::new();
 
-    let encrypted_data = store_vault_server
+    let data_with_meta = store_vault_server
         .get_data_all_after(DataType::Deposit, key, deposit_lpt)
         .await?;
-    for (meta, encrypted_data) in encrypted_data {
+    for DataWithMetaData { meta, data } in data_with_meta {
         if processed_deposit_uuids.contains(&meta.uuid) {
             log::info!("Deposit {} is already processed", meta.uuid);
             continue;
         }
-        match DepositData::decrypt(&encrypted_data, key) {
+        match DepositData::decrypt(&data, key) {
             Ok(deposit_data) => {
                 let token_index = liquidity_contract
                     .get_token_index(
