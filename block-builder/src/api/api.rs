@@ -12,16 +12,6 @@ use serde_qs::actix::QsQuery;
 
 use crate::api::state::State;
 
-// todo: remove in production
-#[post("/post-empty-block")]
-pub async fn post_empty_block(state: Data<State>) -> Result<Json<()>, Error> {
-    state
-        .evoke_force_post()
-        .await
-        .map_err(actix_web::error::ErrorInternalServerError)?;
-    Ok(Json(()))
-}
-
 #[get("/status")]
 pub async fn get_status(
     state: Data<State>,
@@ -87,7 +77,6 @@ pub async fn post_signature(
 
 pub fn block_builder_scope() -> actix_web::Scope {
     actix_web::web::scope("/block-builder")
-        .service(post_empty_block)
         .service(get_status)
         .service(tx_request)
         .service(query_proposal)
