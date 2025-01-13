@@ -3,7 +3,7 @@ members = [
     "cli",
     "client-sdk",
     "interfaces",
-    "wasm",
+    # "wasm",
     "balance-prover",
     "store-vault-server",
     "validity-prover",

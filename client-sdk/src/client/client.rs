@@ -36,7 +36,10 @@ use crate::{
 };
 
 use super::{
-    config::ClientConfig, error::ClientError, history::{fetch_history, HistoryEntry}, sync::{balance_logic::generate_spent_witness, utils::get_balance_proof}
+    config::ClientConfig,
+    error::ClientError,
+    history::{fetch_history, HistoryEntry},
+    sync::{balance_logic::generate_spent_witness, utils::get_balance_proof},
 };
 
 pub struct Client<
@@ -135,7 +138,7 @@ where
             .save_data_batch(ephemeral_key, &[save_entry])
             .await?;
         let deposit_uuid = uuids
-            .get(0)
+            .first()
             .ok_or(ClientError::UnexpectedError(
                 "deposit_uuid not found".to_string(),
             ))?

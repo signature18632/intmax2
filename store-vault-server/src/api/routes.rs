@@ -88,7 +88,7 @@ pub async fn get_sender_proof_set(
     Ok(Json(GetSenderProofSetResponse { data }))
 }
 
-#[post("/batch-save")]
+#[post("/save-data-batch")]
 pub async fn batch_save_data(
     state: Data<State>,
     request: Json<WithAuth<SaveDataBatchRequest>>,
@@ -109,13 +109,11 @@ pub async fn batch_save_data(
     }
 
     for entry in entries {
-        if entry.data_type.need_auth() {
-            if entry.pubkey != pubkey {
-                return Err(ErrorUnauthorized(format!(
-                    "Data type {:?} requires auth but given pubkey is different",
-                    entry.data_type,
-                )));
-            }
+        if entry.data_type.need_auth() && entry.pubkey != pubkey {
+            return Err(ErrorUnauthorized(format!(
+                "Data type {:?} requires auth but given pubkey is different",
+                entry.data_type,
+            )));
         }
     }
     let uuids = state
@@ -126,7 +124,7 @@ pub async fn batch_save_data(
     Ok(Json(SaveDataBatchResponse { uuids }))
 }
 
-#[post("/get-all-after")]
+#[post("/get-data-all-after")]
 pub async fn get_data_all_after(
     state: Data<State>,
     request: Json<WithAuth<GetDataAllAfterRequest>>,

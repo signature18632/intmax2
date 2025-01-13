@@ -81,16 +81,17 @@ impl StoreVaultServer {
         }
         let pubkey_hex = pubkey.to_hex();
         let digest = get_digest(encrypted_data);
-        let digest_serialized = bincode::serialize(&digest).unwrap();
+        let digest_serialized = digest.to_bytes_be();
         sqlx::query!(
             r#"
-            INSERT INTO encrypted_user_data (pubkey, encrypted_data, digest)
-            VALUES ($1, $2, $3)
+            INSERT INTO encrypted_user_data (pubkey, encrypted_data, digest, timestamp)
+            VALUES ($1, $2, $3, $4)
             ON CONFLICT (pubkey) DO UPDATE SET encrypted_data = EXCLUDED.encrypted_data
             "#,
             pubkey_hex,
             encrypted_data,
-            digest_serialized
+            digest_serialized,
+            chrono::Utc::now().timestamp() as i64
         )
         .execute(tx.as_mut())
         .await?;
@@ -167,7 +168,7 @@ impl StoreVaultServer {
             .collect();
         let timestamps: Vec<i64> = vec![chrono::Utc::now().timestamp(); entries.len()];
         let encrypted_data: Vec<Vec<u8>> = entries
-            .into_iter()
+            .iter()
             .map(|entry| entry.encrypted_data.clone())
             .collect();
 
