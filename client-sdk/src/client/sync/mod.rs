@@ -26,16 +26,11 @@ use intmax2_zkp::{
     ethereum_types::bytes32::Bytes32,
 };
 
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
-use utils::generate_salt;
+use utils::{generate_salt, get_balance_proof};
 
 pub mod balance_logic;
 pub mod error;
 pub mod utils;
-
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
 
 use crate::client::strategy::strategy::ReceiveAction;
 
@@ -157,11 +152,7 @@ where
         }
         let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
         // user's balance proof before applying the tx
-        let prev_balance_proof = user_data
-            .balance_proof
-            .as_ref()
-            .map(|bp| bp.decompress())
-            .transpose()?;
+        let prev_balance_proof = get_balance_proof(&user_data)?;
         let new_salt = generate_salt();
         let new_balance_proof = receive_deposit(
             &self.validity_prover,
@@ -206,11 +197,7 @@ where
         }
         let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
         // user's balance proof before applying the tx
-        let prev_balance_proof = user_data
-            .balance_proof
-            .as_ref()
-            .map(|bp| bp.decompress())
-            .transpose()?;
+        let prev_balance_proof = get_balance_proof(&user_data)?;
 
         // sender balance proof after applying the tx
         let new_sender_balance_proof = match update_send_by_receiver(
@@ -375,11 +362,7 @@ where
             ));
         }
         let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
-        let prev_balance_proof = user_data
-            .balance_proof
-            .as_ref()
-            .map(|bp| bp.decompress())
-            .transpose()?;
+        let prev_balance_proof = get_balance_proof(&user_data)?;
         let balance_proof = update_send_by_sender(
             &self.validity_prover,
             &self.balance_prover,
@@ -425,11 +408,7 @@ where
             user_data.block_number()?,
             to_block_number
         );
-        let prev_balance_proof = user_data
-            .balance_proof
-            .as_ref()
-            .map(|bp| bp.decompress())
-            .transpose()?;
+        let prev_balance_proof = get_balance_proof(&user_data)?;
         let new_balance_proof = update_no_send(
             &self.validity_prover,
             &self.balance_prover,

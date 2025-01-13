@@ -8,15 +8,8 @@ use intmax2_interfaces::{
     },
     data::{meta_data::MetaData, transfer_data::TransferData},
 };
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
-
 use intmax2_zkp::common::signature::key_set::KeySet;
-
 use super::error::StrategyError;
-
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
 
 #[derive(Debug, Clone)]
 pub struct WithdrawalInfo {

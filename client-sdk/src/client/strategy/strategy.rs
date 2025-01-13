@@ -12,7 +12,6 @@ use intmax2_interfaces::{
     },
 };
 use itertools::Itertools;
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 
 use intmax2_zkp::common::signature::key_set::KeySet;
 
@@ -25,10 +24,6 @@ use super::{
     deposit::fetch_deposit_info, error::StrategyError, transfer::fetch_transfer_info,
     tx::fetch_tx_info,
 };
-
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
 
 // Next sync action
 #[derive(Debug, Clone)]

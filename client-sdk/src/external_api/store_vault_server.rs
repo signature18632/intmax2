@@ -15,15 +15,10 @@ use intmax2_interfaces::{
     utils::signature::Signable,
 };
 use intmax2_zkp::{common::signature::key_set::KeySet, ethereum_types::bytes32::Bytes32};
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 
 use super::utils::query::post_request;
 
 const TIME_TO_EXPIRY: u64 = 60; // 1 minute
-
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
 
 #[derive(Debug, Clone)]
 pub struct StoreVaultServerClient {

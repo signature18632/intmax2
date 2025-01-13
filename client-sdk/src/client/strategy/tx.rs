@@ -9,13 +9,7 @@ use intmax2_interfaces::{
     data::{meta_data::MetaData, tx_data::TxData},
 };
 use intmax2_zkp::common::signature::key_set::KeySet;
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
-
 use super::error::StrategyError;
-
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
 
 #[derive(Debug, Clone)]
 pub struct TxInfo {
