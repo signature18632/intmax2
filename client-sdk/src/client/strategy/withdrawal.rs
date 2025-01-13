@@ -1,3 +1,4 @@
+use super::error::StrategyError;
 use intmax2_interfaces::{
     api::{
         store_vault_server::{
@@ -9,7 +10,6 @@ use intmax2_interfaces::{
     data::{meta_data::MetaData, transfer_data::TransferData},
 };
 use intmax2_zkp::common::signature::key_set::KeySet;
-use super::error::StrategyError;
 
 #[derive(Debug, Clone)]
 pub struct WithdrawalInfo {

@@ -1,7 +1,9 @@
-use crate::api::{encode::encode_plonky2_proof, status::SqlWithdrawalStatus};
-
 use super::error::WithdrawalServerError;
-use intmax2_interfaces::{api::withdrawal_server::interface::{ContractWithdrawal, WithdrawalInfo}, utils::circuit_verifiers::CircuitVerifiers};
+use crate::api::{encode::encode_plonky2_proof, status::SqlWithdrawalStatus};
+use intmax2_interfaces::{
+    api::withdrawal_server::interface::{ContractWithdrawal, WithdrawalInfo},
+    utils::circuit_verifiers::CircuitVerifiers,
+};
 use intmax2_zkp::{
     common::{signature::flatten::FlatG2, withdrawal::Withdrawal},
     ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
