@@ -12,23 +12,21 @@ use intmax2_interfaces::{
         withdrawal_server::interface::WithdrawalServerClientInterface,
     },
     data::{
-        common_tx_data::CommonTxData, deposit_data::DepositData, meta_data::MetaData,
+        deposit_data::DepositData, meta_data::MetaData, proof_compression::CompressedBalanceProof,
         transfer_data::TransferData, tx_data::TxData, user_data::UserData,
     },
+    utils::digest::get_digest,
 };
 use intmax2_zkp::{
-    circuits::balance::{balance_pis::BalancePublicInputs, send::spent_circuit::SpentPublicInputs},
+    circuits::balance::balance_pis::BalancePublicInputs,
     common::{
         signature::key_set::KeySet,
         witness::{transfer_witness::TransferWitness, withdrawal_witness::WithdrawalWitness},
     },
-    ethereum_types::u256::U256,
+    ethereum_types::bytes32::Bytes32,
 };
 
-use plonky2::{
-    field::goldilocks_field::GoldilocksField,
-    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
-};
+use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use utils::generate_salt;
 
 pub mod balance_logic;
@@ -55,16 +53,20 @@ where
     W: WithdrawalServerClientInterface,
 {
     /// Get the latest user data from the data store server
-    pub async fn get_user_data(&self, key: KeySet) -> Result<UserData, SyncError> {
-        let user_data = self
-            .store_vault_server
-            .get_user_data(key)
-            .await?
+    pub async fn get_user_data_and_digest(
+        &self,
+        key: KeySet,
+    ) -> Result<(UserData, Option<Bytes32>), SyncError> {
+        let encrypted_data = self.store_vault_server.get_user_data(key).await?;
+        let digest = encrypted_data
+            .as_ref()
+            .map(|encrypted| get_digest(encrypted));
+        let user_data = encrypted_data
             .map(|encrypted| UserData::decrypt(&encrypted, key))
             .transpose()
             .map_err(|e| SyncError::DecryptionError(format!("failed to decrypt user data: {}", e)))?
             .unwrap_or(UserData::new(key.pubkey));
-        Ok(user_data)
+        Ok((user_data, digest))
     }
 
     /// Sync the client's balance proof with the latest block
@@ -153,18 +155,13 @@ where
         if meta.block_number.is_none() {
             return Err(SyncError::BlockNumberIsNotSetForMetaData);
         }
-        let mut user_data = self.get_user_data(key).await?;
-
+        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
         // user's balance proof before applying the tx
-        let prev_balance_proof = self
-            .store_vault_server
-            .get_balance_proof(
-                key.pubkey,
-                user_data.block_number,
-                user_data.private_commitment(),
-            )
-            .await?;
-
+        let prev_balance_proof = user_data
+            .balance_proof
+            .as_ref()
+            .map(|bp| bp.decompress())
+            .transpose()?;
         let new_salt = generate_salt();
         let new_balance_proof = receive_deposit(
             &self.validity_prover,
@@ -176,34 +173,21 @@ where
             deposit_data,
         )
         .await?;
-
-        let new_block_number = meta.block_number.unwrap().max(user_data.block_number);
+        // validation
         let new_balance_pis = BalancePublicInputs::from_pis(&new_balance_proof.public_inputs);
-        if new_balance_pis.public_state.block_number != new_block_number {
-            return Err(SyncError::BalanceProofBlockNumberMismatch {
-                balance_proof_block_number: new_balance_pis.public_state.block_number,
-                block_number: new_block_number,
-            });
-        }
-
-        // update user data
-        user_data.block_number = new_block_number;
-        user_data.processed_deposit_uuids.push(meta.uuid.clone());
-
         if new_balance_pis.private_commitment != user_data.private_commitment() {
             return Err(SyncError::InternalError(
                 "private commitment mismatch".to_string(),
             ));
         }
-
-        // save proof and user data
+        let new_balance_proof = CompressedBalanceProof::new(&new_balance_proof)?;
+        // update user data
+        user_data.balance_proof = Some(new_balance_proof);
+        user_data.processed_deposit_uuids.push(meta.uuid.clone());
+        // save user data
         self.store_vault_server
-            .save_balance_proof(key.pubkey, &new_balance_proof)
+            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
             .await?;
-        self.store_vault_server
-            .save_user_data(key, user_data.encrypt(key.pubkey))
-            .await?;
-
         Ok(())
     }
 
@@ -212,7 +196,7 @@ where
         &self,
         key: KeySet,
         meta: &MetaData,
-        transfer_data: &TransferData<F, C, D>,
+        transfer_data: &TransferData,
     ) -> Result<(), SyncError> {
         log::info!("sync_transfer: {:?}", meta);
         if meta.block_number.is_none() {
@@ -220,26 +204,24 @@ where
                 "block number is not set".to_string(),
             ));
         }
-        let mut user_data = self.get_user_data(key).await?;
+        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
         // user's balance proof before applying the tx
-        let prev_balance_proof = self
-            .store_vault_server
-            .get_balance_proof(
-                key.pubkey,
-                user_data.block_number,
-                user_data.private_commitment(),
-            )
-            .await?;
+        let prev_balance_proof = user_data
+            .balance_proof
+            .as_ref()
+            .map(|bp| bp.decompress())
+            .transpose()?;
 
         // sender balance proof after applying the tx
-        let new_sender_balance_proof = match self
-            .update_send_by_receiver(
-                key,
-                transfer_data.sender,
-                meta.block_number.unwrap(),
-                &transfer_data.tx_data,
-            )
-            .await
+        let new_sender_balance_proof = match update_send_by_receiver(
+            &self.validity_prover,
+            &self.balance_prover,
+            key,
+            transfer_data.sender,
+            meta.block_number.unwrap(),
+            transfer_data,
+        )
+        .await
         {
             Ok(proof) => proof,
             Err(SyncError::InvalidTransferError(e)) => {
@@ -265,32 +247,21 @@ where
             transfer_data,
         )
         .await?;
-
-        let new_block_number = meta.block_number.unwrap().max(user_data.block_number);
         let new_balance_pis = BalancePublicInputs::from_pis(&new_balance_proof.public_inputs);
-        if new_balance_pis.public_state.block_number != new_block_number {
-            return Err(SyncError::BalanceProofBlockNumberMismatch {
-                balance_proof_block_number: new_balance_pis.public_state.block_number,
-                block_number: new_block_number,
-            });
-        }
-
-        // update user data
-        user_data.block_number = new_block_number;
-        user_data.processed_transfer_uuids.push(meta.uuid.clone());
-
         if new_balance_pis.private_commitment != user_data.private_commitment() {
             return Err(SyncError::InternalError(
                 "private commitment mismatch".to_string(),
             ));
         }
 
+        // update user data
+        let balance_proof = CompressedBalanceProof::new(&new_balance_proof)?;
+        user_data.balance_proof = Some(balance_proof);
+        user_data.processed_transfer_uuids.push(meta.uuid.clone());
+
         // save proof and user data
         self.store_vault_server
-            .save_balance_proof(key.pubkey, &new_balance_proof)
-            .await?;
-        self.store_vault_server
-            .save_user_data(key, user_data.encrypt(key.pubkey))
+            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
             .await?;
 
         Ok(())
@@ -300,7 +271,7 @@ where
         &self,
         key: KeySet,
         meta: &MetaData,
-        withdrawal_data: &TransferData<F, C, D>,
+        withdrawal_data: &TransferData,
     ) -> Result<(), SyncError> {
         log::info!("sync_withdrawal: {:?}", meta);
         if meta.block_number.is_none() {
@@ -310,14 +281,15 @@ where
         }
 
         // sender balance proof after applying the tx
-        let balance_proof = match self
-            .update_send_by_receiver(
-                key,
-                key.pubkey,
-                meta.block_number.unwrap(),
-                &withdrawal_data.tx_data,
-            )
-            .await
+        let balance_proof = match update_send_by_receiver(
+            &self.validity_prover,
+            &self.balance_prover,
+            key,
+            key.pubkey,
+            meta.block_number.unwrap(),
+            withdrawal_data,
+        )
+        .await
         {
             Ok(proof) => proof,
             Err(SyncError::InvalidTransferError(e)) => {
@@ -336,7 +308,7 @@ where
                 transfer: withdrawal_data.transfer,
                 transfer_index: withdrawal_data.transfer_index,
                 transfer_merkle_proof: withdrawal_data.transfer_merkle_proof.clone(),
-                tx: withdrawal_data.tx_data.tx,
+                tx: withdrawal_data.tx,
             },
             balance_proof,
         };
@@ -351,10 +323,10 @@ where
             .await?;
 
         // update user data
-        let mut user_data = self.get_user_data(key).await?;
+        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
         user_data.processed_withdrawal_uuids.push(meta.uuid.clone());
         self.store_vault_server
-            .save_user_data(key, user_data.encrypt(key.pubkey))
+            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
             .await?;
 
         Ok(())
@@ -362,30 +334,30 @@ where
 
     async fn update_deposit_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), SyncError> {
         log::info!("update_deposit_lpt: {:?}", timestamp);
-        let mut user_data = self.get_user_data(key).await?;
+        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
         user_data.deposit_lpt = timestamp;
         self.store_vault_server
-            .save_user_data(key, user_data.encrypt(key.pubkey))
+            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
             .await?;
         Ok(())
     }
 
     async fn update_transfer_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), SyncError> {
         log::info!("update_transfer_lpt: {:?}", timestamp);
-        let mut user_data = self.get_user_data(key).await?;
+        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
         user_data.transfer_lpt = timestamp;
         self.store_vault_server
-            .save_user_data(key, user_data.encrypt(key.pubkey))
+            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
             .await?;
         Ok(())
     }
 
     async fn update_withdrawal_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), SyncError> {
         log::info!("update_withdrawal_lpt: {:?}", timestamp);
-        let mut user_data = self.get_user_data(key).await?;
+        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
         user_data.withdrawal_lpt = timestamp;
         self.store_vault_server
-            .save_user_data(key, user_data.encrypt(key.pubkey))
+            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
             .await?;
         Ok(())
     }
@@ -394,7 +366,7 @@ where
         &self,
         key: KeySet,
         meta: &MetaData,
-        tx_data: &TxData<F, C, D>,
+        tx_data: &TxData,
     ) -> Result<(), SyncError> {
         log::info!("sync_tx: {:?}", meta);
         if meta.block_number.is_none() {
@@ -402,15 +374,12 @@ where
                 "block number is not set".to_string(),
             ));
         }
-        let mut user_data = self.get_user_data(key).await?;
-        let prev_balance_proof = self
-            .store_vault_server
-            .get_balance_proof(
-                key.pubkey,
-                user_data.block_number,
-                user_data.private_commitment(),
-            )
-            .await?;
+        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
+        let prev_balance_proof = user_data
+            .balance_proof
+            .as_ref()
+            .map(|bp| bp.decompress())
+            .transpose()?;
         let balance_proof = update_send_by_sender(
             &self.validity_prover,
             &self.balance_prover,
@@ -422,111 +391,45 @@ where
         )
         .await?;
         let balance_pis = BalancePublicInputs::from_pis(&balance_proof.public_inputs);
+        // validation
         if balance_pis.public_state.block_number != meta.block_number.unwrap() {
             return Err(SyncError::BalanceProofBlockNumberMismatch {
                 balance_proof_block_number: balance_pis.public_state.block_number,
                 block_number: meta.block_number.unwrap(),
             });
         }
-
-        // update user data
-        user_data.block_number = meta.block_number.unwrap();
-        user_data.tx_lpt = meta.timestamp;
-        user_data.processed_tx_uuids.push(meta.uuid.clone());
-
-        // validation
         if balance_pis.private_commitment != user_data.private_commitment() {
             return Err(SyncError::InternalError(
                 "private commitment mismatch".to_string(),
             ));
         }
 
-        // save balance proof
-        self.store_vault_server
-            .save_balance_proof(key.pubkey, &balance_proof)
-            .await?;
+        // update user data
+        let balance_proof = CompressedBalanceProof::new(&balance_proof)?;
+        user_data.balance_proof = Some(balance_proof);
+        user_data.tx_lpt = meta.timestamp;
+        user_data.processed_tx_uuids.push(meta.uuid.clone());
+
         // save user data
         self.store_vault_server
-            .save_user_data(key, user_data.encrypt(key.pubkey))
+            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
             .await?;
         Ok(())
     }
 
-    // generate sender's balance proof after applying the tx
-    // save the proof to the data store server
-    async fn update_send_by_receiver(
-        &self,
-        key: KeySet,
-        sender: U256,
-        block_number: u32,
-        common_tx_data: &CommonTxData<F, C, D>,
-    ) -> Result<ProofWithPublicInputs<F, C, D>, SyncError> {
-        log::info!(
-            "update_send_by_receiver: sender {}, block_number {}",
-            sender,
-            block_number
-        );
-        let spent_proof_pis =
-            SpentPublicInputs::from_pis(&common_tx_data.spent_proof.public_inputs);
-
-        let new_sender_balance_proof = self
-            .store_vault_server
-            .get_balance_proof(sender, block_number, spent_proof_pis.new_private_commitment)
-            .await?;
-        if let Some(proof) = new_sender_balance_proof {
-            // already updated
-            return Ok(proof);
-        }
-
-        let prev_sender_balance_proof = self
-            .store_vault_server
-            .get_balance_proof(
-                sender,
-                common_tx_data.sender_prev_block_number,
-                spent_proof_pis.prev_private_commitment,
-            )
-            .await?
-            .ok_or(SyncError::InvalidTransferError(
-                "sender prev balance proof not found".to_string(),
-            ))?;
-        let new_sender_balance_proof = update_send_by_receiver(
-            &self.validity_prover,
-            &self.balance_prover,
-            key,
-            sender,
-            &prev_sender_balance_proof,
-            block_number,
-            common_tx_data,
-        )
-        .await?;
-
-        // save sender's balance proof
-        self.store_vault_server
-            .save_balance_proof(sender, &new_sender_balance_proof)
-            .await?;
-
-        Ok(new_sender_balance_proof)
-    }
-
     async fn update_no_send(&self, key: KeySet, to_block_number: u32) -> Result<(), SyncError> {
         log::info!("update_no_send: {:?}", to_block_number);
-        let mut user_data = self.get_user_data(key).await?;
+        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
         log::info!(
             "update_no_send: user_data.block_number {},  to_block_number {}",
-            user_data.block_number,
+            user_data.block_number()?,
             to_block_number
         );
-        let prev_balance_proof = self
-            .store_vault_server
-            .get_balance_proof(
-                key.pubkey,
-                user_data.block_number,
-                user_data.private_commitment(),
-            )
-            .await?;
-        if user_data.block_number != 0 && prev_balance_proof.is_none() {
-            return Err(SyncError::BalanceProofNotFound);
-        }
+        let prev_balance_proof = user_data
+            .balance_proof
+            .as_ref()
+            .map(|bp| bp.decompress())
+            .transpose()?;
         let new_balance_proof = update_no_send(
             &self.validity_prover,
             &self.balance_prover,
@@ -543,22 +446,16 @@ where
                 block_number: to_block_number,
             });
         }
-
         if new_balance_pis.private_commitment != user_data.private_commitment() {
             return Err(SyncError::InternalError(
                 "private commitment mismatch".to_string(),
             ));
         }
-
-        // save balance proof
-        self.store_vault_server
-            .save_balance_proof(key.pubkey, &new_balance_proof)
-            .await?;
-
         // update user data
-        user_data.block_number = to_block_number;
+        let balance_proof = CompressedBalanceProof::new(&new_balance_proof)?;
+        user_data.balance_proof = Some(balance_proof);
         self.store_vault_server
-            .save_user_data(key, user_data.encrypt(key.pubkey))
+            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
             .await?;
 
         Ok(())

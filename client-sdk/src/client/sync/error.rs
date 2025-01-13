@@ -1,4 +1,7 @@
-use intmax2_interfaces::api::error::ServerError;
+use intmax2_interfaces::{
+    api::error::ServerError,
+    data::{error::DataError, proof_compression::ProofCompressionError},
+};
 use intmax2_zkp::ethereum_types::bytes32::Bytes32;
 
 use crate::client::strategy::error::StrategyError;
@@ -10,6 +13,12 @@ pub enum SyncError {
 
     #[error("Strategy error: {0}")]
     StrategyError(#[from] StrategyError),
+
+    #[error("Proof compression error: {0}")]
+    ProofCompressionError(#[from] ProofCompressionError),
+
+    #[error("Data error: {0}")]
+    DataError(#[from] DataError),
 
     #[error("Internal error: {0}")]
     InternalError(String),
