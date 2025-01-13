@@ -13,7 +13,7 @@ use store_vault_server::{
     api::{routes::store_vault_server_scope, state::State},
     app::store_vault_server::StoreVaultServer,
     // middleware::authorization::authorization_middleware,
-    Env,
+    EnvVar,
 };
 
 #[actix_web::main]
@@ -23,7 +23,7 @@ async fn main() -> std::io::Result<()> {
 
     dotenv::dotenv().ok();
 
-    let env: Env = envy::from_env().map_err(|e| {
+    let env: EnvVar = envy::from_env().map_err(|e| {
         io::Error::new(
             io::ErrorKind::Other,
             format!("Failed to parse environment variables: {}", e),

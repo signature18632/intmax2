@@ -14,34 +14,14 @@ use intmax2_zkp::ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U
 use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
 use uuid::Uuid;
 
-use crate::Env;
-
-// CREATE TABLE IF NOT EXISTS encrypted_sender_proof_set (
-//     pubkey VARCHAR(66) PRIMARY KEY,
-//     encrypted_data BYTEA NOT NULL
-// );
-
-// CREATE TABLE IF NOT EXISTS encrypted_user_data (
-//     pubkey VARCHAR(66) PRIMARY KEY,
-//     encrypted_data BYTEA NOT NULL,
-//     digest BYTEA NOT NULL,
-//     timestamp BIGINT NOT NULL
-// );
-
-// CREATE TABLE IF NOT EXISTS encrypted_data (
-//     uuid TEXT PRIMARY KEY,
-//     data_type INTEGER NOT NULL,
-//     pubkey VARCHAR(66) NOT NULL,
-//     encrypted_data BYTEA NOT NULL,
-//     timestamp BIGINT NOT NULL
-// );
+use crate::EnvVar;
 
 pub struct StoreVaultServer {
     pool: PgPool,
 }
 
 impl StoreVaultServer {
-    pub async fn new(env: &Env) -> Result<Self> {
+    pub async fn new(env: &EnvVar) -> Result<Self> {
         let pool = PgPoolOptions::new()
             .max_connections(env.database_max_connections)
             .idle_timeout(Duration::from_secs(env.database_timeout))
@@ -234,5 +214,43 @@ impl StoreVaultServer {
             .collect();
 
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ethers::core::rand;
+    use intmax2_interfaces::{data::user_data::UserData, utils::digest::get_digest};
+    use intmax2_zkp::common::signature::key_set::KeySet;
+
+    use crate::{app::store_vault_server::StoreVaultServer, EnvVar};
+
+    #[tokio::test]
+    async fn test_get_and_save() -> anyhow::Result<()> {
+        dotenv::dotenv().ok();
+        let env: EnvVar = envy::from_env()?;
+        let store_vault_server = StoreVaultServer::new(&env).await?;
+        let mut rng = rand::thread_rng();
+        let key = KeySet::rand(&mut rng);
+        let encrypted_user_data = store_vault_server.get_user_data(key.pubkey).await?;
+        assert!(encrypted_user_data.is_none());
+
+        let mut user_data = UserData::new(key.pubkey);
+        let encrypted = user_data.encrypt(key.pubkey);
+        let digest = get_digest(&encrypted);
+        store_vault_server
+            .save_user_data(key.pubkey, None, &encrypted)
+            .await?;
+
+        let got_encrypted_user_data = store_vault_server.get_user_data(key.pubkey).await?;
+        assert_eq!(got_encrypted_user_data.unwrap(), encrypted);
+
+        user_data.deposit_lpt = 1;
+        let encrypted = user_data.encrypt(key.pubkey);
+        store_vault_server
+            .save_user_data(key.pubkey, Some(digest), &encrypted)
+            .await?;
+
+        Ok(())
     }
 }
