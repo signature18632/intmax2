@@ -222,7 +222,7 @@ pub async fn get_user_data(config: &Config, private_key: &str) -> Result<JsUserD
     init_logger();
     let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
-    let user_data = client.get_user_data(key).await?;
+    let (user_data, _) = client.get_user_data_and_digest(key).await?;
     Ok(JsUserData::from_user_data(&user_data))
 }
 

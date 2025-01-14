@@ -9,9 +9,23 @@ use alloy_primitives::{B128, B256};
 use ark_bn254::Fr;
 use ctr::Ctr64BE;
 use intmax2_zkp::ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait};
-use reth_ecies::{algorithm::RLPxSymmetricKeys, ECIESError, ECIESErrorImpl};
 
-use super::utils::{ecdh_x, hmac_sha256, kdf, sha256, U256_SIZE};
+use super::{
+    errors::ECIESError,
+    utils::{ecdh_x, hmac_sha256, kdf, sha256, U256_SIZE},
+};
+
+/// The symmetric keys derived from an ECIES message.
+#[derive(Debug)]
+pub struct RLPxSymmetricKeys {
+    /// The key used for decryption, specifically with AES-128 in CTR mode, using a 64-bit big
+    /// endian counter.
+    pub enc_key: B128,
+
+    /// The key used for verifying message integrity, specifically with the NIST SP 800-56A Concat
+    /// KDF.
+    pub mac_key: B256,
+}
 
 #[derive(Debug)]
 pub struct EncryptedMessage<'a> {
@@ -38,7 +52,7 @@ impl<'a> EncryptedMessage<'a> {
     pub fn parse(data: &mut [u8]) -> Result<EncryptedMessage<'_>, ECIESError> {
         // Auth data is 2 bytes, public key is 65 bytes
         if data.len() < U256_SIZE + 2 {
-            return Err(ECIESErrorImpl::EncryptedDataTooSmall.into());
+            return Err(ECIESError::EncryptedDataTooSmall);
         }
         let (auth_data, encrypted) = data.split_at_mut(2);
 
@@ -54,7 +68,7 @@ impl<'a> EncryptedMessage<'a> {
         let tag_index = encrypted
             .len()
             .checked_sub(32)
-            .ok_or(ECIESErrorImpl::EncryptedDataTooSmall)?;
+            .ok_or(ECIESError::EncryptedDataTooSmall)?;
 
         // NOTE: we've already checked that the encrypted data is long enough to contain the
         // encrypted data and tag
@@ -66,7 +80,7 @@ impl<'a> EncryptedMessage<'a> {
 
         // now we can check if the encrypted data is long enough to contain the IV
         if data_iv.len() < 16 {
-            return Err(ECIESErrorImpl::EncryptedDataTooSmall.into());
+            return Err(ECIESError::EncryptedDataTooSmall);
         }
         let (iv, encrypted_data) = data_iv.split_at_mut(16);
 
@@ -142,7 +156,7 @@ impl<'a> EncryptedMessage<'a> {
             &self.auth_data,
         );
         if check_tag != self.tag {
-            return Err(ECIESErrorImpl::TagCheckDecryptFailed.into());
+            return Err(ECIESError::TagCheckDecryptFailed);
         }
 
         Ok(())

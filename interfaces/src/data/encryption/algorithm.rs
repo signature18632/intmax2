@@ -10,9 +10,9 @@ use intmax2_zkp::{
     ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
 };
 use rand::Rng;
-use reth_ecies::ECIESError;
 
 use super::{
+    errors::ECIESError,
     message::EncryptedMessage,
     utils::{ecdh_x, hmac_sha256, kdf, sha256, U256_SIZE},
 };

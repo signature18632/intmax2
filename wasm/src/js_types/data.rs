@@ -3,14 +3,9 @@ use intmax2_interfaces::data::{
     deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData, user_data::UserData,
 };
 use intmax2_zkp::ethereum_types::u32limb_trait::U32LimbTrait as _;
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use super::common::{JsTransfer, JsTx};
-
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
 
 #[derive(Debug, Clone)]
 #[wasm_bindgen(getter_with_clone)]
@@ -44,7 +39,7 @@ pub struct JsTransferData {
 }
 
 impl JsTransferData {
-    pub fn from_transfer_data(transfer_data: &TransferData<F, C, D>) -> Self {
+    pub fn from_transfer_data(transfer_data: &TransferData) -> Self {
         Self {
             sender: transfer_data.sender.to_hex(),
             transfer: JsTransfer::from_transfer(&transfer_data.transfer),
@@ -60,8 +55,8 @@ pub struct JsTxData {
 }
 
 impl JsTxData {
-    pub fn from_tx_data(tx_data: &TxData<F, C, D>) -> Self {
-        let tx = JsTx::from_tx(&tx_data.common.tx);
+    pub fn from_tx_data(tx_data: &TxData) -> Self {
+        let tx = JsTx::from_tx(&tx_data.spent_witness.tx);
         let transfers = tx_data
             .spent_witness
             .transfers
@@ -92,8 +87,6 @@ impl JsDepositResult {
 #[wasm_bindgen(getter_with_clone)]
 pub struct JsTxResult {
     pub tx_tree_root: String,
-    pub transfer_data_vec: Vec<JsTransferData>,
-    pub withdrawal_data_vec: Vec<JsTransferData>,
     pub transfer_uuids: Vec<String>,
     pub withdrawal_uuids: Vec<String>,
 }
@@ -101,21 +94,8 @@ pub struct JsTxResult {
 impl JsTxResult {
     pub fn from_tx_result(tx_result: &TxResult) -> Self {
         let tx_tree_root = tx_result.tx_tree_root.to_hex();
-        let transfer_data_vec = tx_result
-            .transfer_data_vec
-            .iter()
-            .map(JsTransferData::from_transfer_data)
-            .collect::<Vec<_>>();
-        let withdrawal_data_vec = tx_result
-            .withdrawal_data_vec
-            .iter()
-            .map(JsTransferData::from_transfer_data)
-            .collect::<Vec<_>>();
-
         Self {
             tx_tree_root,
-            transfer_data_vec,
-            withdrawal_data_vec,
             transfer_uuids: tx_result.transfer_uuids.clone(),
             withdrawal_uuids: tx_result.withdrawal_uuids.clone(),
         }
@@ -127,9 +107,6 @@ impl JsTxResult {
 pub struct JsUserData {
     /// The user public key
     pub pubkey: String,
-
-    /// The block number of the user data
-    pub block_number: u32,
 
     /// The token balances of the user
     pub balances: Vec<TokenBalance>,
@@ -195,7 +172,6 @@ impl JsUserData {
 
         Self {
             pubkey: user_data.pubkey.to_hex(),
-            block_number: user_data.block_number,
             balances,
             private_commitment: user_data
                 .full_private_state
