@@ -12,7 +12,6 @@ use intmax2_zkp::{
     common::signature::key_set::KeySet,
     ethereum_types::{address::Address, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
 };
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -20,10 +19,6 @@ use super::{
     error::ClientError,
     strategy::{deposit::fetch_deposit_info, transfer::fetch_transfer_info, tx::fetch_tx_info},
 };
-
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -112,7 +107,7 @@ pub async fn fetch_history<
     client: &Client<BB, S, V, B, W>,
     key: KeySet,
 ) -> Result<Vec<HistoryEntry>, ClientError> {
-    let user_data = client.get_user_data(key).await?;
+    let (user_data, _) = client.get_user_data_and_digest(key).await?;
 
     let mut history = Vec::new();
 
@@ -260,7 +255,7 @@ pub async fn fetch_history<
     Ok(history)
 }
 
-fn extract_generic_transfers(tx_data: TxData<F, C, D>) -> Vec<GenericTransfer> {
+fn extract_generic_transfers(tx_data: TxData) -> Vec<GenericTransfer> {
     let mut transfers = Vec::new();
     for transfer in tx_data.spent_witness.transfers.iter() {
         let recipient = transfer.recipient;

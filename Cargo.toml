@@ -3,14 +3,15 @@ members = [
     "cli",
     "client-sdk",
     "interfaces",
-    "wasm",
+    # "wasm",
     "balance-prover",
     "store-vault-server",
     "validity-prover",
     "block-builder",
     "withdrawal-server",
     "tests",
-    "server-common", "validity-prover-worker",
+    "validity-prover-worker",
+    "server-common",
 ]
 resolver = "2"
 
@@ -49,7 +50,7 @@ dotenv = "0.15.0"
 envy = "0.4.2"
 bincode = "1.3.3"
 thiserror = "2.0.3"
-hashbrown = "0.14.5"
+hashbrown = "0.15.2"
 actix-web = "4.9.0"
 actix-cors = "0.7.0"
 serde_qs = { version = "0.13.0", features = ["actix4"] }

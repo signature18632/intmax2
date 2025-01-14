@@ -1,24 +1,22 @@
+use super::error::StrategyError;
 use intmax2_interfaces::{
     api::{
-        store_vault_server::interface::{DataType, StoreVaultClientInterface},
+        store_vault_server::{
+            interface::{DataType, StoreVaultClientInterface},
+            types::DataWithMetaData,
+        },
         validity_prover::interface::ValidityProverClientInterface,
     },
-    data::{meta_data::MetaData, transfer_data::TransferData},
+    data::{meta_data::MetaData, sender_proof_set::SenderProofSet, transfer_data::TransferData},
 };
 use intmax2_zkp::common::signature::key_set::KeySet;
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
-
-use super::error::StrategyError;
-
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
+use num_bigint::BigUint;
 
 #[derive(Debug, Clone)]
 pub struct TransferInfo {
-    pub settled: Vec<(MetaData, TransferData<F, C, D>)>,
-    pub pending: Vec<(MetaData, TransferData<F, C, D>)>,
-    pub timeout: Vec<(MetaData, TransferData<F, C, D>)>,
+    pub settled: Vec<(MetaData, TransferData)>,
+    pub pending: Vec<(MetaData, TransferData)>,
+    pub timeout: Vec<(MetaData, TransferData)>,
 }
 
 pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProverClientInterface>(
@@ -36,14 +34,30 @@ pub async fn fetch_transfer_info<S: StoreVaultClientInterface, V: ValidityProver
     let encrypted_data = store_vault_server
         .get_data_all_after(DataType::Transfer, key, transfer_lpt)
         .await?;
-    for (meta, encrypted_data) in encrypted_data {
+    for DataWithMetaData { meta, data } in encrypted_data {
         if processed_transfer_uuids.contains(&meta.uuid) {
             log::info!("Transfer {} is already processed", meta.uuid);
             continue;
         }
-        match TransferData::decrypt(&encrypted_data, key) {
+        match TransferData::decrypt(&data, key) {
             Ok(transfer_data) => {
-                let tx_tree_root = transfer_data.tx_data.tx_tree_root;
+                let ephemeral_key =
+                    KeySet::new(BigUint::from(transfer_data.sender_proof_set_ephemeral_key).into());
+                let encrypted_sender_proof_set = store_vault_server
+                    .get_sender_proof_set(ephemeral_key)
+                    .await?;
+                let sender_proof_set =
+                    match SenderProofSet::decrypt(&encrypted_sender_proof_set, ephemeral_key) {
+                        Ok(data) => data,
+                        Err(e) => {
+                            log::error!("failed to decrypt sender proof set: {}", e);
+                            continue;
+                        }
+                    };
+                let mut transfer_data = transfer_data;
+                transfer_data.set_sender_proof_set(sender_proof_set);
+
+                let tx_tree_root = transfer_data.tx_tree_root;
                 let block_number = validity_prover
                     .get_block_number_by_tx_tree_root(tx_tree_root)
                     .await?;

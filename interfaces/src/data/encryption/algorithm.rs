@@ -21,7 +21,7 @@ pub use alloy_primitives::bytes::BytesMut;
 
 const ENCRYPTION_VERSION: u8 = 1;
 
-pub(crate) fn encrypt(pubkey: U256, data: &[u8]) -> Vec<u8> {
+pub fn encrypt(pubkey: U256, data: &[u8]) -> Vec<u8> {
     let sender = EciesSender::new(pubkey);
     let mut encrypted_data = BytesMut::new();
     sender.encrypt_message(data, &mut encrypted_data);
@@ -34,7 +34,7 @@ pub(crate) fn encrypt(pubkey: U256, data: &[u8]) -> Vec<u8> {
     version_data.to_vec()
 }
 
-pub(crate) fn decrypt(key: KeySet, encrypted_data: &[u8]) -> anyhow::Result<Vec<u8>> {
+pub fn decrypt(key: KeySet, encrypted_data: &[u8]) -> anyhow::Result<Vec<u8>> {
     let (version_data, encrypted_data) = encrypted_data.split_at(1);
     let version = version_data[0];
     if version != 1 {

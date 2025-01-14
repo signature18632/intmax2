@@ -1,11 +1,11 @@
 use std::{sync::Arc, time::Duration};
 
-use intmax2_interfaces::api::validity_prover::interface::TransitionProofTask;
+use intmax2_interfaces::{
+    api::validity_prover::interface::TransitionProofTask,
+    utils::circuit_verifiers::CircuitVerifiers,
+};
 use intmax2_zkp::{
-    circuits::validity::{
-        transition::processor::TransitionProcessor, validity_circuit::ValidityCircuit,
-        validity_pis::ValidityPublicInputs,
-    },
+    circuits::validity::{validity_circuit::ValidityCircuit, validity_pis::ValidityPublicInputs},
     common::witness::validity_witness::ValidityWitness,
 };
 use plonky2::{
@@ -54,7 +54,6 @@ pub struct Config {
 
 #[derive(Clone)]
 pub struct ProverCoordinator {
-    pub transition_processor: Arc<TransitionProcessor<F, C, D>>,
     pub validity_circuit: Arc<ValidityCircuit<F, C, D>>,
     pub pool: PgPool,
     pub config: Config,
@@ -67,20 +66,14 @@ impl ProverCoordinator {
             .idle_timeout(Duration::from_secs(env.database_timeout))
             .connect(&env.database_url)
             .await?;
-        let transition_processor = TransitionProcessor::new();
-        let validity_circuit = ValidityCircuit::new(
-            &transition_processor
-                .transition_wrapper_circuit
-                .data
-                .verifier_data(),
-        );
+        let transition_vd = CircuitVerifiers::load().get_transition_vd();
+        let validity_circuit = ValidityCircuit::new(&transition_vd);
         let heartbeat_config = Config {
             heartbeat_timeout: env.heartbeat_timeout,
             cleanup_interval: env.cleanup_interval,
             validity_proof_interval: env.validity_proof_interval,
         };
         Ok(Self {
-            transition_processor: Arc::new(transition_processor),
             validity_circuit: Arc::new(validity_circuit),
             config: heartbeat_config,
             pool,
@@ -189,9 +182,8 @@ impl ProverCoordinator {
         transition_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> Result<()> {
         // Verify the transition proof
-        self.transition_processor
-            .transition_wrapper_circuit
-            .data
+        let transition_vd = CircuitVerifiers::load().get_transition_vd();
+        transition_vd
             .verify(transition_proof.clone())
             .map_err(|e| ProverCoordinatorError::TransitionProofVerificationError(e.to_string()))?;
 

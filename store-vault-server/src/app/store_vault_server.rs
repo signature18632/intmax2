@@ -1,35 +1,27 @@
-use std::{collections::HashMap, time::Duration};
+use std::time::Duration;
 
-use anyhow::{Ok, Result};
+use anyhow::{anyhow, Ok, Result};
 use intmax2_interfaces::{
-    api::store_vault_server::interface::DataType,
-    data::{meta_data::MetaData, user_data::UserData},
+    api::store_vault_server::{
+        interface::{DataType, SaveDataEntry},
+        types::DataWithMetaData,
+    },
+    data::meta_data::MetaData,
+    utils::digest::get_digest,
 };
-use intmax2_zkp::{
-    circuits::balance::balance_pis::BalancePublicInputs,
-    common::signature::key_set::KeySet,
-    ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
-    utils::poseidon_hash_out::PoseidonHashOut,
-};
-use plonky2::{
-    field::goldilocks_field::GoldilocksField,
-    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
-};
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use intmax2_zkp::ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait};
+
+use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
 use uuid::Uuid;
 
-use crate::Env;
-
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
+use crate::EnvVar;
 
 pub struct StoreVaultServer {
     pool: PgPool,
 }
 
 impl StoreVaultServer {
-    pub async fn new(env: &Env) -> Result<Self> {
+    pub async fn new(env: &EnvVar) -> Result<Self> {
         let pool = PgPoolOptions::new()
             .max_connections(env.database_max_connections)
             .idle_timeout(Duration::from_secs(env.database_timeout))
@@ -39,167 +31,127 @@ impl StoreVaultServer {
         Ok(Self { pool })
     }
 
-    pub async fn reset(&self) -> Result<()> {
-        sqlx::query!("TRUNCATE encrypted_user_data, balance_proofs, encrypted_data")
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
-
-    pub async fn save_balance_proof(
+    pub async fn save_user_data(
         &self,
         pubkey: U256,
-        proof: ProofWithPublicInputs<F, C, D>,
+        prev_digest: Option<Bytes32>,
+        encrypted_data: &[u8],
     ) -> Result<()> {
-        let balance_pis = BalancePublicInputs::from_pis(&proof.public_inputs);
+        let mut tx = self.pool.begin().await?;
+        let result = self.get_user_data_and_digest(&mut tx, pubkey).await?;
+        // validation
+        if let Some(prev_digest) = prev_digest {
+            if let Some((_, digest)) = result {
+                if digest != prev_digest {
+                    return Err(anyhow!(
+                        "Prev digest mismatch {} != {}",
+                        digest,
+                        prev_digest
+                    ));
+                }
+            } else {
+                return Err(anyhow!(
+                    "User data not found though prev_digest is provided"
+                ));
+            }
+        } else if result.is_some() {
+            return Err(anyhow!(
+                "User data already exists but prev_digest is not provided"
+            ));
+        }
         let pubkey_hex = pubkey.to_hex();
-        let private_commitment_hex = format!("{}", balance_pis.private_commitment);
-
-        let proof_data = bincode::serialize(&proof)?;
-
+        let digest = get_digest(encrypted_data);
+        let digest_serialized = digest.to_bytes_be();
         sqlx::query!(
             r#"
-            INSERT INTO balance_proofs 
-                (pubkey, block_number, private_commitment, proof_data)
+            INSERT INTO encrypted_user_data (pubkey, encrypted_data, digest, timestamp)
             VALUES ($1, $2, $3, $4)
-            ON CONFLICT (pubkey, block_number, private_commitment) 
-            DO NOTHING
+            ON CONFLICT (pubkey) DO UPDATE SET encrypted_data = EXCLUDED.encrypted_data,
+            digest = EXCLUDED.digest, timestamp = EXCLUDED.timestamp
             "#,
             pubkey_hex,
-            balance_pis.public_state.block_number as i32,
-            private_commitment_hex,
-            proof_data
+            encrypted_data,
+            digest_serialized,
+            chrono::Utc::now().timestamp() as i64
         )
-        .execute(&self.pool)
+        .execute(tx.as_mut())
         .await?;
-
+        tx.commit().await?;
         Ok(())
     }
 
-    pub async fn get_balance_proof(
-        &self,
-        pubkey: U256,
-        block_number: u32,
-        private_commitment: PoseidonHashOut,
-    ) -> Result<Option<ProofWithPublicInputs<F, C, D>>> {
-        let pubkey_hex = pubkey.to_hex();
-        let private_commitment_hex = format!("{}", private_commitment);
+    pub async fn get_user_data(&self, pubkey: U256) -> Result<Option<Vec<u8>>> {
+        let mut tx = self.pool.begin().await?;
+        let result = self.get_user_data_and_digest(&mut tx, pubkey).await?;
+        tx.commit().await?;
+        Ok(result.map(|(data, _)| data))
+    }
 
+    async fn get_user_data_and_digest(
+        &self,
+        tx: &mut sqlx::Transaction<'_, Postgres>,
+        pubkey: U256,
+    ) -> Result<Option<(Vec<u8>, Bytes32)>> {
+        let pubkey_hex = pubkey.to_hex();
         let record = sqlx::query!(
             r#"
-            SELECT proof_data
-            FROM balance_proofs
-            WHERE pubkey = $1 AND block_number = $2 AND private_commitment = $3
+            SELECT encrypted_data, digest FROM encrypted_user_data WHERE pubkey = $1
             "#,
-            pubkey_hex,
-            block_number as i32,
-            private_commitment_hex
+            pubkey_hex
         )
-        .fetch_optional(&self.pool)
+        .fetch_optional(tx.as_mut())
         .await?;
-
-        match record {
-            Some(record) => {
-                let proof: ProofWithPublicInputs<F, C, D> =
-                    bincode::deserialize(&record.proof_data)?;
-                Ok(Some(proof))
-            }
-            None => Ok(None),
-        }
+        Ok(record.map(|r| (r.encrypted_data, Bytes32::from_bytes_be(&r.digest))))
     }
 
-    pub async fn save_user_data(&self, pubkey: U256, encrypted_data: Vec<u8>) -> Result<()> {
-        let pubkey_hex = pubkey.to_hex();
-
-        // logging this will not work in production with real encrypted data
-        {
-            log::info!("save_user_data: pubkey_hex: {}", pubkey_hex);
-            match UserData::decrypt(&encrypted_data, KeySet::dummy()) {
-                std::result::Result::Ok(user_data) => {
-                    let private_commitment = user_data.private_commitment();
-                    log::info!("save_user_data: private_commitment: {}", private_commitment);
-                    log::info!("save_user_data: user_data: {:?}", user_data);
-                }
-                Err(e) => {
-                    log::error!("save_user_data: failed to decrypt user_data: {:?}", e);
-                }
-            }
-        }
+    pub async fn save_sender_proof_set(
+        &self,
+        ephemeral_pubkey: U256,
+        encrypted_data: &[u8],
+    ) -> Result<()> {
+        let pubkey_hex = ephemeral_pubkey.to_hex();
         sqlx::query!(
             r#"
-            INSERT INTO encrypted_user_data (pubkey, encrypted_data)
+            INSERT INTO encrypted_sender_proof_set (pubkey, encrypted_data)
             VALUES ($1, $2)
-            ON CONFLICT (pubkey) DO UPDATE SET encrypted_data = EXCLUDED.encrypted_data
+            ON CONFLICT (pubkey) DO NOTHING
             "#,
             pubkey_hex,
             encrypted_data
         )
         .execute(&self.pool)
         .await?;
-
         Ok(())
     }
 
-    pub async fn get_user_data(&self, pubkey: U256) -> Result<Option<Vec<u8>>> {
-        let pubkey_hex = pubkey.to_hex();
-
+    pub async fn get_sender_proof_set(&self, ephemeral_pubkey: U256) -> Result<Vec<u8>> {
+        let pubkey_hex = ephemeral_pubkey.to_hex();
         let record = sqlx::query!(
             r#"
-            SELECT encrypted_data FROM encrypted_user_data WHERE pubkey = $1
+            SELECT encrypted_data FROM encrypted_sender_proof_set WHERE pubkey = $1
             "#,
             pubkey_hex
         )
         .fetch_optional(&self.pool)
         .await?;
-
-        Ok(record.map(|r| r.encrypted_data))
+        if record.is_none() {
+            return Err(anyhow!("Sender proof set not found"));
+        }
+        Ok(record.unwrap().encrypted_data)
     }
 
-    pub async fn save_data(
-        &self,
-        data_type: DataType,
-        pubkey: U256,
-        encrypted_data: Vec<u8>,
-    ) -> Result<String> {
-        let pubkey_hex = pubkey.to_hex();
-        let uuid = Uuid::new_v4().to_string();
-        let timestamp = chrono::Utc::now().timestamp();
-
-        sqlx::query!(
-            r#"
-            INSERT INTO encrypted_data 
-            (data_type, pubkey, uuid, timestamp, encrypted_data)
-            VALUES ($1, $2, $3, $4, $5)
-            "#,
-            data_type as i32,
-            pubkey_hex,
-            uuid,
-            timestamp,
-            encrypted_data
-        )
-        .execute(&self.pool)
-        .await?;
-
-        Ok(uuid)
-    }
-
-    pub async fn batch_save_data(
-        &self,
-        data_type: DataType,
-        requests: Vec<(U256, Vec<u8>)>,
-    ) -> Result<Vec<String>> {
-        let timestamp = chrono::Utc::now().timestamp();
-
+    pub async fn batch_save_data(&self, entries: &[SaveDataEntry]) -> Result<Vec<String>> {
         // Prepare values for bulk insert
-        let pubkeys: Vec<String> = requests.iter().map(|(pubkey, _)| pubkey.to_hex()).collect();
-
-        let uuids: Vec<String> = (0..requests.len())
+        let data_types: Vec<i32> = entries.iter().map(|entry| entry.data_type as i32).collect();
+        let pubkeys: Vec<String> = entries.iter().map(|entry| entry.pubkey.to_hex()).collect();
+        let uuids: Vec<String> = (0..entries.len())
             .map(|_| Uuid::new_v4().to_string())
             .collect();
-
-        let timestamps: Vec<i64> = vec![timestamp; requests.len()];
-
-        let encrypted_data: Vec<Vec<u8>> = requests.into_iter().map(|(_, data)| data).collect();
+        let timestamps: Vec<i64> = vec![chrono::Utc::now().timestamp(); entries.len()];
+        let encrypted_data: Vec<Vec<u8>> = entries
+            .iter()
+            .map(|entry| entry.encrypted_data.clone())
+            .collect();
 
         // Execute the bulk insert
         sqlx::query!(
@@ -207,13 +159,13 @@ impl StoreVaultServer {
             INSERT INTO encrypted_data 
             (data_type, pubkey, uuid, timestamp, encrypted_data)
             SELECT 
-                $1,
+                UNNEST($1::integer[]),
                 UNNEST($2::text[]),
                 UNNEST($3::text[]),
                 UNNEST($4::bigint[]),
                 UNNEST($5::bytea[])
             "#,
-            data_type as i32,
+            &data_types,
             &pubkeys,
             &uuids,
             &timestamps,
@@ -230,12 +182,12 @@ impl StoreVaultServer {
         data_type: DataType,
         pubkey: U256,
         timestamp: u64,
-    ) -> Result<Vec<(MetaData, Vec<u8>)>> {
+    ) -> Result<Vec<DataWithMetaData>> {
         let pubkey_hex = pubkey.to_hex();
 
         let records = sqlx::query!(
             r#"
-            SELECT uuid, timestamp, block_number, encrypted_data
+            SELECT uuid, timestamp, encrypted_data
             FROM encrypted_data
             WHERE data_type = $1 AND pubkey = $2 AND timestamp >= $3
             ORDER BY timestamp ASC
@@ -250,85 +202,58 @@ impl StoreVaultServer {
         let result = records
             .into_iter()
             .map(|r| {
-                let meta_data = MetaData {
+                let meta = MetaData {
                     uuid: r.uuid,
                     timestamp: r.timestamp as u64,
-                    block_number: r.block_number.map(|n| n as u32),
+                    block_number: None,
                 };
-                (meta_data, r.encrypted_data)
+                DataWithMetaData {
+                    meta,
+                    data: r.encrypted_data,
+                }
             })
             .collect();
 
         Ok(result)
     }
+}
 
-    pub async fn get_data(
-        &self,
-        data_type: DataType,
-        uuid: &str,
-    ) -> Result<Option<(MetaData, Vec<u8>)>> {
-        let record = sqlx::query!(
-            r#"
-            SELECT timestamp, block_number, encrypted_data
-            FROM encrypted_data
-            WHERE data_type = $1 AND uuid = $2
-            "#,
-            data_type as i32,
-            uuid
-        )
-        .fetch_optional(&self.pool)
-        .await?;
+#[cfg(test)]
+mod tests {
+    use ethers::core::rand;
+    use intmax2_interfaces::{data::user_data::UserData, utils::digest::get_digest};
+    use intmax2_zkp::common::signature::key_set::KeySet;
 
-        Ok(record.map(|r| {
-            let meta_data = MetaData {
-                uuid: uuid.to_string(),
-                timestamp: r.timestamp as u64,
-                block_number: r.block_number.map(|n| n as u32),
-            };
-            (meta_data, r.encrypted_data)
-        }))
-    }
+    use crate::{app::store_vault_server::StoreVaultServer, EnvVar};
 
-    pub async fn batch_get_data(
-        &self,
-        data_type: DataType,
-        uuids: &[String],
-    ) -> Result<Vec<Option<(MetaData, Vec<u8>)>>> {
-        let records = sqlx::query!(
-            r#"
-            SELECT uuid, timestamp, block_number, encrypted_data
-            FROM encrypted_data
-            WHERE data_type = $1 AND uuid = ANY($2)
-            "#,
-            data_type as i32,
-            uuids as &[String],
-        )
-        .fetch_all(&self.pool)
-        .await?;
+    #[tokio::test]
+    async fn test_get_and_save() -> anyhow::Result<()> {
+        dotenv::dotenv().ok();
+        let env: EnvVar = envy::from_env()?;
+        let store_vault_server = StoreVaultServer::new(&env).await?;
+        let mut rng = rand::thread_rng();
+        let key = KeySet::rand(&mut rng);
+        let encrypted_user_data = store_vault_server.get_user_data(key.pubkey).await?;
+        assert!(encrypted_user_data.is_none());
 
-        // Create a HashMap for O(1) lookup
-        let result_map: HashMap<String, (i64, Option<i32>, Vec<u8>)> = records
-            .into_iter()
-            .map(|r| (r.uuid, (r.timestamp, r.block_number, r.encrypted_data)))
-            .collect();
+        let mut user_data = UserData::new(key.pubkey);
+        let encrypted = user_data.encrypt(key.pubkey);
+        let digest = get_digest(&encrypted);
+        store_vault_server
+            .save_user_data(key.pubkey, None, &encrypted)
+            .await?;
 
-        // Preserve the order of requested UUIDs
-        let results = uuids
-            .iter()
-            .map(|uuid| {
-                result_map
-                    .get(uuid)
-                    .map(|(timestamp, block_number, encrypted_data)| {
-                        let meta_data = MetaData {
-                            uuid: uuid.to_string(),
-                            timestamp: *timestamp as u64,
-                            block_number: block_number.map(|n| n as u32),
-                        };
-                        (meta_data, encrypted_data.clone())
-                    })
-            })
-            .collect();
+        let got_encrypted_user_data = store_vault_server.get_user_data(key.pubkey).await?;
+        assert_eq!(got_encrypted_user_data.as_ref().unwrap(), &encrypted);
+        let digest2 = get_digest(&got_encrypted_user_data.unwrap());
+        assert_eq!(digest, digest2);
 
-        Ok(results)
+        user_data.deposit_lpt = 1;
+        let encrypted = user_data.encrypt(key.pubkey);
+        store_vault_server
+            .save_user_data(key.pubkey, Some(digest), &encrypted)
+            .await?;
+
+        Ok(())
     }
 }
