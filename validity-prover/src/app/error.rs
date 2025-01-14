@@ -44,7 +44,7 @@ pub enum ValidityProverError {
     #[error("Database error: {0}")]
     DBError(#[from] sqlx::Error),
 
-    #[error("Derialization error: {0}")]
+    #[error("Deserialization error: {0}")]
     DeserializationError(#[from] serde_json::Error),
 
     #[error("Failed to update trees: {0}")]

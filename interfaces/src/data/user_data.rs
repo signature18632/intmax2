@@ -1,10 +1,8 @@
 use hashbrown::HashMap;
-use plonky2::{
-    field::extension::Extendable, hash::hash_types::RichField, plonk::config::GenericConfig,
-};
 use serde::{Deserialize, Serialize};
 
 use intmax2_zkp::{
+    circuits::balance::balance_processor::get_prev_balance_pis,
     common::{
         private_state::{FullPrivateState, PrivateState},
         signature::key_set::KeySet,
@@ -16,17 +14,23 @@ use intmax2_zkp::{
 
 use super::{
     deposit_data::DepositData,
-    encryption::{decrypt, encrypt},
+    encryption::algorithm::{decrypt, encrypt},
+    error::DataError,
+    proof_compression::CompressedBalanceProof,
     transfer_data::TransferData,
     tx_data::TxData,
 };
 
+type Result<T> = std::result::Result<T, DataError>;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UserData {
     pub pubkey: U256,
 
-    pub block_number: u32,
     pub full_private_state: FullPrivateState,
+
+    pub balance_proof: Option<CompressedBalanceProof>,
 
     // The latest unix timestamp of processed (incorporated into the balance proof or rejected)
     // actions
@@ -45,8 +49,9 @@ impl UserData {
     pub fn new(pubkey: U256) -> Self {
         Self {
             pubkey,
-            block_number: 0,
             full_private_state: FullPrivateState::new(),
+
+            balance_proof: None,
 
             deposit_lpt: 0,
             transfer_lpt: 0,
@@ -60,11 +65,21 @@ impl UserData {
         }
     }
 
+    pub fn block_number(&self) -> Result<u32> {
+        let balance_proof = self
+            .balance_proof
+            .as_ref()
+            .map(|bp| bp.decompress())
+            .transpose()?;
+        let balance_pis = get_prev_balance_pis(self.pubkey, &balance_proof);
+        Ok(balance_pis.public_state.block_number)
+    }
+
     fn to_bytes(&self) -> Vec<u8> {
         bincode::serialize(&self).unwrap()
     }
 
-    fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self> {
         let user_data = bincode::deserialize(bytes)?;
         Ok(user_data)
     }
@@ -73,11 +88,12 @@ impl UserData {
         encrypt(pubkey, &self.to_bytes())
     }
 
-    pub fn decrypt(bytes: &[u8], key: KeySet) -> anyhow::Result<Self> {
-        let data = decrypt(key, bytes)?;
+    pub fn decrypt(bytes: &[u8], key: KeySet) -> Result<Self> {
+        let data = decrypt(key, bytes).map_err(|e| DataError::DecryptionError(e.to_string()))?;
         let data = Self::from_bytes(&data)?;
         Ok(data)
     }
+
     pub fn private_state(&self) -> PrivateState {
         self.full_private_state.to_private_state()
     }
@@ -119,11 +135,7 @@ impl Balances {
     }
 
     /// Update the balance with the transfer data
-    pub fn add_transfer<F, C, const D: usize>(&mut self, transfer_data: &TransferData<F, C, D>)
-    where
-        F: RichField + Extendable<D>,
-        C: GenericConfig<D, F = F>,
-    {
+    pub fn add_transfer(&mut self, transfer_data: &TransferData) {
         let token_index = transfer_data.transfer.token_index;
         let prev_asset_leaf = self.0.get(&token_index).cloned().unwrap_or_default();
         let new_asset_leaf = prev_asset_leaf.add(transfer_data.transfer.amount);
@@ -132,11 +144,7 @@ impl Balances {
 
     /// Update the balance with the tx data
     /// Returns whether the tx will case insufficient balance
-    pub fn sub_tx<F, C, const D: usize>(&mut self, tx_data: &TxData<F, C, D>) -> bool
-    where
-        F: RichField + Extendable<D>,
-        C: GenericConfig<D, F = F>,
-    {
+    pub fn sub_tx(&mut self, tx_data: &TxData) -> bool {
         let transfers = &tx_data.spent_witness.transfers;
         let mut is_insufficient = false;
         for transfer in transfers.iter() {

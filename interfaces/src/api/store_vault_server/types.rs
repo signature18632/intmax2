@@ -1,163 +1,116 @@
-use intmax2_zkp::{
-    common::signature::flatten::FlatG2, ethereum_types::u256::U256,
-    utils::poseidon_hash_out::PoseidonHashOut,
-};
-use plonky2::{
-    field::goldilocks_field::GoldilocksField,
-    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
-};
+use super::interface::{DataType, SaveDataEntry};
+use crate::{data::meta_data::MetaData, utils::signature::Signable};
+use intmax2_zkp::ethereum_types::bytes32::Bytes32;
 use serde::{Deserialize, Serialize};
+use serde_with::{base64::Base64, serde_as};
 
-use crate::data::meta_data::MetaData;
-
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
-
+#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SaveBalanceProofRequest {
-    pub pubkey: U256,
-    pub balance_proof: ProofWithPublicInputs<F, C, D>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetBalanceProofQuery {
-    pub pubkey: U256,
-    pub block_number: u32,
-    pub private_commitment: PoseidonHashOut,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetBalanceProofResponse {
-    pub balance_proof: Option<ProofWithPublicInputs<F, C, D>>,
-}
-
-// #[serde(deny_unknown_fields)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SaveDataRequest {
-    pub pubkey: U256,
+pub struct SaveUserDataRequest {
+    #[serde_as(as = "Base64")]
     pub data: Vec<u8>,
+    pub prev_digest: Option<Bytes32>,
+}
+
+impl Signable for SaveUserDataRequest {
+    fn content(&self) -> Vec<u8> {
+        bincode::serialize(&(self.data.clone(), self.prev_digest)).unwrap()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AuthInfoForSaveData {
-    pub signature: FlatG2,
+pub struct GetUserDataRequest;
+
+impl Signable for GetUserDataRequest {
+    fn content(&self) -> Vec<u8> {
+        vec![]
+    }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SaveDataRequestWithSignature {
-    pub pubkey: U256,
-    pub data: Vec<u8>,
-
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub auth: Option<AuthInfoForSaveData>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct SaveDataResponse {
-    pub uuid: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BatchSaveDataRequest {
-    pub requests: Vec<(U256, Vec<u8>)>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BatchSaveDataResponse {
-    pub uuids: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetUserDataQuery {
-    pub pubkey: U256,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetUserDataRequestWithSignature {
-    pub auth: AuthInfoForGetData,
-}
-
+#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetUserDataResponse {
+    #[serde_as(as = "Option<Base64>")]
     pub data: Option<Vec<u8>>,
 }
 
+#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetDataResponse {
-    pub data: Option<(MetaData, Vec<u8>)>,
+pub struct SaveSenderProofSetRequest {
+    #[serde_as(as = "Base64")]
+    pub data: Vec<u8>,
+}
+
+impl Signable for SaveSenderProofSetRequest {
+    fn content(&self) -> Vec<u8> {
+        bincode::serialize(&self.data).unwrap()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BatchGetDataResponse {
-    pub data: Vec<Option<(MetaData, Vec<u8>)>>,
+pub struct GetSenderProofSetRequest;
+
+impl Signable for GetSenderProofSetRequest {
+    fn content(&self) -> Vec<u8> {
+        vec![]
+    }
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetSenderProofSetResponse {
+    #[serde_as(as = "Base64")]
+    pub data: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetDataQuery {
-    pub uuid: String,
+pub struct SaveDataBatchRequest {
+    pub data: Vec<SaveDataEntry>,
+}
+
+impl Signable for SaveDataBatchRequest {
+    fn content(&self) -> Vec<u8> {
+        bincode::serialize(&self.data).unwrap()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AuthInfoForGetData {
-    pub signature: FlatG2,
-    pub pubkey: U256,
-    pub challenge: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BatchGetDataQuery {
+pub struct SaveDataBatchResponse {
     pub uuids: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetDataAllAfterQuery {
-    pub pubkey: U256,
+pub struct GetDataAllAfterRequest {
+    pub data_type: DataType,
     pub timestamp: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetDataAllAfterRequestWithSignature {
-    pub timestamp: u64,
-    pub auth: AuthInfoForGetData,
+impl Signable for GetDataAllAfterRequest {
+    fn content(&self) -> Vec<u8> {
+        bincode::serialize(&(self.data_type, self.timestamp)).unwrap()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetDataAllAfterResponse {
-    pub data: Vec<(MetaData, Vec<u8>)>,
+    pub data: Vec<DataWithMetaData>,
 }
 
-// #[test]
-// fn test_json_deserialize() {
-//     let json_str = r#"
-//         {
-//             "pubkey": "0",
-//             "data": [],
-//             "email": "john@example.com"
-//         }
-//     "#;
-
-//     let user: SaveDataRequest = serde_json::from_str(json_str).unwrap();
-
-//     println!("pubkey: {}", user.pubkey);
-// }
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DataWithMetaData {
+    pub meta: MetaData,
+    #[serde_as(as = "Base64")]
+    pub data: Vec<u8>,
+}

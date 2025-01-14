@@ -2,20 +2,15 @@ use std::{fmt, str::FromStr};
 
 use async_trait::async_trait;
 use intmax2_zkp::{
-    common::signature::key_set::KeySet, ethereum_types::u256::U256,
-    utils::poseidon_hash_out::PoseidonHashOut,
-};
-use plonky2::{
-    field::goldilocks_field::GoldilocksField,
-    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
+    common::signature::key_set::KeySet,
+    ethereum_types::{bytes32::Bytes32, u256::U256},
 };
 use serde::{Deserialize, Serialize};
+use serde_with::{base64::Base64, serde_as};
 
-use crate::{api::error::ServerError, data::meta_data::MetaData};
+use crate::api::error::ServerError;
 
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
+use super::types::DataWithMetaData;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
@@ -24,6 +19,18 @@ pub enum DataType {
     Transfer,
     Withdrawal,
     Tx,
+}
+
+impl DataType {
+    // Returns true if the data type requires authentication when saving.
+    pub fn need_auth(&self) -> bool {
+        match self {
+            DataType::Deposit => false,
+            DataType::Transfer => false,
+            DataType::Withdrawal => true,
+            DataType::Tx => true,
+        }
+    }
 }
 
 impl fmt::Display for DataType {
@@ -52,62 +59,47 @@ impl FromStr for DataType {
     }
 }
 
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveDataEntry {
+    pub data_type: DataType,
+    pub pubkey: U256,
+    #[serde_as(as = "Base64")]
+    pub encrypted_data: Vec<u8>,
+}
+
 #[async_trait(?Send)]
 pub trait StoreVaultClientInterface {
-    async fn save_balance_proof(
+    async fn save_user_data(
         &self,
-        pubkey: U256,
-        proof: &ProofWithPublicInputs<F, C, D>,
+        key: KeySet,
+        prev_digest: Option<Bytes32>,
+        encrypted_data: &[u8],
     ) -> Result<(), ServerError>;
 
-    async fn get_balance_proof(
-        &self,
-        pubkey: U256,
-        block_number: u32,
-        private_commitment: PoseidonHashOut,
-    ) -> Result<Option<ProofWithPublicInputs<F, C, D>>, ServerError>;
+    async fn get_user_data(&self, key: KeySet) -> Result<Option<Vec<u8>>, ServerError>;
 
-    async fn save_data(
+    async fn save_sender_proof_set(
         &self,
-        data_type: DataType,
-        pubkey: U256,
+        ephemeral_key: KeySet,
         encrypted_data: &[u8],
-        signer: Option<KeySet>,
-    ) -> Result<String, ServerError>;
+    ) -> Result<(), ServerError>;
+
+    async fn get_sender_proof_set(&self, ephemeral_key: KeySet) -> Result<Vec<u8>, ServerError>;
 
     async fn save_data_batch(
         &self,
-        data_type: DataType,
-        data: Vec<(U256, Vec<u8>)>,
+        key: KeySet,
+        entries: &[SaveDataEntry],
     ) -> Result<Vec<String>, ServerError>;
-
-    async fn get_data(
-        &self,
-        data_type: DataType,
-        uuid: &str,
-        signer: KeySet,
-    ) -> Result<Option<(MetaData, Vec<u8>)>, ServerError>;
-
-    async fn get_data_batch(
-        &self,
-        data_type: DataType,
-        uuid: &[String],
-    ) -> Result<Vec<Option<(MetaData, Vec<u8>)>>, ServerError>;
 
     async fn get_data_all_after(
         &self,
         data_type: DataType,
-        signer: KeySet,
+        key: KeySet,
         timestamp: u64,
-    ) -> Result<Vec<(MetaData, Vec<u8>)>, ServerError>;
-
-    async fn save_user_data(
-        &self,
-        signer: KeySet,
-        encrypted_data: Vec<u8>,
-    ) -> Result<(), ServerError>;
-
-    async fn get_user_data(&self, signer: KeySet) -> Result<Option<Vec<u8>>, ServerError>;
+    ) -> Result<Vec<DataWithMetaData>, ServerError>;
 }
 
 #[cfg(test)]

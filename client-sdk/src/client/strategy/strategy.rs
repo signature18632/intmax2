@@ -12,7 +12,6 @@ use intmax2_interfaces::{
     },
 };
 use itertools::Itertools;
-use plonky2::{field::goldilocks_field::GoldilocksField, plonk::config::PoseidonGoldilocksConfig};
 
 use intmax2_zkp::common::signature::key_set::KeySet;
 
@@ -26,10 +25,6 @@ use super::{
     tx::fetch_tx_info,
 };
 
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
-
 // Next sync action
 #[derive(Debug, Clone)]
 pub enum Action {
@@ -38,15 +33,15 @@ pub enum Action {
         new_deposit_lpt: u64,
         new_transfer_lpt: u64,
     },
-    Tx(MetaData, TxData<F, C, D>),              // Send tx
-    PendingReceives(MetaData, TxData<F, C, D>), // Pending receives to proceed the next tx
-    PendingTx(MetaData, TxData<F, C, D>),       // Pending tx
+    Tx(MetaData, TxData),              // Send tx
+    PendingReceives(MetaData, TxData), // Pending receives to proceed the next tx
+    PendingTx(MetaData, TxData),       // Pending tx
 }
 
 #[derive(Debug, Clone)]
 pub enum ReceiveAction {
     Deposit(MetaData, DepositData),
-    Transfer(MetaData, Box<TransferData<F, C, D>>),
+    Transfer(MetaData, Box<TransferData>),
 }
 
 impl ReceiveAction {
@@ -72,7 +67,7 @@ impl ReceiveAction {
 #[derive(Debug, Clone, Default)]
 pub struct PendingInfo {
     pub pending_deposits: Vec<(MetaData, DepositData)>,
-    pub pending_transfers: Vec<(MetaData, TransferData<F, C, D>)>,
+    pub pending_transfers: Vec<(MetaData, TransferData)>,
 }
 
 /// Determine the sequence of receives/send tx to be incorporated into the balance proof
@@ -234,9 +229,9 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
 /// For each settled tx, take deposits and transfers that are strictly smaller than the block number of the tx
 /// If there is no tx, take all deposit and transfer data
 async fn collect_receives(
-    tx: &Option<(MetaData, TxData<F, C, D>)>,
+    tx: &Option<(MetaData, TxData)>,
     deposits: &mut Vec<(MetaData, DepositData)>,
-    transfers: &mut Vec<(MetaData, TransferData<F, C, D>)>,
+    transfers: &mut Vec<(MetaData, TransferData)>,
 ) -> Result<Vec<ReceiveAction>, StrategyError> {
     let mut receives: Vec<ReceiveAction> = Vec::new();
     if let Some((meta, _tx_data)) = tx {
@@ -297,7 +292,7 @@ pub async fn determine_withdrawals<
     validity_prover: &V,
     key: KeySet,
     tx_timeout: u64,
-) -> Result<(Vec<(MetaData, TransferData<F, C, D>)>, u64), StrategyError> {
+) -> Result<(Vec<(MetaData, TransferData)>, u64), StrategyError> {
     log::info!("determine_withdrawals");
     let user_data = store_vault_server
         .get_user_data(key)

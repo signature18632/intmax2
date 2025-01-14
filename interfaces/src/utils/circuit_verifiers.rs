@@ -12,6 +12,8 @@ use plonky2::{
 
 const VALIDITY_VD_BYTES: &[u8] =
     include_bytes!("../../circuit_data/validity_verifier_circuit_data.bin");
+const TRANSITION_VD_BYTES: &[u8] =
+    include_bytes!("../../circuit_data/transition_verifier_circuit_data.bin");
 const BALANCE_VD_BYTES: &[u8] =
     include_bytes!("../../circuit_data/balance_verifier_circuit_data.bin");
 const SINGLE_WITHDRAWAL_VD_BYTES: &[u8] =
@@ -29,6 +31,10 @@ fn validity_circuit_data_path() -> PathBuf {
     circuit_data_path().join("validity_verifier_circuit_data.bin")
 }
 
+fn transition_circuit_data_path() -> PathBuf {
+    circuit_data_path().join("transition_verifier_circuit_data.bin")
+}
+
 fn single_withdrawal_circuit_data_path() -> PathBuf {
     circuit_data_path().join("single_withdrawal_verifier_circuit_data.bin")
 }
@@ -40,6 +46,7 @@ const D: usize = 2;
 pub struct CircuitVerifiers {
     balance_vd: VerifierCircuitData<F, C, D>,
     validity_vd: VerifierCircuitData<F, C, D>,
+    transition_vd: VerifierCircuitData<F, C, D>,
     single_withdrawal_vd: VerifierCircuitData<F, C, D>,
 }
 
@@ -48,19 +55,27 @@ impl CircuitVerifiers {
     pub fn construct() -> Self {
         let validity_processor = ValidityProcessor::new();
         let balance_processor = BalanceProcessor::new(&validity_processor.get_verifier_data());
+        let transition_vd = validity_processor
+            .transition_processor
+            .transition_wrapper_circuit
+            .data
+            .verifier_data();
         let balance_vd = balance_processor.get_verifier_data();
         let balance_common_data = balance_vd.common.clone();
         let single_withdrawal_circuit = SingleWithdrawalCircuit::new(&balance_common_data);
         Self {
             balance_vd: balance_processor.get_verifier_data(),
             validity_vd: validity_processor.validity_circuit.data.verifier_data(),
+            transition_vd,
             single_withdrawal_vd: single_withdrawal_circuit.data.verifier_data(),
         }
     }
 
     pub fn save(&self) -> anyhow::Result<()> {
+        // save_verifier_circuit_data(&spent_circuit_data_path(), &self.spent_vd)?;
         save_verifier_circuit_data(&balance_circuit_data_path(), &self.balance_vd)?;
         save_verifier_circuit_data(&validity_circuit_data_path(), &self.validity_vd)?;
+        save_verifier_circuit_data(&transition_circuit_data_path(), &self.transition_vd)?;
         save_verifier_circuit_data(
             &single_withdrawal_circuit_data_path(),
             &self.single_withdrawal_vd,
@@ -73,10 +88,12 @@ impl CircuitVerifiers {
         let validity_vd = deserialize_verifier_circuit_data(VALIDITY_VD_BYTES.to_vec()).unwrap();
         let single_withdrawal_vd =
             deserialize_verifier_circuit_data(SINGLE_WITHDRAWAL_VD_BYTES.to_vec()).unwrap();
-
+        let transition_vd =
+            deserialize_verifier_circuit_data(TRANSITION_VD_BYTES.to_vec()).unwrap();
         Self {
             balance_vd,
             validity_vd,
+            transition_vd,
             single_withdrawal_vd,
         }
     }
@@ -87,6 +104,10 @@ impl CircuitVerifiers {
 
     pub fn get_validity_vd(&self) -> VerifierCircuitData<F, C, D> {
         self.validity_vd.clone()
+    }
+
+    pub fn get_transition_vd(&self) -> VerifierCircuitData<F, C, D> {
+        self.transition_vd.clone()
     }
 
     pub fn get_single_withdrawal_vd(&self) -> VerifierCircuitData<F, C, D> {
@@ -128,6 +149,8 @@ mod tests {
 
     #[test]
     fn test_load_circuit_verifiers() {
+        let time = std::time::Instant::now();
         let _circuit_verifiers = super::CircuitVerifiers::load();
+        println!("Time taken: {:?}", time.elapsed());
     }
 }

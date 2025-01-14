@@ -2,13 +2,14 @@ use intmax2_interfaces::{
     api::{
         balance_prover::interface::BalanceProverClientInterface,
         block_builder::interface::BlockBuilderClientInterface,
-        store_vault_server::interface::{DataType, StoreVaultClientInterface},
+        store_vault_server::interface::{DataType, SaveDataEntry, StoreVaultClientInterface},
         validity_prover::interface::ValidityProverClientInterface,
         withdrawal_server::interface::{WithdrawalInfo, WithdrawalServerClientInterface},
     },
     data::{
-        common_tx_data::CommonTxData,
         deposit_data::{DepositData, TokenType},
+        proof_compression::{CompressedBalanceProof, CompressedSpentProof},
+        sender_proof_set::SenderProofSet,
         transfer_data::TransferData,
         tx_data::TxData,
     },
@@ -21,13 +22,9 @@ use intmax2_zkp::{
     },
     constants::{NUM_TRANSFERS_IN_TX, TRANSFER_TREE_HEIGHT},
     ethereum_types::{address::Address, bytes32::Bytes32, u256::U256},
-    utils::poseidon_hash_out::PoseidonHashOut,
 };
 
-use plonky2::{
-    field::goldilocks_field::GoldilocksField,
-    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
-};
+use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -42,12 +39,8 @@ use super::{
     config::ClientConfig,
     error::ClientError,
     history::{fetch_history, HistoryEntry},
-    sync::{balance_logic::generate_spent_witness, error::SyncError},
+    sync::{balance_logic::generate_spent_witness, utils::get_balance_proof},
 };
-
-type F = GoldilocksField;
-type C = PoseidonGoldilocksConfig;
-const D: usize = 2;
 
 pub struct Client<
     BB: BlockBuilderClientInterface,
@@ -75,9 +68,7 @@ pub struct TxRequestMemo {
     pub tx: Tx,
     pub transfers: Vec<Transfer>,
     pub spent_witness: SpentWitness,
-    pub spent_proof: ProofWithPublicInputs<F, C, D>,
-    pub prev_block_number: u32,
-    pub prev_private_commitment: PoseidonHashOut,
+    pub sender_proof_set_ephemeral_key: U256,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -91,8 +82,6 @@ pub struct DepositResult {
 #[serde(rename_all = "camelCase")]
 pub struct TxResult {
     pub tx_tree_root: Bytes32,
-    pub transfer_data_vec: Vec<TransferData<F, C, D>>,
-    pub withdrawal_data_vec: Vec<TransferData<F, C, D>>,
     pub transfer_uuids: Vec<String>,
     pub withdrawal_uuids: Vec<String>,
 }
@@ -138,16 +127,22 @@ where
             token_id,
             token_index: None,
         };
-        let deposit_uuid = self
+        let save_entry = SaveDataEntry {
+            data_type: DataType::Deposit,
+            pubkey,
+            encrypted_data: deposit_data.encrypt(pubkey),
+        };
+        let ephemeral_key = KeySet::rand(&mut rand::thread_rng());
+        let uuids = self
             .store_vault_server
-            .save_data(
-                DataType::Deposit,
-                pubkey,
-                &deposit_data.encrypt(pubkey),
-                None,
-            )
+            .save_data_batch(ephemeral_key, &[save_entry])
             .await?;
-
+        let deposit_uuid = uuids
+            .first()
+            .ok_or(ClientError::UnexpectedError(
+                "deposit_uuid not found".to_string(),
+            ))?
+            .clone();
         let result = DepositResult {
             deposit_data,
             deposit_uuid,
@@ -178,20 +173,10 @@ where
         // sync balance proof
         self.sync(key).await?;
 
-        let user_data = self.get_user_data(key).await?;
+        let (user_data, _) = self.get_user_data_and_digest(key).await?;
 
-        if user_data.block_number != 0 {
-            // check balance proof existence
-            let _balance_proof = self
-                .store_vault_server
-                .get_balance_proof(
-                    key.pubkey,
-                    user_data.block_number,
-                    user_data.private_commitment(),
-                )
-                .await?
-                .ok_or(SyncError::BalanceProofNotFound)?;
-        }
+        let balance_proof =
+            get_balance_proof(&user_data)?.ok_or(ClientError::CannotSendTxByZeroBalanceAccount)?;
 
         // balance check
         let balances = user_data.balances();
@@ -221,6 +206,23 @@ where
             generate_spent_witness(&user_data.full_private_state, tx_nonce, &transfers).await?;
         let spent_proof = self.balance_prover.prove_spent(key, &spent_witness).await?;
         let tx = spent_witness.tx;
+
+        // save sender proof set in advance to avoid delay
+        let spent_proof = CompressedSpentProof::new(&spent_proof)?;
+        let prev_balance_proof = CompressedBalanceProof::new(&balance_proof)?;
+        let sender_proof_set = SenderProofSet {
+            spent_proof,
+            prev_balance_proof,
+        };
+        let ephemeral_key = KeySet::rand(&mut rand::thread_rng());
+        self.store_vault_server
+            .save_sender_proof_set(
+                ephemeral_key,
+                &sender_proof_set.encrypt(ephemeral_key.pubkey),
+            )
+            .await?;
+        let sender_proof_set_ephemeral_key: U256 =
+            BigUint::from(ephemeral_key.privkey).try_into().unwrap();
 
         // fetch if this is first time tx
         let account_info = self.validity_prover.get_account_info(key.pubkey).await?;
@@ -258,15 +260,12 @@ where
                 }
             }
         }
-
         let memo = TxRequestMemo {
             is_registration_block,
             tx,
             transfers,
             spent_witness,
-            spent_proof,
-            prev_block_number: user_data.block_number,
-            prev_private_commitment: user_data.private_commitment(),
+            sender_proof_set_ephemeral_key,
         };
         Ok(memo)
     }
@@ -298,29 +297,21 @@ where
             .verify(memo.tx)
             .map_err(|e| ClientError::InvalidBlockProposal(format!("{}", e)))?;
 
-        // backup before posting signature
-        let common_tx_data = CommonTxData {
-            spent_proof: memo.spent_proof.clone(),
-            sender_prev_block_number: memo.prev_block_number,
-            tx: memo.tx,
+        let mut entries = vec![];
+
+        let tx_data = TxData {
             tx_index: proposal.tx_index,
             tx_merkle_proof: proposal.tx_merkle_proof.clone(),
             tx_tree_root: proposal.tx_tree_root,
+            spent_witness: memo.spent_witness.clone(),
+            sender_proof_set_ephemeral_key: memo.sender_proof_set_ephemeral_key,
         };
 
-        // save tx data
-        let tx_data = TxData {
-            common: common_tx_data.clone(),
-            spent_witness: memo.spent_witness.clone(),
-        };
-        self.store_vault_server
-            .save_data(
-                DataType::Tx,
-                key.pubkey,
-                &tx_data.encrypt(key.pubkey),
-                Some(key),
-            )
-            .await?;
+        entries.push(SaveDataEntry {
+            data_type: DataType::Tx,
+            pubkey: key.pubkey,
+            encrypted_data: tx_data.encrypt(key.pubkey),
+        });
 
         // save transfer data
         let mut transfer_tree = TransferTree::new(TRANSFER_TREE_HEIGHT);
@@ -328,52 +319,40 @@ where
             transfer_tree.push(*transfer);
         }
 
-        let mut all_transfer_data_vec = Vec::new();
         for (i, transfer) in memo.transfers.iter().enumerate() {
             let transfer_merkle_proof = transfer_tree.prove(i as u64);
             let transfer_data = TransferData {
                 sender: key.pubkey,
-                prev_block_number: memo.prev_block_number,
-                prev_private_commitment: memo.prev_private_commitment,
-                tx_data: common_tx_data.clone(),
                 transfer: *transfer,
                 transfer_index: i as u32,
                 transfer_merkle_proof,
+                sender_proof_set_ephemeral_key: memo.sender_proof_set_ephemeral_key,
+                sender_proof_set: None,
+                tx: memo.tx,
+                tx_index: proposal.tx_index,
+                tx_merkle_proof: proposal.tx_merkle_proof.clone(),
+                tx_tree_root: proposal.tx_tree_root,
             };
-            all_transfer_data_vec.push(transfer_data);
+            let data_type = if transfer.recipient.is_pubkey {
+                DataType::Transfer
+            } else {
+                DataType::Withdrawal
+            };
+            let pubkey = if transfer.recipient.is_pubkey {
+                transfer.recipient.to_pubkey().unwrap()
+            } else {
+                key.pubkey
+            };
+            entries.push(SaveDataEntry {
+                data_type,
+                pubkey,
+                encrypted_data: transfer_data.encrypt(pubkey),
+            });
         }
 
-        let transfer_data_vec = all_transfer_data_vec
-            .clone()
-            .into_iter()
-            // filter out eth-address recipients (withdrawal)
-            .filter(|data| data.transfer.recipient.is_pubkey)
-            .collect::<Vec<_>>();
-        let withdrawal_data_vec = all_transfer_data_vec
-            .into_iter()
-            // filter out pubkey recipients (transfer)
-            .filter(|data| !data.transfer.recipient.is_pubkey)
-            .collect::<Vec<_>>();
-
-        let encrypted_transfer_data_vec = transfer_data_vec
-            .iter()
-            .map(|data| {
-                let recipient = data.transfer.recipient.to_pubkey().unwrap();
-                (recipient, data.encrypt(recipient))
-            })
-            .collect::<Vec<_>>();
-        let encrypted_withdrawal_data_vec = withdrawal_data_vec
-            .iter()
-            .map(|data| (key.pubkey, data.encrypt(key.pubkey)))
-            .collect::<Vec<_>>();
-
-        let transfer_uuids = self
+        let uuids = self
             .store_vault_server
-            .save_data_batch(DataType::Transfer, encrypted_transfer_data_vec)
-            .await?;
-        let withdrawal_uuids = self
-            .store_vault_server
-            .save_data_batch(DataType::Withdrawal, encrypted_withdrawal_data_vec)
+            .save_data_batch(key, &entries)
             .await?;
 
         // sign and post signature
@@ -388,10 +367,31 @@ where
             )
             .await?;
 
+        let transfer_uuids = uuids
+            .iter()
+            .zip(entries.iter())
+            .filter_map(|(uuid, entry)| {
+                if entry.data_type == DataType::Transfer {
+                    Some(uuid.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let withdrawal_uuids = uuids
+            .iter()
+            .zip(entries.iter())
+            .filter_map(|(uuid, entry)| {
+                if entry.data_type == DataType::Withdrawal {
+                    Some(uuid.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
         let result = TxResult {
             tx_tree_root: proposal.tx_tree_root,
-            transfer_data_vec,
-            withdrawal_data_vec,
             transfer_uuids,
             withdrawal_uuids,
         };
