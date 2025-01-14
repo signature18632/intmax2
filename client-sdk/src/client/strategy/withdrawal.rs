@@ -7,9 +7,10 @@ use intmax2_interfaces::{
         },
         validity_prover::interface::ValidityProverClientInterface,
     },
-    data::{meta_data::MetaData, transfer_data::TransferData},
+    data::{meta_data::MetaData, sender_proof_set::SenderProofSet, transfer_data::TransferData},
 };
 use intmax2_zkp::common::signature::key_set::KeySet;
+use num_bigint::BigUint;
 
 #[derive(Debug, Clone)]
 pub struct WithdrawalInfo {
@@ -43,6 +44,21 @@ pub async fn fetch_withdrawal_info<
         }
         match TransferData::decrypt(&data, key) {
             Ok(transfer_data) => {
+                let ephemeral_key =
+                    KeySet::new(BigUint::from(transfer_data.sender_proof_set_ephemeral_key).into());
+                let encrypted_sender_proof_set = store_vault_server
+                    .get_sender_proof_set(ephemeral_key)
+                    .await?;
+                let sender_proof_set =
+                    match SenderProofSet::decrypt(&encrypted_sender_proof_set, ephemeral_key) {
+                        Ok(data) => data,
+                        Err(e) => {
+                            log::error!("failed to decrypt sender proof set: {}", e);
+                            continue;
+                        }
+                    };
+                let mut transfer_data = transfer_data;
+                transfer_data.set_sender_proof_set(sender_proof_set);
                 let tx_tree_root = transfer_data.tx_tree_root;
                 let block_number = validity_prover
                     .get_block_number_by_tx_tree_root(tx_tree_root)
