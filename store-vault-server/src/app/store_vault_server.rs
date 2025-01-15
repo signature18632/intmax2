@@ -4,7 +4,7 @@ use anyhow::{anyhow, Ok, Result};
 use intmax2_interfaces::{
     api::store_vault_server::{
         interface::{DataType, SaveDataEntry},
-        types::DataWithMetaData,
+        types::{DataWithMetaData, TimestampCursor, TimestampCursorResponse},
     },
     data::meta_data::MetaData,
     utils::digest::get_digest,
@@ -177,24 +177,29 @@ impl StoreVaultServer {
         Ok(uuids)
     }
 
-    pub async fn get_data_all_after(
+    pub async fn get_data_list(
         &self,
         data_type: DataType,
         pubkey: U256,
-        timestamp: u64,
-    ) -> Result<Vec<DataWithMetaData>> {
+        cursor: TimestampCursor,
+    ) -> Result<(Vec<DataWithMetaData>, TimestampCursorResponse)> {
         let pubkey_hex = pubkey.to_hex();
-
+        let actual_limit = cursor.limit.unwrap_or(1000) as i64;
+        let timestamp = cursor.timestamp as i64;
+        let uuid = cursor.uuid;
         let records = sqlx::query!(
             r#"
             SELECT uuid, timestamp, encrypted_data
             FROM encrypted_data
-            WHERE data_type = $1 AND pubkey = $2 AND timestamp >= $3
-            ORDER BY timestamp ASC
+            WHERE data_type = $1 AND pubkey = $2 AND (timestamp, uuid) > ($3, $4)
+            ORDER BY timestamp ASC, uuid ASC
+            LIMIT $5
             "#,
             data_type as i32,
             pubkey_hex,
-            timestamp as i64
+            timestamp as i64,
+            uuid,
+            actual_limit
         )
         .fetch_all(&self.pool)
         .await?;
@@ -214,7 +219,9 @@ impl StoreVaultServer {
             })
             .collect();
 
-        Ok(result)
+        let response_cursor = todo!();
+
+        Ok((result, response_cursor))
     }
 }
 

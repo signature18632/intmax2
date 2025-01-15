@@ -89,21 +89,38 @@ pub struct SaveDataBatchResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetDataAllAfterRequest {
+pub struct GetDataListRequest {
     pub data_type: DataType,
-    pub timestamp: u64,
+    pub cursor: Option<TimestampCursor>,
 }
 
-impl Signable for GetDataAllAfterRequest {
+impl Signable for GetDataListRequest {
     fn content(&self) -> Vec<u8> {
-        bincode::serialize(&(self.data_type, self.timestamp)).unwrap()
+        bincode::serialize(&(self.data_type, self.cursor.clone())).unwrap()
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetDataAllAfterResponse {
+pub struct GetDataListResponse {
     pub data: Vec<DataWithMetaData>,
+    pub cursor: TimestampCursorResponse,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimestampCursor {
+    pub timestamp: u64,
+    pub uuid: String,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimestampCursorResponse {
+    pub next_timestamp: Option<u64>,
+    pub next_uuid: Option<String>,
+    pub total_count: u32,
 }
 
 #[serde_as]
