@@ -181,30 +181,39 @@ impl StoreVaultServer {
         &self,
         data_type: DataType,
         pubkey: U256,
-        cursor: TimestampCursor,
+        cursor: &TimestampCursor,
     ) -> Result<(Vec<DataWithMetaData>, TimestampCursorResponse)> {
         let pubkey_hex = pubkey.to_hex();
         let actual_limit = cursor.limit.unwrap_or(1000) as i64;
-        let timestamp = cursor.timestamp as i64;
-        let uuid = cursor.uuid;
+        let cursor_timestamp = cursor.timestamp as i64;
+        let cursor_uuid = cursor.uuid.clone();
         let records = sqlx::query!(
             r#"
             SELECT uuid, timestamp, encrypted_data
             FROM encrypted_data
-            WHERE data_type = $1 AND pubkey = $2 AND (timestamp, uuid) > ($3, $4)
+            WHERE data_type = $1 AND pubkey = $2 AND (timestamp, uuid) >= ($3, $4)
             ORDER BY timestamp ASC, uuid ASC
             LIMIT $5
             "#,
             data_type as i32,
             pubkey_hex,
-            timestamp as i64,
-            uuid,
-            actual_limit
+            cursor_timestamp as i64,
+            cursor_uuid,
+            actual_limit + 1
         )
         .fetch_all(&self.pool)
         .await?;
 
-        let result = records
+        let total_count = sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*) FROM encrypted_data
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?
+        .unwrap_or(0) as u32;
+
+        let result: Vec<DataWithMetaData> = records
             .into_iter()
             .map(|r| {
                 let meta = MetaData {
@@ -218,9 +227,15 @@ impl StoreVaultServer {
                 }
             })
             .collect();
-
-        let response_cursor = todo!();
-
+        let (next_timestamp, next_uuid) = result
+            .last()
+            .map(|data| (data.meta.timestamp, data.meta.uuid.clone()))
+            .unzip();
+        let response_cursor = TimestampCursorResponse {
+            next_timestamp,
+            next_uuid,
+            total_count,
+        };
         Ok((result, response_cursor))
     }
 }
@@ -234,7 +249,7 @@ mod tests {
     use crate::{app::store_vault_server::StoreVaultServer, EnvVar};
 
     #[tokio::test]
-    async fn test_get_and_save() -> anyhow::Result<()> {
+    async fn test_user_data_get_and_save() -> anyhow::Result<()> {
         dotenv::dotenv().ok();
         let env: EnvVar = envy::from_env()?;
         let store_vault_server = StoreVaultServer::new(&env).await?;
@@ -260,7 +275,6 @@ mod tests {
         store_vault_server
             .save_user_data(key.pubkey, Some(digest), &encrypted)
             .await?;
-
         Ok(())
     }
 }

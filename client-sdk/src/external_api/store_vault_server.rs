@@ -5,10 +5,11 @@ use intmax2_interfaces::{
         store_vault_server::{
             interface::{DataType, SaveDataEntry, StoreVaultClientInterface},
             types::{
-                DataWithMetaData, GetDataAllAfterRequest, GetDataAllAfterResponse,
+                DataWithMetaData, GetDataListRequest, GetDataListResponse,
                 GetSenderProofSetRequest, GetSenderProofSetResponse, GetUserDataRequest,
                 GetUserDataResponse, SaveDataBatchRequest, SaveDataBatchResponse,
-                SaveSenderProofSetRequest, SaveUserDataRequest,
+                SaveSenderProofSetRequest, SaveUserDataRequest, TimestampCursor,
+                TimestampCursorResponse,
             },
         },
     },
@@ -115,23 +116,23 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         Ok(response.uuids)
     }
 
-    async fn get_data_all_after(
+    async fn get_data_list(
         &self,
         data_type: DataType,
         key: KeySet,
-        timestamp: u64,
-    ) -> Result<Vec<DataWithMetaData>, ServerError> {
-        let request = GetDataAllAfterRequest {
+        cursor: &TimestampCursor,
+    ) -> Result<(Vec<DataWithMetaData>, TimestampCursorResponse), ServerError> {
+        let request = GetDataListRequest {
             data_type,
-            timestamp,
+            cursor: cursor.clone(),
         };
         let request_with_auth = request.sign(key, TIME_TO_EXPIRY);
-        let response: GetDataAllAfterResponse = post_request(
+        let response: GetDataListResponse = post_request(
             &self.base_url,
-            "/store-vault-server/get-data-all-after",
+            "/store-vault-server/get-data-list",
             Some(&request_with_auth),
         )
         .await?;
-        Ok(response.data)
+        Ok((response.data, response.cursor))
     }
 }

@@ -7,7 +7,7 @@ use actix_web::{
 };
 use intmax2_interfaces::{
     api::store_vault_server::types::{
-        GetDataAllAfterRequest, GetDataAllAfterResponse, GetSenderProofSetRequest,
+        GetDataListRequest, GetDataListResponse, GetSenderProofSetRequest,
         GetSenderProofSetResponse, GetUserDataRequest, GetUserDataResponse, SaveDataBatchRequest,
         SaveDataBatchResponse, SaveSenderProofSetRequest, SaveUserDataRequest,
     },
@@ -124,23 +124,25 @@ pub async fn batch_save_data(
     Ok(Json(SaveDataBatchResponse { uuids }))
 }
 
-#[post("/get-data-all-after")]
-pub async fn get_data_all_after(
+#[post("/get-data-list")]
+pub async fn get_data_list(
     state: Data<State>,
-    request: Json<WithAuth<GetDataAllAfterRequest>>,
-) -> Result<Json<GetDataAllAfterResponse>, Error> {
+    request: Json<WithAuth<GetDataListRequest>>,
+) -> Result<Json<GetDataListResponse>, Error> {
     request
         .inner
         .verify(&request.auth)
         .map_err(ErrorUnauthorized)?;
     let pubkey = request.auth.pubkey;
     let request = &request.inner;
-    let data = state
+    let (data, cursor) = state
         .store_vault_server
-        .get_data_all_after(request.data_type, pubkey, request.timestamp)
+        .get_data_list(request.data_type, pubkey, &request.cursor)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
-    Ok(Json(GetDataAllAfterResponse { data }))
+
+    let res = GetDataListResponse { data, cursor };
+    Ok(Json(res))
 }
 
 pub fn store_vault_server_scope() -> actix_web::Scope {
@@ -150,5 +152,5 @@ pub fn store_vault_server_scope() -> actix_web::Scope {
         .service(save_sender_proof_set)
         .service(get_sender_proof_set)
         .service(batch_save_data)
-        .service(get_data_all_after)
+        .service(get_data_list)
 }

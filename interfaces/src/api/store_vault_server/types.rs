@@ -91,7 +91,7 @@ pub struct SaveDataBatchResponse {
 #[serde(rename_all = "camelCase")]
 pub struct GetDataListRequest {
     pub data_type: DataType,
-    pub cursor: Option<TimestampCursor>,
+    pub cursor: TimestampCursor,
 }
 
 impl Signable for GetDataListRequest {
@@ -111,7 +111,7 @@ pub struct GetDataListResponse {
 #[serde(rename_all = "camelCase")]
 pub struct TimestampCursor {
     pub timestamp: u64,
-    pub uuid: String,
+    pub uuid: Option<String>,
     pub limit: Option<u32>,
 }
 

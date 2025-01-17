@@ -10,7 +10,7 @@ use serde_with::{base64::Base64, serde_as};
 
 use crate::api::error::ServerError;
 
-use super::types::DataWithMetaData;
+use super::types::{DataWithMetaData, TimestampCursor, TimestampCursorResponse};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
@@ -94,12 +94,12 @@ pub trait StoreVaultClientInterface {
         entries: &[SaveDataEntry],
     ) -> Result<Vec<String>, ServerError>;
 
-    async fn get_data_all_after(
+    async fn get_data_list(
         &self,
         data_type: DataType,
         key: KeySet,
-        timestamp: u64,
-    ) -> Result<Vec<DataWithMetaData>, ServerError>;
+        cursor: &TimestampCursor,
+    ) -> Result<(Vec<DataWithMetaData>, TimestampCursorResponse), ServerError>;
 }
 
 #[cfg(test)]
