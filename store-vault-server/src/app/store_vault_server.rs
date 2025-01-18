@@ -233,7 +233,7 @@ impl StoreVaultServer {
     ) -> Result<(Vec<DataWithMetaData>, MetaDataCursorResponse)> {
         let pubkey_hex = pubkey.to_hex();
         let actual_limit = cursor.limit.unwrap_or(self.config.max_pagination_limit) as i64;
-        let cursor_meta = cursor.meta.as_ref();
+        let cursor_meta = cursor.cursor.as_ref();
         let result = if let Some(cursor_meta) = cursor_meta {
             let records = sqlx::query!(
                 r#"
@@ -322,7 +322,10 @@ impl StoreVaultServer {
 #[cfg(test)]
 mod tests {
     use ethers::core::rand;
-    use intmax2_interfaces::{data::user_data::UserData, utils::digest::get_digest};
+    use intmax2_interfaces::{
+        data::{meta_data::MetaData, user_data::UserData},
+        utils::digest::get_digest,
+    };
     use intmax2_zkp::common::signature::key_set::KeySet;
 
     use crate::{app::store_vault_server::StoreVaultServer, EnvVar};
@@ -343,16 +346,26 @@ mod tests {
         store_vault_server
             .save_user_data(key.pubkey, None, &encrypted)
             .await?;
-
         let got_encrypted_user_data = store_vault_server.get_user_data(key.pubkey).await?;
         assert_eq!(got_encrypted_user_data.as_ref().unwrap(), &encrypted);
         let digest2 = get_digest(&got_encrypted_user_data.unwrap());
         assert_eq!(digest, digest2);
-
-        user_data.deposit_lpt = 1;
+        user_data.deposit_status.last_processed_meta_data = Some(MetaData {
+            timestamp: 1,
+            uuid: "test".to_string(),
+        });
         let encrypted = user_data.encrypt(key.pubkey);
+        let digest3 = get_digest(&encrypted);
         store_vault_server
             .save_user_data(key.pubkey, Some(digest), &encrypted)
+            .await?;
+
+        user_data.deposit_status.last_processed_meta_data = Some(MetaData {
+            timestamp: 2,
+            uuid: "test2".to_string(),
+        });
+        store_vault_server
+            .save_user_data(key.pubkey, Some(digest3), &encrypted)
             .await?;
         Ok(())
     }

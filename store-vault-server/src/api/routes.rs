@@ -7,9 +7,10 @@ use actix_web::{
 };
 use intmax2_interfaces::{
     api::store_vault_server::types::{
-        GetDataSequenceRequest, GetDataSequenceResponse, GetSenderProofSetRequest,
-        GetSenderProofSetResponse, GetUserDataRequest, GetUserDataResponse, SaveDataBatchRequest,
-        SaveDataBatchResponse, SaveSenderProofSetRequest, SaveUserDataRequest,
+        GetDataBatchRequest, GetDataBatchResponse, GetDataSequenceRequest, GetDataSequenceResponse,
+        GetSenderProofSetRequest, GetSenderProofSetResponse, GetUserDataRequest,
+        GetUserDataResponse, SaveDataBatchRequest, SaveDataBatchResponse,
+        SaveSenderProofSetRequest, SaveUserDataRequest,
     },
     utils::signature::{Signable, WithAuth},
 };
@@ -89,7 +90,7 @@ pub async fn get_sender_proof_set(
 }
 
 #[post("/save-data-batch")]
-pub async fn batch_save_data(
+pub async fn save_data_batch(
     state: Data<State>,
     request: Json<WithAuth<SaveDataBatchRequest>>,
 ) -> Result<Json<SaveDataBatchResponse>, Error> {
@@ -124,6 +125,25 @@ pub async fn batch_save_data(
     Ok(Json(SaveDataBatchResponse { uuids }))
 }
 
+#[post("/get-data-batch")]
+pub async fn get_data_batch(
+    state: Data<State>,
+    request: Json<WithAuth<GetDataBatchRequest>>,
+) -> Result<Json<GetDataBatchResponse>, Error> {
+    request
+        .inner
+        .verify(&request.auth)
+        .map_err(ErrorUnauthorized)?;
+    let pubkey = request.auth.pubkey;
+    let request = &request.inner;
+    let data = state
+        .store_vault_server
+        .get_data_batch(request.data_type, pubkey, &request.uuids)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+    Ok(Json(GetDataBatchResponse { data }))
+}
+
 #[post("/get-data-list")]
 pub async fn get_data_list(
     state: Data<State>,
@@ -135,12 +155,11 @@ pub async fn get_data_list(
         .map_err(ErrorUnauthorized)?;
     let pubkey = request.auth.pubkey;
     let request = &request.inner;
-    let (data, cursor) = state
+    let (data, cursor_response) = state
         .store_vault_server
         .get_data_sequence(request.data_type, pubkey, &request.cursor)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
-
     let res = GetDataSequenceResponse {
         data,
         cursor_response,
@@ -154,6 +173,7 @@ pub fn store_vault_server_scope() -> actix_web::Scope {
         .service(get_user_data)
         .service(save_sender_proof_set)
         .service(get_sender_proof_set)
-        .service(batch_save_data)
+        .service(save_data_batch)
+        .app_data(get_data_batch)
         .service(get_data_list)
 }
