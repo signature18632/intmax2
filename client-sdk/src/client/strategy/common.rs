@@ -35,19 +35,19 @@ pub async fn fetch_decrypt_validate<S: StoreVaultClientInterface, T: Encryption 
         .filter_map(|data_with_meta| {
             let DataWithMetaData { meta, data } = data_with_meta;
             if process_status.processed_uuids.contains(&meta.uuid) {
-                log::info!("{} {} is already processed", data_type, meta.uuid);
+                log::warn!("{} {} is already processed", data_type, meta.uuid);
                 return None;
             }
             match T::decrypt(&data, key) {
                 Ok(data) => match data.validate(key) {
                     Ok(_) => Some((meta, data)),
                     Err(e) => {
-                        log::error!("failed to validate {}: {}", data_type, e);
+                        log::warn!("failed to validate {}: {}", data_type, e);
                         None
                     }
                 },
                 Err(e) => {
-                    log::error!("failed to decrypt deposit data: {}", e);
+                    log::warn!("failed to decrypt {}: {}", data_type, e);
                     None
                 }
             }

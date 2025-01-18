@@ -10,7 +10,4 @@ pub enum DataError {
 
     #[error("Deserialization error: {0}")]
     DeserializeError(#[from] bincode::Error),
-
-    #[error("Validation error: {0}")]
-    ValidationError(String),
 }

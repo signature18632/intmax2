@@ -14,13 +14,7 @@ use super::error::CliError;
 
 pub async fn balance(key: KeySet) -> Result<(), CliError> {
     let client = get_client()?;
-    let pending_info = client.sync(key).await?;
-
-    println!("Pending deposits: {}", pending_info.pending_deposits.len());
-    println!(
-        "Pending transfers: {}",
-        pending_info.pending_transfers.len()
-    );
+    client.sync(key).await?;
 
     let (user_data, _) = client.get_user_data_and_digest(key).await?;
     let mut balances: Vec<(u32, AssetLeaf)> = user_data.balances().0.into_iter().collect();

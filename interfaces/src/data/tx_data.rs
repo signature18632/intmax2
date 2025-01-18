@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{encryption::Encryption, error::DataError, validation::Validation};
+use super::{encryption::Encryption, validation::Validation};
 use intmax2_zkp::{
     common::{
         signature::key_set::KeySet, trees::tx_tree::TxMerkleProof,
@@ -27,14 +27,10 @@ pub struct TxData {
 impl Encryption for TxData {}
 
 impl Validation for TxData {
-    fn validate(&self, _key: KeySet) -> Result<(), DataError> {
-        let tx_tree_root: PoseidonHashOut = self
-            .tx_tree_root
-            .try_into()
-            .map_err(|_| DataError::ValidationError("Invalid tx_tree_root".to_string()))?;
+    fn validate(&self, _key: KeySet) -> anyhow::Result<()> {
+        let tx_tree_root: PoseidonHashOut = self.tx_tree_root.try_into()?;
         self.tx_merkle_proof
-            .verify(&self.spent_witness.tx, self.tx_index as u64, tx_tree_root)
-            .map_err(|_| DataError::ValidationError("Invalid tx_merkle_proof".to_string()))?;
+            .verify(&self.spent_witness.tx, self.tx_index as u64, tx_tree_root)?;
         Ok(())
     }
 }

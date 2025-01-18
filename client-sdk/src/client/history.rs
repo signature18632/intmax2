@@ -133,9 +133,12 @@ pub async fn fetch_history<
             is_eligible: settled.is_eligible,
             depositor: settled.depositor,
             pubkey_salt_hash: settled.pubkey_salt_hash,
-            is_included: user_data.processed_deposit_uuids.contains(&meta.uuid),
+            is_included: user_data
+                .deposit_status
+                .processed_uuids
+                .contains(&meta.meta.uuid),
             is_rejected: false,
-            meta,
+            meta: meta.meta.clone(),
         });
     }
     for (meta, pending) in all_deposit_info.pending {
@@ -173,8 +176,7 @@ pub async fn fetch_history<
         &client.store_vault_server,
         &client.validity_prover,
         key,
-        0,   // set to 0 to get all transfers
-        &[], // no processed transfer uuids to get all transfers
+        &ProcessStatus::default(),
         client.config.tx_timeout,
     )
     .await?;
@@ -184,9 +186,12 @@ pub async fn fetch_history<
             amount: transfer.amount,
             token_index: transfer.token_index,
             from: transfer.recipient.data,
-            is_included: user_data.processed_transfer_uuids.contains(&meta.uuid),
+            is_included: user_data
+                .transfer_status
+                .processed_uuids
+                .contains(&meta.meta.uuid),
             is_rejected: false,
-            meta: meta.clone(),
+            meta: meta.meta.clone(),
         });
     }
     for (meta, pending) in all_transfers_info.pending {
@@ -216,17 +221,19 @@ pub async fn fetch_history<
         &client.store_vault_server,
         &client.validity_prover,
         key,
-        0,   // set to 0 to get all txs
-        &[], // no processed tx uuids to get all txs
+        &ProcessStatus::default(),
         client.config.tx_timeout,
     )
     .await?;
     for (meta, settled) in all_tx_info.settled {
         history.push(HistoryEntry::Send {
             transfers: extract_generic_transfers(settled),
-            is_included: user_data.processed_tx_uuids.contains(&meta.uuid),
+            is_included: user_data
+                .tx_status
+                .processed_uuids
+                .contains(&meta.meta.uuid),
             is_rejected: false,
-            meta,
+            meta: meta.meta.clone(),
         });
     }
     for (meta, pending) in all_tx_info.pending {

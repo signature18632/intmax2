@@ -11,10 +11,7 @@ use intmax2_zkp::{
     utils::poseidon_hash_out::PoseidonHashOut,
 };
 
-use super::{
-    encryption::Encryption, error::DataError, sender_proof_set::SenderProofSet,
-    validation::Validation,
-};
+use super::{encryption::Encryption, sender_proof_set::SenderProofSet, validation::Validation};
 
 /// Backup data for receiving transfers
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -44,21 +41,15 @@ impl TransferData {
 impl Encryption for TransferData {}
 
 impl Validation for TransferData {
-    fn validate(&self, _key: KeySet) -> Result<(), DataError> {
-        let tx_tree_root: PoseidonHashOut = self
-            .tx_tree_root
-            .try_into()
-            .map_err(|_| DataError::ValidationError("Invalid tx_tree_root".to_string()))?;
+    fn validate(&self, _key: KeySet) -> anyhow::Result<()> {
+        let tx_tree_root: PoseidonHashOut = self.tx_tree_root.try_into()?;
         self.tx_merkle_proof
-            .verify(&self.tx, self.tx_index as u64, tx_tree_root)
-            .map_err(|_| DataError::ValidationError("Invalid tx_merkle_proof".to_string()))?;
-        self.transfer_merkle_proof
-            .verify(
-                &self.transfer,
-                self.transfer_index as u64,
-                self.tx.transfer_tree_root,
-            )
-            .map_err(|_| DataError::ValidationError("Invalid transfer_merkle_proof".to_string()))?;
+            .verify(&self.tx, self.tx_index as u64, tx_tree_root)?;
+        self.transfer_merkle_proof.verify(
+            &self.transfer,
+            self.transfer_index as u64,
+            self.tx.transfer_tree_root,
+        )?;
         Ok(())
     }
 }

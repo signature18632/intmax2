@@ -35,8 +35,16 @@ pub struct UserData {
 pub struct ProcessStatus {
     // Last processed meta data
     pub last_processed_meta_data: Option<MetaData>,
-    pub pending_uuids: Vec<String>,
     pub processed_uuids: Vec<String>,
+    pub pending_uuids: Vec<String>,
+}
+
+impl ProcessStatus {
+    pub fn process(&mut self, meta: MetaData) {
+        self.last_processed_meta_data = Some(meta.clone());
+        self.pending_uuids.retain(|uuid| uuid != &meta.uuid);
+        self.processed_uuids.push(meta.uuid);
+    }
 }
 
 impl UserData {

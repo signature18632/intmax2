@@ -149,7 +149,7 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         let mut metadata_cursor = metadata_cursor.clone();
         while has_more {
             let (data, cursor) = self
-                .get_data_sequence_inner(key.clone(), data_type, &metadata_cursor)
+                .get_data_sequence_inner(key, data_type, &metadata_cursor)
                 .await?;
             has_more = cursor.has_more;
             metadata_cursor = cursor.next_cursor;

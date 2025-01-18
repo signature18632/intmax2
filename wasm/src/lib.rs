@@ -5,9 +5,7 @@ use intmax2_client_sdk::{
     external_api::utils::time::sleep_for,
 };
 use intmax2_interfaces::data::{
-    deposit_data::{DepositData, TokenType},
-    transfer_data::TransferData,
-    tx_data::TxData,
+    deposit_data::{DepositData, TokenType}, encryption::Encryption as _, transfer_data::TransferData, tx_data::TxData
 };
 use intmax2_zkp::{
     common::transfer::Transfer,

@@ -11,7 +11,7 @@ use intmax2_zkp::{
     utils::leafable::Leafable,
 };
 
-use super::{encryption::Encryption, error::DataError, validation::Validation};
+use super::{encryption::Encryption, validation::Validation};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -102,11 +102,9 @@ impl DepositData {
 impl Encryption for DepositData {}
 
 impl Validation for DepositData {
-    fn validate(&self, key: KeySet) -> Result<(), DataError> {
+    fn validate(&self, key: KeySet) -> anyhow::Result<()> {
         if self.pubkey_salt_hash != get_pubkey_salt_hash(key.pubkey, self.deposit_salt) {
-            return Err(DataError::ValidationError(
-                "Invalid pubkey_salt_hash".to_string(),
-            ));
+            anyhow::bail!("Invalid pubkey_salt_hash");
         }
         Ok(())
     }
