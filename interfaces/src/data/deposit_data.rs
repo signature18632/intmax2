@@ -11,12 +11,7 @@ use intmax2_zkp::{
     utils::leafable::Leafable,
 };
 
-use super::{
-    encryption::algorithm::{decrypt, encrypt},
-    error::DataError,
-};
-
-type Result<T> = std::result::Result<T, DataError>;
+use super::{encryption::Encryption, error::DataError, validation::Validation};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -85,35 +80,6 @@ impl TryFrom<u8> for TokenType {
 }
 
 impl DepositData {
-    fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap()
-    }
-
-    fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let data = bincode::deserialize(bytes)?;
-        Ok(data)
-    }
-
-    pub fn encrypt(&self, pubkey: U256) -> Vec<u8> {
-        encrypt(pubkey, &self.to_bytes())
-    }
-
-    pub fn decrypt(bytes: &[u8], key: KeySet) -> Result<Self> {
-        let data = decrypt(key, bytes).map_err(|e| DataError::DecryptionError(e.to_string()))?;
-        let data = Self::from_bytes(&data)?;
-        data.validate(key)?;
-        Ok(data)
-    }
-
-    fn validate(&self, key: KeySet) -> Result<()> {
-        if self.pubkey_salt_hash != get_pubkey_salt_hash(key.pubkey, self.deposit_salt) {
-            return Err(DataError::ValidationError(
-                "Invalid pubkey_salt_hash".to_string(),
-            ));
-        }
-        Ok(())
-    }
-
     pub fn set_token_index(&mut self, token_index: u32) {
         self.token_index = Some(token_index);
     }
@@ -130,6 +96,19 @@ impl DepositData {
 
     pub fn deposit_hash(&self) -> Option<Bytes32> {
         self.deposit().map(|deposit| deposit.hash())
+    }
+}
+
+impl Encryption for DepositData {}
+
+impl Validation for DepositData {
+    fn validate(&self, key: KeySet) -> Result<(), DataError> {
+        if self.pubkey_salt_hash != get_pubkey_salt_hash(key.pubkey, self.deposit_salt) {
+            return Err(DataError::ValidationError(
+                "Invalid pubkey_salt_hash".to_string(),
+            ));
+        }
+        Ok(())
     }
 }
 

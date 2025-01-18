@@ -5,7 +5,6 @@ use intmax2_zkp::{
     circuits::balance::balance_processor::get_prev_balance_pis,
     common::{
         private_state::{FullPrivateState, PrivateState},
-        signature::key_set::KeySet,
         trees::asset_tree::AssetLeaf,
     },
     ethereum_types::u256::U256,
@@ -13,13 +12,8 @@ use intmax2_zkp::{
 };
 
 use super::{
-    deposit_data::DepositData,
-    encryption::algorithm::{decrypt, encrypt},
-    error::DataError,
-    meta_data::MetaData,
-    proof_compression::CompressedBalanceProof,
-    transfer_data::TransferData,
-    tx_data::TxData,
+    deposit_data::DepositData, encryption::Encryption, error::DataError, meta_data::MetaData,
+    proof_compression::CompressedBalanceProof, transfer_data::TransferData, tx_data::TxData,
 };
 
 type Result<T> = std::result::Result<T, DataError>;
@@ -70,25 +64,6 @@ impl UserData {
         Ok(balance_pis.public_state.block_number)
     }
 
-    fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(&self).unwrap()
-    }
-
-    fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let user_data = bincode::deserialize(bytes)?;
-        Ok(user_data)
-    }
-
-    pub fn encrypt(&self, pubkey: U256) -> Vec<u8> {
-        encrypt(pubkey, &self.to_bytes())
-    }
-
-    pub fn decrypt(bytes: &[u8], key: KeySet) -> Result<Self> {
-        let data = decrypt(key, bytes).map_err(|e| DataError::DecryptionError(e.to_string()))?;
-        let data = Self::from_bytes(&data)?;
-        Ok(data)
-    }
-
     pub fn private_state(&self) -> PrivateState {
         self.full_private_state.to_private_state()
     }
@@ -108,6 +83,8 @@ impl UserData {
         Balances(leaves)
     }
 }
+
+impl Encryption for UserData {}
 
 /// Token index -> AssetLeaf
 pub struct Balances(pub HashMap<u32, AssetLeaf>);

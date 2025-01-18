@@ -12,12 +12,9 @@ use intmax2_zkp::{
 };
 
 use super::{
-    encryption::algorithm::{decrypt, encrypt},
-    error::DataError,
-    sender_proof_set::SenderProofSet,
+    encryption::Encryption, error::DataError, sender_proof_set::SenderProofSet,
+    validation::Validation,
 };
-
-type Result<T> = std::result::Result<T, DataError>;
 
 /// Backup data for receiving transfers
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -39,27 +36,15 @@ pub struct TransferData {
 }
 
 impl TransferData {
-    fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap()
+    pub fn set_sender_proof_set(&mut self, sender_proof_set: SenderProofSet) {
+        self.sender_proof_set = Some(sender_proof_set);
     }
+}
 
-    fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let data = bincode::deserialize(bytes)?;
-        Ok(data)
-    }
+impl Encryption for TransferData {}
 
-    pub fn encrypt(&self, pubkey: U256) -> Vec<u8> {
-        encrypt(pubkey, &self.to_bytes())
-    }
-
-    pub fn decrypt(bytes: &[u8], key: KeySet) -> Result<Self> {
-        let data = decrypt(key, bytes).map_err(|e| DataError::DecryptionError(e.to_string()))?;
-        let data = Self::from_bytes(&data)?;
-        data.validate(key)?;
-        Ok(data)
-    }
-
-    pub fn validate(&self, _key: KeySet) -> Result<()> {
+impl Validation for TransferData {
+    fn validate(&self, _key: KeySet) -> Result<(), DataError> {
         let tx_tree_root: PoseidonHashOut = self
             .tx_tree_root
             .try_into()
@@ -75,9 +60,5 @@ impl TransferData {
             )
             .map_err(|_| DataError::ValidationError("Invalid transfer_merkle_proof".to_string()))?;
         Ok(())
-    }
-
-    pub fn set_sender_proof_set(&mut self, sender_proof_set: SenderProofSet) {
-        self.sender_proof_set = Some(sender_proof_set);
     }
 }
