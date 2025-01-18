@@ -8,8 +8,8 @@ use intmax2_interfaces::{
                 DataWithMetaData, GetDataBatchRequest, GetDataBatchResponse,
                 GetDataSequenceRequest, GetDataSequenceResponse, GetSenderProofSetRequest,
                 GetSenderProofSetResponse, GetUserDataRequest, GetUserDataResponse, MetaDataCursor,
-                SaveDataBatchRequest, SaveDataBatchResponse, SaveSenderProofSetRequest,
-                SaveUserDataRequest,
+                MetaDataCursorResponse, SaveDataBatchRequest, SaveDataBatchResponse,
+                SaveSenderProofSetRequest, SaveUserDataRequest,
             },
         },
     },
@@ -143,10 +143,33 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         data_type: DataType,
         metadata_cursor: &Option<MetaData>,
     ) -> Result<Vec<DataWithMetaData>, ServerError> {
+        let mut data_array = vec![];
+
+        let mut has_more = true;
+        let mut metadata_cursor = metadata_cursor.clone();
+        while has_more {
+            let (data, cursor) = self
+                .get_data_sequence_inner(key.clone(), data_type, &metadata_cursor)
+                .await?;
+            has_more = cursor.has_more;
+            metadata_cursor = cursor.next_cursor;
+            data_array.extend(data);
+        }
+        Ok(data_array)
+    }
+}
+
+impl StoreVaultServerClient {
+    async fn get_data_sequence_inner(
+        &self,
+        key: KeySet,
+        data_type: DataType,
+        metadata_cursor: &Option<MetaData>,
+    ) -> Result<(Vec<DataWithMetaData>, MetaDataCursorResponse), ServerError> {
         let request = GetDataSequenceRequest {
             data_type,
             cursor: MetaDataCursor {
-                meta: metadata_cursor.clone(),
+                cursor: metadata_cursor.clone(),
                 limit: None,
             },
         };
@@ -157,6 +180,6 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
             Some(&request_with_auth),
         )
         .await?;
-        Ok(response.data)
+        Ok((response.data, response.cursor_response))
     }
 }
