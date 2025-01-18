@@ -1,4 +1,6 @@
-use intmax2_interfaces::api::withdrawal_server::interface::ContractWithdrawal;
+use intmax2_interfaces::{
+    api::withdrawal_server::interface::ContractWithdrawal, data::meta_data::MetaData,
+};
 use intmax2_zkp::{
     common::{
         generic_address::GenericAddress, transfer::Transfer, tx::Tx,
@@ -202,5 +204,21 @@ impl JsContractWithdrawal {
         let contract_withdrawal: ContractWithdrawal = self.clone().try_into()?;
         let hash = contract_withdrawal.withdrawal_hash().to_hex();
         Ok(hash)
+    }
+}
+
+#[derive(Debug, Clone)]
+#[wasm_bindgen(getter_with_clone)]
+pub struct JsMetaData {
+    pub timestamp: u64,
+    pub uuid: String,
+}
+
+impl From<MetaData> for JsMetaData {
+    fn from(meta_data: MetaData) -> Self {
+        Self {
+            timestamp: meta_data.timestamp,
+            uuid: meta_data.uuid.to_string(),
+        }
     }
 }

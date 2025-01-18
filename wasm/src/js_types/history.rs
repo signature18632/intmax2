@@ -1,8 +1,10 @@
 use intmax2_client_sdk::client::history::{EntryStatus, HistoryEntry};
-use intmax2_interfaces::data::meta_data::MetaData;
 use wasm_bindgen::prelude::wasm_bindgen;
 
-use super::data::{JsDepositData, JsTransferData, JsTxData};
+use super::{
+    common::JsMetaData,
+    data::{JsDepositData, JsTransferData, JsTxData},
+};
 
 #[derive(Debug, Clone)]
 #[wasm_bindgen]
@@ -42,24 +44,36 @@ impl From<EntryStatus> for JsEntryStatusWithBlockNumber {
         }
     }
 }
+#[derive(Clone, Debug)]
+#[wasm_bindgen(getter_with_clone)]
+pub struct JsDepositEntry {
+    pub deposit: JsDepositData,
+    pub status: JsEntryStatusWithBlockNumber,
+    pub meta: JsMetaData,
+}
 
 #[derive(Clone, Debug)]
-pub enum JsHistoryEntry {
-    Deposit {
-        deposit: JsDepositData,
-        status: EntryStatus,
-        meta: MetaData,
-    },
-    Receive {
-        transfer: JsTransferData,
-        status: EntryStatus,
-        meta: MetaData,
-    },
-    Send {
-        tx: JsTxData,
-        status: EntryStatus,
-        meta: MetaData,
-    },
+#[wasm_bindgen(getter_with_clone)]
+pub struct JsReceiveEntry {
+    pub transfer: JsTransferData,
+    pub status: JsEntryStatusWithBlockNumber,
+    pub meta: JsMetaData,
+}
+
+#[derive(Clone, Debug)]
+#[wasm_bindgen(getter_with_clone)]
+pub struct JsSendEntry {
+    pub tx: JsTxData,
+    pub status: JsEntryStatusWithBlockNumber,
+    pub meta: JsMetaData,
+}
+
+#[derive(Clone, Debug)]
+#[wasm_bindgen(getter_with_clone)]
+pub struct JsHistoryEntry {
+    pub deposit: Option<JsDepositEntry>,
+    pub receive: Option<JsReceiveEntry>,
+    pub send: Option<JsSendEntry>,
 }
 
 impl From<HistoryEntry> for JsHistoryEntry {
@@ -69,24 +83,36 @@ impl From<HistoryEntry> for JsHistoryEntry {
                 deposit,
                 status,
                 meta,
-            } => Self::Deposit {
-                deposit: deposit.into(),
-                status,
-                meta,
+            } => Self {
+                deposit: Some(JsDepositEntry {
+                    deposit: deposit.into(),
+                    status: status.into(),
+                    meta: meta.into(),
+                }),
+                receive: None,
+                send: None,
             },
             HistoryEntry::Receive {
                 transfer,
                 status,
                 meta,
-            } => Self::Receive {
-                transfer: transfer.into(),
-                status,
-                meta,
+            } => Self {
+                deposit: None,
+                receive: Some(JsReceiveEntry {
+                    transfer: transfer.into(),
+                    status: status.into(),
+                    meta: meta.into(),
+                }),
+                send: None,
             },
-            HistoryEntry::Send { tx, status, meta } => Self::Send {
-                tx: tx.into(),
-                status,
-                meta,
+            HistoryEntry::Send { tx, status, meta } => Self {
+                deposit: None,
+                receive: None,
+                send: Some(JsSendEntry {
+                    tx: tx.into(),
+                    status: status.into(),
+                    meta: meta.into(),
+                }),
             },
         }
     }
