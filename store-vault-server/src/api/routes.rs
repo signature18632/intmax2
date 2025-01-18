@@ -174,6 +174,6 @@ pub fn store_vault_server_scope() -> actix_web::Scope {
         .service(save_sender_proof_set)
         .service(get_sender_proof_set)
         .service(save_data_batch)
-        .app_data(get_data_batch)
+        .service(get_data_batch)
         .service(get_data_list)
 }
