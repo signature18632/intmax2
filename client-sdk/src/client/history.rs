@@ -7,13 +7,14 @@ use intmax2_interfaces::{
         withdrawal_server::interface::WithdrawalServerClientInterface,
     },
     data::{
-        deposit_data::TokenType, meta_data::MetaData, tx_data::TxData, user_data::ProcessStatus,
+        deposit_data::DepositData,
+        meta_data::{MetaData, MetaDataWithBlockNumber},
+        transfer_data::TransferData,
+        tx_data::TxData,
+        user_data::ProcessStatus,
     },
 };
-use intmax2_zkp::{
-    common::signature::key_set::KeySet,
-    ethereum_types::{address::Address, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
-};
+use intmax2_zkp::common::signature::key_set::KeySet;
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -24,80 +25,87 @@ use super::{
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub enum HistoryEntry {
-    Deposit {
-        token_type: TokenType,
-        token_address: Address,
-        token_id: U256,
-        token_index: Option<u32>,
-        amount: U256,
-        is_eligible: bool,
-        depositor: Address,
-        pubkey_salt_hash: Bytes32,
-        is_included: bool,
-        is_rejected: bool,
-        meta: MetaData,
-    },
-    Receive {
-        amount: U256,
-        token_index: u32,
-        from: U256,
-        is_included: bool,
-        is_rejected: bool,
-        meta: MetaData,
-    },
-    Send {
-        transfers: Vec<GenericTransfer>,
-        is_included: bool,
-        is_rejected: bool,
-        meta: MetaData,
-    },
+pub enum EntryStatus {
+    Settled(u32),   // Settled at block number but not processed yet
+    Processed(u32), // Incorporated into the balance proof
+    Pending,        // Not settled yet
+    Timeout,        // Timed out
 }
 
-/// Transfer without salt
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum GenericTransfer {
-    Transfer {
-        recipient: U256,
-        token_index: u32,
-        amount: U256,
-    },
-    Withdrawal {
-        recipient: Address,
-        token_index: u32,
-        amount: U256,
-    },
-}
-
-impl std::fmt::Display for GenericTransfer {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            GenericTransfer::Transfer {
-                recipient,
-                token_index,
-                amount,
-            } => write!(
-                f,
-                "Transfer(recipient: {}, token_index: {}, amount: {})",
-                recipient.to_hex(),
-                token_index,
-                amount
-            ),
-            GenericTransfer::Withdrawal {
-                recipient,
-                token_index,
-                amount,
-            } => write!(
-                f,
-                "Withdrawal(recipient: {}, token_index: {}, amount: {})",
-                recipient.to_hex(),
-                token_index,
-                amount
-            ),
+impl EntryStatus {
+    pub fn from_settled(processed_uuids: &[String], meta: MetaDataWithBlockNumber) -> Self {
+        if processed_uuids.contains(&meta.meta.uuid) {
+            EntryStatus::Processed(meta.block_number)
+        } else {
+            EntryStatus::Settled(meta.block_number)
         }
     }
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum HistoryEntry {
+    Deposit {
+        deposit: DepositData,
+        status: EntryStatus,
+        meta: MetaData,
+    },
+    Receive {
+        transfer: TransferData,
+        status: EntryStatus,
+        meta: MetaData,
+    },
+    Send {
+        tx: TxData,
+        status: EntryStatus,
+        meta: MetaData,
+    },
+}
+
+// /// Transfer without salt
+// #[derive(Debug, Clone, Serialize, Deserialize)]
+// #[serde(rename_all = "camelCase")]
+// pub enum GenericTransfer {
+//     Transfer {
+//         recipient: U256,
+//         token_index: u32,
+//         amount: U256,
+//     },
+//     Withdrawal {
+//         recipient: Address,
+//         token_index: u32,
+//         amount: U256,
+//     },
+// }
+
+// impl std::fmt::Display for GenericTransfer {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         match self {
+//             GenericTransfer::Transfer {
+//                 recipient,
+//                 token_index,
+//                 amount,
+//             } => write!(
+//                 f,
+//                 "Transfer(recipient: {}, token_index: {}, amount: {})",
+//                 recipient.to_hex(),
+//                 token_index,
+//                 amount
+//             ),
+//             GenericTransfer::Withdrawal {
+//                 recipient,
+//                 token_index,
+//                 amount,
+//             } => write!(
+//                 f,
+//                 "Withdrawal(recipient: {}, token_index: {}, amount: {})",
+//                 recipient.to_hex(),
+//                 token_index,
+//                 amount
+//             ),
+//         }
+//     }
+// }
 
 pub async fn fetch_history<
     BB: BlockBuilderClientInterface,
@@ -125,49 +133,25 @@ pub async fn fetch_history<
     .await?;
     for (meta, settled) in all_deposit_info.settled {
         history.push(HistoryEntry::Deposit {
-            token_type: settled.token_type,
-            token_address: settled.token_address,
-            token_id: settled.token_id,
-            token_index: settled.token_index,
-            amount: settled.amount,
-            is_eligible: settled.is_eligible,
-            depositor: settled.depositor,
-            pubkey_salt_hash: settled.pubkey_salt_hash,
-            is_included: user_data
-                .deposit_status
-                .processed_uuids
-                .contains(&meta.meta.uuid),
-            is_rejected: false,
-            meta: meta.meta.clone(),
+            deposit: settled,
+            status: EntryStatus::from_settled(
+                &user_data.deposit_status.processed_uuids,
+                meta.clone(),
+            ),
+            meta: meta.meta,
         });
     }
     for (meta, pending) in all_deposit_info.pending {
         history.push(HistoryEntry::Deposit {
-            token_type: pending.token_type,
-            token_address: pending.token_address,
-            token_id: pending.token_id,
-            token_index: pending.token_index,
-            amount: pending.amount,
-            is_eligible: pending.is_eligible,
-            depositor: pending.depositor,
-            pubkey_salt_hash: pending.pubkey_salt_hash,
-            is_included: false,
-            is_rejected: false,
+            deposit: pending,
+            status: EntryStatus::Pending,
             meta,
         });
     }
     for (meta, timeout) in all_deposit_info.timeout {
         history.push(HistoryEntry::Deposit {
-            token_type: timeout.token_type,
-            token_address: timeout.token_address,
-            token_id: timeout.token_id,
-            token_index: timeout.token_index,
-            amount: timeout.amount,
-            is_eligible: timeout.is_eligible,
-            pubkey_salt_hash: timeout.pubkey_salt_hash,
-            depositor: timeout.depositor,
-            is_included: false,
-            is_rejected: true,
+            deposit: timeout,
+            status: EntryStatus::Timeout,
             meta,
         });
     }
@@ -181,38 +165,26 @@ pub async fn fetch_history<
     )
     .await?;
     for (meta, settled) in all_transfers_info.settled {
-        let transfer = settled.transfer;
         history.push(HistoryEntry::Receive {
-            amount: transfer.amount,
-            token_index: transfer.token_index,
-            from: transfer.recipient.data,
-            is_included: user_data
-                .transfer_status
-                .processed_uuids
-                .contains(&meta.meta.uuid),
-            is_rejected: false,
-            meta: meta.meta.clone(),
+            transfer: settled,
+            status: EntryStatus::from_settled(
+                &user_data.transfer_status.processed_uuids,
+                meta.clone(),
+            ),
+            meta: meta.meta,
         });
     }
     for (meta, pending) in all_transfers_info.pending {
-        let transfer = pending.transfer;
         history.push(HistoryEntry::Receive {
-            amount: transfer.amount,
-            token_index: transfer.token_index,
-            from: transfer.recipient.data,
-            is_included: false,
-            is_rejected: false,
+            transfer: pending,
+            status: EntryStatus::Pending,
             meta: meta.clone(),
         });
     }
     for (meta, timeout) in all_transfers_info.timeout {
-        let transfer = timeout.transfer;
         history.push(HistoryEntry::Receive {
-            amount: transfer.amount,
-            token_index: transfer.token_index,
-            from: transfer.recipient.data,
-            is_included: false,
-            is_rejected: true,
+            transfer: timeout,
+            status: EntryStatus::Timeout,
             meta: meta.clone(),
         });
     }
@@ -227,28 +199,22 @@ pub async fn fetch_history<
     .await?;
     for (meta, settled) in all_tx_info.settled {
         history.push(HistoryEntry::Send {
-            transfers: extract_generic_transfers(settled),
-            is_included: user_data
-                .tx_status
-                .processed_uuids
-                .contains(&meta.meta.uuid),
-            is_rejected: false,
+            tx: settled,
+            status: EntryStatus::from_settled(&user_data.tx_status.processed_uuids, meta.clone()),
             meta: meta.meta.clone(),
         });
     }
     for (meta, pending) in all_tx_info.pending {
         history.push(HistoryEntry::Send {
-            transfers: extract_generic_transfers(pending),
-            is_included: false,
-            is_rejected: false,
+            tx: pending,
+            status: EntryStatus::Pending,
             meta,
         });
     }
     for (meta, timeout) in all_tx_info.timeout {
         history.push(HistoryEntry::Send {
-            transfers: extract_generic_transfers(timeout),
-            is_included: false,
-            is_rejected: true,
+            tx: timeout,
+            status: EntryStatus::Timeout,
             meta,
         });
     }
@@ -263,30 +229,30 @@ pub async fn fetch_history<
     Ok(history)
 }
 
-fn extract_generic_transfers(tx_data: TxData) -> Vec<GenericTransfer> {
-    let mut transfers = Vec::new();
-    for transfer in tx_data.spent_witness.transfers.iter() {
-        let recipient = transfer.recipient;
-        if !recipient.is_pubkey
-            && recipient.data == U256::default()
-            && transfer.amount == U256::default()
-        {
-            // dummy transfer
-            continue;
-        }
-        if recipient.is_pubkey {
-            transfers.push(GenericTransfer::Transfer {
-                recipient: recipient.to_pubkey().unwrap(),
-                token_index: transfer.token_index,
-                amount: transfer.amount,
-            });
-        } else {
-            transfers.push(GenericTransfer::Withdrawal {
-                recipient: recipient.to_address().unwrap(),
-                token_index: transfer.token_index,
-                amount: transfer.amount,
-            });
-        }
-    }
-    transfers
-}
+// fn extract_generic_transfers(tx_data: TxData) -> Vec<GenericTransfer> {
+//     let mut transfers = Vec::new();
+//     for transfer in tx_data.spent_witness.transfers.iter() {
+//         let recipient = transfer.recipient;
+//         if !recipient.is_pubkey
+//             && recipient.data == U256::default()
+//             && transfer.amount == U256::default()
+//         {
+//             // dummy transfer
+//             continue;
+//         }
+//         if recipient.is_pubkey {
+//             transfers.push(GenericTransfer::Transfer {
+//                 recipient: recipient.to_pubkey().unwrap(),
+//                 token_index: transfer.token_index,
+//                 amount: transfer.amount,
+//             });
+//         } else {
+//             transfers.push(GenericTransfer::Withdrawal {
+//                 recipient: recipient.to_address().unwrap(),
+//                 token_index: transfer.token_index,
+//                 amount: transfer.amount,
+//             });
+//         }
+//     }
+//     transfers
+// }

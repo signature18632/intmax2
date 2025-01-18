@@ -1,11 +1,10 @@
 use chrono::DateTime;
 use colored::{ColoredString, Colorize as _};
-use intmax2_client_sdk::client::history::HistoryEntry;
+use intmax2_client_sdk::client::history::{EntryStatus, HistoryEntry};
 use intmax2_interfaces::data::deposit_data::TokenType;
 use intmax2_zkp::{
-    common::{deposit::Deposit, signature::key_set::KeySet, trees::asset_tree::AssetLeaf},
-    ethereum_types::u32limb_trait::U32LimbTrait,
-    utils::leafable::Leafable as _,
+    common::{signature::key_set::KeySet, transfer::Transfer, trees::asset_tree::AssetLeaf},
+    ethereum_types::u32limb_trait::U32LimbTrait as _,
 };
 
 use crate::cli::client::get_client;
@@ -74,89 +73,78 @@ pub async fn history(key: KeySet) -> Result<(), CliError> {
     Ok(())
 }
 
-fn get_status_string(is_included: bool, is_rejected: bool) -> ColoredString {
-    match (is_included, is_rejected) {
-        (true, false) => "Status: ✓ Included".bright_green(),
-        (false, true) => "Status: ✗ Rejected".bright_red(),
-        (false, false) => "Status: ⋯ Pending".yellow(),
-        (true, true) => "Status: ! Invalid State".bright_red(),
-    }
-}
-
 fn format_timestamp(timestamp: u64) -> String {
     let naive = DateTime::from_timestamp(timestamp as i64, 0).unwrap();
     naive.format("%Y-%m-%d %H:%M:%S UTC").to_string()
 }
 
+fn format_status(status: &EntryStatus) -> ColoredString {
+    match status {
+        EntryStatus::Processed(block_number) => {
+            format!("Settled in block {} and processed", block_number).bright_blue()
+        }
+        EntryStatus::Settled(block_number) => {
+            format!("Settled in block {}", block_number).bright_green()
+        }
+        EntryStatus::Pending => "Pending".bright_yellow(),
+        EntryStatus::Timeout => "Timeout".bright_red(),
+    }
+}
+
+fn format_transfer(transfer: &Transfer) -> String {
+    format!(
+        "Transfer to {}: token_index: {}, amount: {}",
+        if transfer.recipient.is_pubkey {
+            transfer.recipient.to_pubkey().unwrap().to_hex()
+        } else {
+            transfer.recipient.to_address().unwrap().to_hex()
+        },
+        transfer.token_index,
+        transfer.amount
+    )
+}
+
 fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
     match entry {
         HistoryEntry::Deposit {
-            token_type,
-            token_address,
-            token_id,
-            token_index,
-            amount,
-            is_eligible,
-            depositor,
-            pubkey_salt_hash,
-            is_included,
-            is_rejected,
+            deposit,
+            status,
             meta,
         } => {
-            let status = get_status_string(*is_included, *is_rejected);
             let time = format_timestamp(meta.timestamp);
-
-            let deposit_hash = token_index.map(|idx| {
-                Deposit {
-                    depositor: *depositor,
-                    pubkey_salt_hash: *pubkey_salt_hash,
-                    amount: *amount,
-                    token_index: idx,
-                    is_eligible: *is_eligible,
-                }
-                .hash()
-            });
-
             println!(
                 "{} [{}]",
                 "DEPOSIT".bright_green().bold(),
                 time.bright_blue(),
             );
             println!("  UUID: {}", meta.uuid);
+            println!("  Status: {}", format_status(status));
+            println!("  Token: {}", deposit.token_type.to_string().yellow(),);
             println!(
-                "  Block: {}",
-                meta.block_number
-                    .map_or("N/A".to_string(), |b| b.to_string())
+                "      Address: {}",
+                deposit.token_address.to_string().cyan()
             );
+            println!("      ID: {}", deposit.token_id.to_string().white());
             println!(
-                "  Token: {} ({:?})",
-                token_type.to_string().yellow(),
-                token_type
-            );
-            println!("  Address: {}", token_address.to_string().cyan());
-            println!("  ID: {}", token_id.to_string().white());
-            println!(
-                "  Index: {}",
-                token_index
+                "      Index: {}",
+                deposit
+                    .token_index
                     .map_or("N/A".to_string(), |idx| idx.to_string())
                     .white()
             );
-            println!("  Amount: {}", amount.to_string().bright_green());
+            println!("  Amount: {}", deposit.amount.to_string().bright_green());
             println!(
                 "  Deposit Hash: {}",
-                deposit_hash.map_or("N/A".to_string(), |h| h.to_string())
+                deposit
+                    .deposit_hash()
+                    .map_or("N/A".to_string(), |h| h.to_string())
             );
-            println!("  {}", status);
         }
         HistoryEntry::Receive {
-            amount,
-            token_index,
-            from,
-            is_included,
-            is_rejected,
+            transfer,
+            status,
             meta,
         } => {
-            let status = get_status_string(*is_included, *is_rejected);
             let time = format_timestamp(meta.timestamp);
 
             println!(
@@ -165,37 +153,30 @@ fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
                 time.bright_blue(),
             );
             println!("  UUID: {}", meta.uuid);
+            println!("  Status: {}", format_status(status));
+            println!("  From: {}", transfer.sender.to_hex().yellow());
             println!(
-                "  Block: {}",
-                meta.block_number
-                    .map_or("N/A".to_string(), |b| b.to_string())
+                "  Token Index: {}",
+                transfer.transfer.token_index.to_string().white()
             );
-            println!("  From: {}", from.to_hex().yellow());
-            println!("  Token Index: {}", token_index.to_string().white());
-            println!("  Amount: {}", amount.to_string().bright_green());
-            println!("  {}", status);
+            println!(
+                "  Amount: {}",
+                transfer.transfer.amount.to_string().bright_green()
+            );
         }
-        HistoryEntry::Send {
-            transfers,
-            is_included,
-            is_rejected,
-            meta,
-        } => {
-            let status = get_status_string(*is_included, *is_rejected);
+        HistoryEntry::Send { tx, status, meta } => {
             let time = format_timestamp(meta.timestamp);
-
             println!("{} [{}]", "SEND".bright_red().bold(), time.bright_blue(),);
             println!("  UUID: {}", meta.uuid);
-            println!(
-                "  Block: {}",
-                meta.block_number
-                    .map_or("N/A".to_string(), |b| b.to_string())
-            );
+            println!("  Status: {}", format_status(status));
             println!("  Transfers:");
-            for (i, t) in transfers.iter().enumerate() {
-                println!("    {}: {}", i + 1, t.to_string().white());
+            for (i, transfer) in tx.spent_witness.transfers.iter().enumerate() {
+                if transfer == &Transfer::default() {
+                    // ignore dummy transfers
+                    continue;
+                }
+                println!("    {}: {}", i, format_transfer(&transfer).white());
             }
-            println!("  {}", status);
         }
     }
     Ok(())
