@@ -62,51 +62,6 @@ pub enum HistoryEntry {
     },
 }
 
-// /// Transfer without salt
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// #[serde(rename_all = "camelCase")]
-// pub enum GenericTransfer {
-//     Transfer {
-//         recipient: U256,
-//         token_index: u32,
-//         amount: U256,
-//     },
-//     Withdrawal {
-//         recipient: Address,
-//         token_index: u32,
-//         amount: U256,
-//     },
-// }
-
-// impl std::fmt::Display for GenericTransfer {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         match self {
-//             GenericTransfer::Transfer {
-//                 recipient,
-//                 token_index,
-//                 amount,
-//             } => write!(
-//                 f,
-//                 "Transfer(recipient: {}, token_index: {}, amount: {})",
-//                 recipient.to_hex(),
-//                 token_index,
-//                 amount
-//             ),
-//             GenericTransfer::Withdrawal {
-//                 recipient,
-//                 token_index,
-//                 amount,
-//             } => write!(
-//                 f,
-//                 "Withdrawal(recipient: {}, token_index: {}, amount: {})",
-//                 recipient.to_hex(),
-//                 token_index,
-//                 amount
-//             ),
-//         }
-//     }
-// }
-
 pub async fn fetch_history<
     BB: BlockBuilderClientInterface,
     S: StoreVaultClientInterface,
@@ -219,40 +174,12 @@ pub async fn fetch_history<
         });
     }
 
-    // sort history
+    // sort history by timestamp, priority, and uuid
     history.sort_by_key(|entry| match entry {
-        HistoryEntry::Deposit { meta, .. } => meta.timestamp,
-        HistoryEntry::Receive { meta, .. } => meta.timestamp,
-        HistoryEntry::Send { meta, .. } => meta.timestamp,
+        HistoryEntry::Send { meta, .. } => (meta.timestamp, 0, meta.uuid.clone()),
+        HistoryEntry::Deposit { meta, .. } => (meta.timestamp, 1, meta.uuid.clone()),
+        HistoryEntry::Receive { meta, .. } => (meta.timestamp, 2, meta.uuid.clone()),
     });
 
     Ok(history)
 }
-
-// fn extract_generic_transfers(tx_data: TxData) -> Vec<GenericTransfer> {
-//     let mut transfers = Vec::new();
-//     for transfer in tx_data.spent_witness.transfers.iter() {
-//         let recipient = transfer.recipient;
-//         if !recipient.is_pubkey
-//             && recipient.data == U256::default()
-//             && transfer.amount == U256::default()
-//         {
-//             // dummy transfer
-//             continue;
-//         }
-//         if recipient.is_pubkey {
-//             transfers.push(GenericTransfer::Transfer {
-//                 recipient: recipient.to_pubkey().unwrap(),
-//                 token_index: transfer.token_index,
-//                 amount: transfer.amount,
-//             });
-//         } else {
-//             transfers.push(GenericTransfer::Withdrawal {
-//                 recipient: recipient.to_address().unwrap(),
-//                 token_index: transfer.token_index,
-//                 amount: transfer.amount,
-//             });
-//         }
-//     }
-//     transfers
-// }
