@@ -239,7 +239,7 @@ impl StoreVaultServer {
                 r#"
                 SELECT uuid, timestamp, encrypted_data
                 FROM encrypted_data
-                WHERE data_type = $1 AND pubkey = $2 AND (timestamp, uuid) >= ($3, $4)
+                WHERE data_type = $1 AND pubkey = $2 AND (timestamp, uuid) > ($3, $4)
                 ORDER BY timestamp ASC, uuid ASC
                 LIMIT $5
                 "#,
