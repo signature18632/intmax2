@@ -1,11 +1,13 @@
-use crate::js_types::common::JsTx;
 use client::{get_client, Config};
 use intmax2_client_sdk::{
     client::key_from_eth::generate_intmax_account_from_eth_key as inner_generate_intmax_account_from_eth_key,
     external_api::utils::time::sleep_for,
 };
 use intmax2_interfaces::data::{
-    deposit_data::{DepositData, TokenType}, encryption::Encryption as _, transfer_data::TransferData, tx_data::TxData
+    deposit_data::{DepositData, TokenType},
+    encryption::Encryption as _,
+    transfer_data::TransferData,
+    tx_data::TxData,
 };
 use intmax2_zkp::{
     common::transfer::Transfer,
@@ -16,7 +18,7 @@ use js_types::{
     common::JsTransfer,
     data::{JsDepositData, JsDepositResult, JsTransferData, JsTxData, JsTxResult, JsUserData},
     utils::{parse_address, parse_u256},
-    wrapper::{JsBlockProposal, JsTxRequestMemo},
+    wrapper::JsTxRequestMemo,
 };
 use num_bigint::BigUint;
 use utils::{parse_h256, parse_h256_as_u256, str_privkey_to_keyset};
@@ -49,7 +51,6 @@ pub async fn generate_intmax_account_from_eth_key(
 }
 
 /// Function to take a backup before calling the deposit function of the liquidity contract.
-///
 /// You can also get the pubkey_salt_hash from the return value.
 #[wasm_bindgen]
 pub async fn prepare_deposit(
@@ -113,53 +114,8 @@ pub async fn send_tx_request(
     Ok(JsTxRequestMemo::from_tx_request_memo(&memo))
 }
 
-/// Function to query the block proposal from the block builder.
-/// The return value is the block proposal or null if the proposal is not found.
-/// If got an invalid proposal, it will return an error.
-#[wasm_bindgen]
-pub async fn query_proposal(
-    config: &Config,
-    block_builder_url: &str,
-    private_key: &str,
-    is_registration_block: bool,
-    tx: &JsTx,
-) -> Result<Option<JsBlockProposal>, JsError> {
-    init_logger();
-    let key = str_privkey_to_keyset(private_key)?;
-    let tx = tx.to_tx()?;
-
-    let client = get_client(config);
-    let proposal = client
-        .query_proposal(block_builder_url, key, is_registration_block, tx)
-        .await?;
-    let proposal = proposal.map(|proposal| JsBlockProposal::from_block_proposal(&proposal));
-    Ok(proposal)
-}
-
-/// Send the signed tx tree root to the block builder during taking a backup of the tx.
-///
-/// You need to call send_tx_request before calling this function.
-/// The return value is the tx result, which contains the tx tree root and transfer data.
-#[wasm_bindgen]
-pub async fn finalize_tx(
-    config: &Config,
-    block_builder_url: &str,
-    private_key: &str,
-    tx_request_memo: &JsTxRequestMemo,
-    proposal: &JsBlockProposal,
-) -> Result<JsTxResult, JsError> {
-    init_logger();
-    let key = str_privkey_to_keyset(private_key)?;
-    let tx_request_memo = tx_request_memo.to_tx_request_memo()?;
-    let proposal = proposal.to_block_proposal()?;
-    let client = get_client(config);
-    let tx_result = client
-        .finalize_tx(block_builder_url, key, &tx_request_memo, &proposal)
-        .await?;
-    Ok(JsTxResult::from_tx_result(&tx_result))
-}
-
-/// Batch function of query_proposal and finalize_tx.
+/// Function to query the block proposal from the block builder, and
+/// send the signed tx tree root to the block builder during taking a backup of the tx.
 #[wasm_bindgen]
 pub async fn query_and_finalize(
     config: &Config,

@@ -2,7 +2,7 @@ use intmax2_client_sdk::client::client::{DepositResult, TxResult};
 use intmax2_interfaces::data::{
     deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData, user_data::UserData,
 };
-use intmax2_zkp::ethereum_types::u32limb_trait::U32LimbTrait as _;
+use intmax2_zkp::{common::transfer::Transfer, ethereum_types::u32limb_trait::U32LimbTrait as _};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use super::common::{JsTransfer, JsTx};
@@ -61,7 +61,14 @@ impl JsTxData {
             .spent_witness
             .transfers
             .iter()
-            .map(JsTransfer::from_transfer)
+            .flat_map(|transfer| {
+                if transfer == &Transfer::default() {
+                    // ignore default transfer
+                    None
+                } else {
+                    Some(JsTransfer::from_transfer(transfer))
+                }
+            })
             .collect::<Vec<_>>();
         Self { tx, transfers }
     }

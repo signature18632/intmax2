@@ -8,7 +8,7 @@ use intmax2_zkp::{
 };
 use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 
-use super::utils::{parse_address, parse_bytes32, parse_poseidon_hashout, parse_salt, parse_u256};
+use super::utils::{parse_address, parse_bytes32, parse_salt, parse_u256};
 
 #[derive(Debug, Clone)]
 #[wasm_bindgen(getter_with_clone)]
@@ -137,14 +137,6 @@ impl JsTx {
             transfer_tree_root: tx.transfer_tree_root.to_string(),
             nonce: tx.nonce,
         }
-    }
-
-    pub(crate) fn to_tx(&self) -> Result<Tx, JsError> {
-        let transfer_tree_root = parse_poseidon_hashout(&self.transfer_tree_root)?;
-        Ok(Tx {
-            transfer_tree_root,
-            nonce: self.nonce,
-        })
     }
 }
 
