@@ -12,6 +12,7 @@ members = [
     "tests",
     "validity-prover-worker",
     "server-common",
+    "common",
 ]
 resolver = "2"
 

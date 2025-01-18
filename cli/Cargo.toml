@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 plonky2 = { workspace = true }
 intmax2-zkp = { workspace = true }
+common = { path = "../common" }
 intmax2-client-sdk = { path = "../client-sdk" }
 intmax2-interfaces = { path = "../interfaces" }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
