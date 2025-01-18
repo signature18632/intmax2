@@ -112,7 +112,7 @@ pub async fn save_data_batch(
     for entry in entries {
         if entry.data_type.need_auth() && entry.pubkey != pubkey {
             return Err(ErrorUnauthorized(format!(
-                "Data type {:?} requires auth but given pubkey is different",
+                "Data type {} requires auth but given pubkey is different",
                 entry.data_type,
             )));
         }
