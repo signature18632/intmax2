@@ -30,13 +30,13 @@ use super::{
 #[derive(Debug, Clone)]
 pub enum Action {
     Receive(Vec<ReceiveAction>),
-    Tx(MetaDataWithBlockNumber, TxData), // Send tx
+    Tx(MetaDataWithBlockNumber, Box<TxData>), // Send tx
 }
 
 #[derive(Debug, Clone)]
 pub enum ReceiveAction {
     Deposit(MetaDataWithBlockNumber, DepositData),
-    Transfer(MetaDataWithBlockNumber, Box<TransferData>),
+    Transfer(MetaDataWithBlockNumber, Box<TransferData>), // Boxed to avoid large stack size
 }
 
 impl ReceiveAction {
@@ -157,7 +157,7 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
         // Here tx can be incorporated
 
         sequence.push(Action::Receive(receives));
-        sequence.push(Action::Tx(tx_meta.clone(), tx_data.clone()));
+        sequence.push(Action::Tx(tx_meta.clone(), Box::new(tx_data.clone())));
     }
 
     // Finally, take all deposits and transfers

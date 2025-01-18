@@ -175,7 +175,7 @@ fn print_history_entry(entry: &HistoryEntry) -> Result<(), CliError> {
                     // ignore dummy transfers
                     continue;
                 }
-                println!("    {}: {}", i, format_transfer(&transfer).white());
+                println!("    {}: {}", i, format_transfer(transfer).white());
             }
         }
     }

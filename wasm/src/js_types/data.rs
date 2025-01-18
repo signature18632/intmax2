@@ -178,14 +178,34 @@ impl JsUserData {
                 .to_private_state()
                 .commitment()
                 .to_string(),
-            deposit_lpt: user_data.deposit_lpt,
-            transfer_lpt: user_data.transfer_lpt,
-            tx_lpt: user_data.tx_lpt,
-            withdrawal_lpt: user_data.withdrawal_lpt,
-            processed_deposit_uuids: user_data.processed_deposit_uuids.clone(),
-            processed_transfer_uuids: user_data.processed_transfer_uuids.clone(),
-            processed_tx_uuids: user_data.processed_tx_uuids.clone(),
-            processed_withdrawal_uuids: user_data.processed_withdrawal_uuids.clone(),
+            deposit_lpt: user_data
+                .deposit_status
+                .last_processed_meta_data
+                .as_ref()
+                .map(|x| x.timestamp)
+                .unwrap_or(0),
+            transfer_lpt: user_data
+                .transfer_status
+                .last_processed_meta_data
+                .as_ref()
+                .map(|x| x.timestamp)
+                .unwrap_or(0),
+            tx_lpt: user_data
+                .tx_status
+                .last_processed_meta_data
+                .as_ref()
+                .map(|x| x.timestamp)
+                .unwrap_or(0),
+            withdrawal_lpt: user_data
+                .withdrawal_status
+                .last_processed_meta_data
+                .as_ref()
+                .map(|x| x.timestamp)
+                .unwrap_or(0),
+            processed_deposit_uuids: user_data.deposit_status.processed_uuids.clone(),
+            processed_transfer_uuids: user_data.transfer_status.processed_uuids.clone(),
+            processed_tx_uuids: user_data.tx_status.processed_uuids.clone(),
+            processed_withdrawal_uuids: user_data.withdrawal_status.processed_uuids.clone(),
         }
     }
 }
