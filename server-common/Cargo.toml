@@ -5,13 +5,16 @@ edition = "2021"
 
 
 [dependencies]
+common = { path = "../common" }
 actix-web = { workspace = true }
 actix-cors = { workspace = true }
+dotenv = { workspace = true }
+envy = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 cargo_metadata = "0.19.1"
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
 tokio = { workspace = true }
 log = { workspace = true }

@@ -1,17 +1,14 @@
 use thiserror::Error;
-use tracing::level_filters::LevelFilter;
-use tracing_appender::rolling::{InitError, RollingFileAppender, Rotation};
+use tracing_appender::rolling::InitError;
 use tracing_subscriber::{
     fmt,
     layer::SubscriberExt as _,
     util::{SubscriberInitExt as _, TryInitError},
-    Layer as _,
+    EnvFilter,
 };
 
-use crate::health_check::load_name_and_version;
-
-const LOG_DIR: &str = "logs";
-const MAX_LOG_FILES: usize = 14;
+use crate::{env::Env, health_check::load_name_and_version};
+use common::env::EnvType;
 
 #[derive(Error, Debug)]
 pub enum InitLoggerError {
@@ -27,34 +24,27 @@ pub enum InitLoggerError {
 
 pub fn init_logger() -> Result<(), InitLoggerError> {
     // Get package info for log file naming
-    let (name, _version) = load_name_and_version();
-    let log_file_name = format!("{}.log", name);
+    let (_name, _version) = load_name_and_version();
 
-    let file_appender = RollingFileAppender::builder()
-        .rotation(Rotation::DAILY)
-        .max_log_files(MAX_LOG_FILES)
-        .filename_prefix(&log_file_name)
-        .build(LOG_DIR)?;
-
-    let subscriber = tracing_subscriber::registry()
-        .with(
-            // Log to stdout
-            fmt::Layer::new()
-                .with_target(false)
-                .pretty()
-                .with_filter(LevelFilter::INFO),
-        )
-        .with(
-            // Log to file
-            fmt::Layer::new()
-                .with_target(false)
-                .with_ansi(false)
-                .pretty()
-                .with_writer(file_appender)
-                .with_filter(LevelFilter::INFO),
-        );
+    dotenv::dotenv().ok();
+    let env = envy::from_env::<Env>().expect("Failed to load environment variables");
+    let env_filter = EnvFilter::new(env.app_log);
 
     // Initialize the global subscriber
-    subscriber.try_init()?;
+    if env.env == EnvType::Local {
+        // Log to stdout
+        let subscriber = fmt::Layer::new().with_line_number(true);
+        tracing_subscriber::registry()
+            .with(subscriber)
+            .with(env_filter)
+            .try_init()?;
+    } else {
+        // Log to stdout
+        let subscriber = fmt::Layer::new().with_target(false).json();
+        tracing_subscriber::registry()
+            .with(subscriber)
+            .with(env_filter)
+            .try_init()?;
+    }
     Ok(())
 }
