@@ -176,7 +176,7 @@ impl StoreVaultServerClient {
         let request_with_auth = request.sign(key, TIME_TO_EXPIRY);
         let response: GetDataSequenceResponse = post_request(
             &self.base_url,
-            "/store-vault-server/get-data-list",
+            "/store-vault-server/get-data-sequence",
             Some(&request_with_auth),
         )
         .await?;

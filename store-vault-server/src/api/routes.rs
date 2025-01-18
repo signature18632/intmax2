@@ -144,8 +144,8 @@ pub async fn get_data_batch(
     Ok(Json(GetDataBatchResponse { data }))
 }
 
-#[post("/get-data-list")]
-pub async fn get_data_list(
+#[post("/get-data-sequence")]
+pub async fn get_data_sequence(
     state: Data<State>,
     request: Json<WithAuth<GetDataSequenceRequest>>,
 ) -> Result<Json<GetDataSequenceResponse>, Error> {
@@ -175,5 +175,5 @@ pub fn store_vault_server_scope() -> actix_web::Scope {
         .service(get_sender_proof_set)
         .service(save_data_batch)
         .service(get_data_batch)
-        .service(get_data_list)
+        .service(get_data_sequence)
 }
