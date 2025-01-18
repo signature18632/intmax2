@@ -1,19 +1,20 @@
-use super::error::StrategyError;
+use super::{common::fetch_decrypt_validate, error::StrategyError};
 use intmax2_interfaces::{
     api::{
-        store_vault_server::{
-            interface::{DataType, StoreVaultClientInterface},
-            types::{DataWithMetaData, MetaDataCursor},
-        },
+        store_vault_server::interface::{DataType, StoreVaultClientInterface},
         validity_prover::interface::ValidityProverClientInterface,
     },
-    data::{meta_data::MetaData, tx_data::TxData},
+    data::{
+        meta_data::{MetaData, MetaDataWithBlockNumber},
+        tx_data::TxData,
+        user_data::ProcessStatus,
+    },
 };
 use intmax2_zkp::common::signature::key_set::KeySet;
 
 #[derive(Debug, Clone)]
 pub struct TxInfo {
-    pub settled: Vec<(MetaData, TxData)>,
+    pub settled: Vec<(MetaDataWithBlockNumber, TxData)>,
     pub pending: Vec<(MetaData, TxData)>,
     pub timeout: Vec<(MetaData, TxData)>,
 }
@@ -22,60 +23,36 @@ pub async fn fetch_tx_info<S: StoreVaultClientInterface, V: ValidityProverClient
     store_vault_server: &S,
     validity_prover: &V,
     key: KeySet,
-    tx_lpt: u64,
-    processed_tx_uuids: &[String],
+    tx_status: &ProcessStatus,
     tx_timeout: u64,
 ) -> Result<TxInfo, StrategyError> {
     let mut settled = Vec::new();
     let mut pending = Vec::new();
     let mut timeout = Vec::new();
 
-    let (encrypted_data, _) = store_vault_server
-        .get_data_list(
-            DataType::Tx,
-            key,
-            &MetaDataCursor {
-                timestamp: tx_lpt,
-                uuid: processed_tx_uuids.last().cloned(),
-                limit: None,
-            },
-        )
-        .await?;
-    for DataWithMetaData { meta, data } in encrypted_data {
-        if processed_tx_uuids.contains(&meta.uuid) {
-            log::info!("Tx {} is already processed", meta.uuid);
-            continue;
+    let data_with_meta =
+        fetch_decrypt_validate::<_, TxData>(store_vault_server, key, DataType::Tx, tx_status)
+            .await?;
+    for (meta, tx_data) in data_with_meta {
+        let tx_tree_root = tx_data.tx_tree_root;
+        let block_number = validity_prover
+            .get_block_number_by_tx_tree_root(tx_tree_root)
+            .await?;
+        if let Some(block_number) = block_number {
+            let meta = MetaDataWithBlockNumber { meta, block_number };
+            settled.push((meta, tx_data));
+        } else if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
+            // timeout
+            log::error!("Tx {} is timeout", meta.uuid);
+            timeout.push((meta, tx_data));
+        } else {
+            // pending
+            log::info!("Tx {} is pending", meta.uuid);
+            pending.push((meta, tx_data));
         }
-        match TxData::decrypt(&data, key) {
-            Ok(tx_data) => {
-                let tx_tree_root = tx_data.tx_tree_root;
-                let block_number = validity_prover
-                    .get_block_number_by_tx_tree_root(tx_tree_root)
-                    .await?;
-                if let Some(block_number) = block_number {
-                    // set block number
-                    let mut meta = meta;
-                    meta.block_number = Some(block_number);
-                    settled.push((meta, tx_data));
-                } else if meta.timestamp + tx_timeout < chrono::Utc::now().timestamp() as u64 {
-                    // timeout
-                    log::error!("Tx {} is timeout", meta.uuid);
-                    timeout.push((meta, tx_data));
-                } else {
-                    // pending
-                    log::info!("Tx {} is pending", meta.uuid);
-                    pending.push((meta, tx_data));
-                }
-            }
-            Err(e) => {
-                // just ignore the invalid data
-                log::error!("failed to decrypt tx data: {}", e);
-            }
-        };
     }
-
     // sort by block number
-    settled.sort_by_key(|(meta, _)| meta.block_number.unwrap());
+    settled.sort_by_key(|(meta, _)| meta.block_number);
 
     // sort by timestamp
     pending.sort_by_key(|(meta, _)| meta.timestamp);

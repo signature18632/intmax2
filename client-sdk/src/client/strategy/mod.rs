@@ -1,3 +1,4 @@
+pub mod common;
 pub mod deposit;
 pub mod error;
 #[allow(clippy::module_inception)]

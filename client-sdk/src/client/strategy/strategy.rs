@@ -5,6 +5,7 @@ use intmax2_interfaces::{
     },
     data::{
         deposit_data::DepositData,
+        encryption::Encryption as _,
         meta_data::MetaData,
         transfer_data::TransferData,
         tx_data::TxData,
@@ -28,11 +29,7 @@ use super::{
 // Next sync action
 #[derive(Debug, Clone)]
 pub enum Action {
-    Receive {
-        receives: Vec<ReceiveAction>,
-        new_deposit_lpt: u64,
-        new_transfer_lpt: u64,
-    },
+    Receive(Vec<ReceiveAction>),
     Tx(MetaData, TxData),              // Send tx
     PendingReceives(MetaData, TxData), // Pending receives to proceed the next tx
     PendingTx(MetaData, TxData),       // Pending tx
@@ -91,16 +88,11 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
     if balances.is_insufficient() {
         return Err(StrategyError::BalanceInsufficientBeforeSync);
     }
-    let mut current_timestamp = chrono::Utc::now().timestamp() as u64;
-    // Add some buffer to the current timestamp
-    current_timestamp = current_timestamp.saturating_sub(tx_timeout);
-
     let tx_info = fetch_tx_info(
         store_vault_server,
         validity_prover,
         key,
-        user_data.tx_lpt,
-        &user_data.processed_tx_uuids,
+        &user_data.tx_status,
         tx_timeout,
     )
     .await?;
@@ -119,8 +111,7 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
         validity_prover,
         liquidity_contract,
         key,
-        user_data.deposit_lpt,
-        &user_data.processed_deposit_uuids,
+        &user_data.deposit_status,
         deposit_timeout,
     )
     .await?;
@@ -128,8 +119,7 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
         store_vault_server,
         validity_prover,
         key,
-        user_data.transfer_lpt,
-        &user_data.processed_transfer_uuids,
+        &user_data.transfer_status,
         tx_timeout,
     )
     .await?;
