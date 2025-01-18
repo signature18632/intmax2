@@ -6,7 +6,9 @@ use intmax2_interfaces::{
         validity_prover::interface::ValidityProverClientInterface,
         withdrawal_server::interface::WithdrawalServerClientInterface,
     },
-    data::{deposit_data::TokenType, meta_data::MetaData, tx_data::TxData},
+    data::{
+        deposit_data::TokenType, meta_data::MetaData, tx_data::TxData, user_data::ProcessStatus,
+    },
 };
 use intmax2_zkp::{
     common::signature::key_set::KeySet,
@@ -117,8 +119,7 @@ pub async fn fetch_history<
         &client.validity_prover,
         &client.liquidity_contract,
         key,
-        0,   // set to 0 to get all deposits
-        &[], // no processed deposit uuids to get all deposits
+        &ProcessStatus::default(),
         client.config.deposit_timeout,
     )
     .await?;

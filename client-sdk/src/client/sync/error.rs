@@ -26,15 +26,6 @@ pub enum SyncError {
     #[error("Decryption error: {0}")]
     DecryptionError(String),
 
-    #[error("Block number is not set for meta data")]
-    BlockNumberIsNotSetForMetaData,
-
-    #[error("Pending receives error: {0}")]
-    PendingReceivesError(String),
-
-    #[error("Pending tx error: {0}")]
-    PendingTxError(String),
-
     #[error("Pending withdrawal error: {0}")]
     PendingWithdrawalError(String),
 

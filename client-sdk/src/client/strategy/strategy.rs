@@ -6,7 +6,7 @@ use intmax2_interfaces::{
     data::{
         deposit_data::DepositData,
         encryption::Encryption as _,
-        meta_data::{MetaData, MetaDataWithBlockNumber},
+        meta_data::MetaDataWithBlockNumber,
         transfer_data::TransferData,
         tx_data::TxData,
         user_data::{Balances, UserData},
@@ -30,9 +30,7 @@ use super::{
 #[derive(Debug, Clone)]
 pub enum Action {
     Receive(Vec<ReceiveAction>),
-    Tx(MetaDataWithBlockNumber, TxData),              // Send tx
-    PendingReceives(MetaDataWithBlockNumber, TxData), // Pending receives to proceed the next tx
-    PendingTx(MetaData, TxData),                      // Pending tx
+    Tx(MetaDataWithBlockNumber, TxData), // Send tx
 }
 
 #[derive(Debug, Clone)]
@@ -63,8 +61,8 @@ impl ReceiveAction {
 
 #[derive(Debug, Clone, Default)]
 pub struct PendingInfo {
-    pub pending_deposits: Vec<(MetaData, DepositData)>,
-    pub pending_transfers: Vec<(MetaData, TransferData)>,
+    pub pending_deposit_uuids: Vec<String>,
+    pub pending_transfer_uuids: Vec<String>,
 }
 
 /// Determine the sequence of receives/send tx to be incorporated into the balance proof
@@ -98,11 +96,11 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
     .await?;
 
     //  First, if there is a pending tx, return a pending error
-    if let Some((meta, tx_data)) = tx_info.pending.first() {
-        return Ok((
-            vec![Action::PendingTx(meta.clone(), tx_data.clone())],
-            PendingInfo::default(), // no need to return pending deposit/transfer
-        ));
+    if let Some((meta, _tx_data)) = tx_info.pending.first() {
+        return Err(StrategyError::PendingTxError(format!(
+            "pending tx: {:?}",
+            meta.uuid
+        )));
     }
 
     // Then, collect deposit and transfer data
@@ -149,7 +147,10 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
             } else {
                 // To incorporate the tx, you need to incorporate the pending deposit/transfer to solve the balance shortage.
                 // TODO: Processing when the balance shortage is not resolved even if the pending deposit/transfer is incorporated
-                sequence.push(Action::PendingReceives(tx_meta.clone(), tx_data.clone()));
+                return Err(StrategyError::PendingReceivesError(format!(
+                    "pending receives to proceed tx: {:?}",
+                    tx_meta.meta.uuid
+                )));
             }
         }
 
@@ -162,11 +163,23 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
     // Finally, take all deposits and transfers
     let receives = collect_receives(&None, &mut deposits, &mut transfers).await?;
     sequence.push(Action::Receive(receives));
+
+    let pending_deposit_uuids = deposit_info
+        .pending
+        .iter()
+        .map(|(meta, _)| meta.uuid.clone())
+        .collect();
+    let pending_transfer_uuids = transfer_info
+        .pending
+        .iter()
+        .map(|(meta, _)| meta.uuid.clone())
+        .collect();
+
     Ok((
         sequence,
         PendingInfo {
-            pending_deposits: deposit_info.pending,
-            pending_transfers: transfer_info.pending,
+            pending_deposit_uuids,
+            pending_transfer_uuids,
         },
     ))
 }
@@ -240,7 +253,7 @@ pub async fn determine_withdrawals<
 ) -> Result<
     (
         Vec<(MetaDataWithBlockNumber, TransferData)>,
-        Vec<(MetaData, TransferData)>, // pending withdrawals
+        Vec<String>, // pending withdrawals
     ),
     StrategyError,
 > {
@@ -260,5 +273,10 @@ pub async fn determine_withdrawals<
         tx_timeout,
     )
     .await?;
-    Ok((withdrawal_info.settled, withdrawal_info.pending))
+    let pending_withdrawal_uuids = withdrawal_info
+        .pending
+        .iter()
+        .map(|(meta, _)| meta.uuid.clone())
+        .collect();
+    Ok((withdrawal_info.settled, pending_withdrawal_uuids))
 }

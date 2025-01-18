@@ -12,7 +12,7 @@ use intmax2_interfaces::{
         withdrawal_server::interface::WithdrawalServerClientInterface,
     },
     data::{
-        deposit_data::DepositData, encryption::Encryption as _, meta_data::MetaData,
+        deposit_data::DepositData, encryption::Encryption as _, meta_data::MetaDataWithBlockNumber,
         proof_compression::CompressedBalanceProof, transfer_data::TransferData, tx_data::TxData,
         user_data::UserData,
     },
@@ -66,8 +66,8 @@ where
     }
 
     /// Sync the client's balance proof with the latest block
-    pub async fn sync(&self, key: KeySet) -> Result<PendingInfo, SyncError> {
-        let (sequence, pending) = determine_sequence(
+    pub async fn sync(&self, key: KeySet) -> Result<(), SyncError> {
+        let (sequence, pending_info) = determine_sequence(
             &self.store_vault_server,
             &self.validity_prover,
             &self.liquidity_contract,
@@ -76,63 +76,53 @@ where
             self.config.tx_timeout,
         )
         .await?;
+        // replaces pending receives with the new pending info
+        self.update_pending_receives(key, pending_info).await?;
+
         for action in sequence {
             match action {
-                Action::Receive {
-                    receives,
-                    new_deposit_lpt,
-                    new_transfer_lpt,
-                } => {
+                Action::Receive(receives) => {
                     if !receives.is_empty() {
+                        // Update the balance proof with the largest block in the receives
                         let largest_block_number = receives
                             .iter()
-                            .map(|r| r.meta().block_number.unwrap())
+                            .map(|r| r.meta().block_number)
                             .max()
-                            .unwrap(); // safe to unwrap
+                            .unwrap(); // safe to unwrap because receives is not empty
                         self.update_no_send(key, largest_block_number).await?;
+
                         for receive in receives {
                             match receive {
                                 ReceiveAction::Deposit(meta, data) => {
-                                    self.sync_deposit(key, &meta, &data).await?;
+                                    self.sync_deposit(key, meta, &data).await?;
                                 }
                                 ReceiveAction::Transfer(meta, data) => {
-                                    self.sync_transfer(key, &meta, &data).await?;
+                                    self.sync_transfer(key, meta, &data).await?;
                                 }
                             }
                         }
                     }
                 }
                 Action::Tx(meta, tx_data) => {
-                    self.sync_tx(key, &meta, &tx_data).await?;
-                }
-                Action::PendingReceives(meta, _tx_data) => {
-                    return Err(SyncError::PendingReceivesError(format!(
-                        "pending receives to proceed tx: {:?}",
-                        meta.uuid
-                    )));
-                }
-                Action::PendingTx(meta, _tx_data) => {
-                    return Err(SyncError::PendingTxError(format!(
-                        "pending tx: {:?}",
-                        meta.uuid
-                    )));
+                    self.sync_tx(key, meta, &tx_data).await?;
                 }
             }
         }
-        Ok(pending)
+        Ok(())
     }
 
     /// Sync the client's withdrawals and relays to the withdrawal server
     pub async fn sync_withdrawals(&self, key: KeySet) -> Result<(), SyncError> {
-        let (withdrawals, new_withdrawal_lpt) = determine_withdrawals(
+        let (withdrawals, pending) = determine_withdrawals(
             &self.store_vault_server,
             &self.validity_prover,
             key,
             self.config.tx_timeout,
         )
         .await?;
-        for (meta, data) in &withdrawals {
-            self.sync_withdrawal(key, meta, data).await?;
+        self.update_pending_withdrawals(key, pending).await?;
+        for (meta, data) in withdrawals {
+            self.sync_withdrawal(key, meta, &data).await?;
         }
         Ok(())
     }
@@ -141,14 +131,11 @@ where
     async fn sync_deposit(
         &self,
         key: KeySet,
-        meta: &MetaData,
+        meta: MetaDataWithBlockNumber,
         deposit_data: &DepositData,
     ) -> Result<(), SyncError> {
         log::info!("sync_deposit: {:?}", meta);
-        if meta.block_number.is_none() {
-            return Err(SyncError::BlockNumberIsNotSetForMetaData);
-        }
-        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
+        let (mut user_data, prev_digest) = self.get_user_data_and_digest(key).await?;
         // user's balance proof before applying the tx
         let prev_balance_proof = get_balance_proof(&user_data)?;
         let new_salt = generate_salt();
@@ -172,11 +159,10 @@ where
         let new_balance_proof = CompressedBalanceProof::new(&new_balance_proof)?;
         // update user data
         user_data.balance_proof = Some(new_balance_proof);
-        user_data.deposit_lpt = meta.timestamp;
-        user_data.processed_deposit_uuids.push(meta.uuid.clone());
+        user_data.deposit_status.process(meta.meta);
         // save user data
         self.store_vault_server
-            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
+            .save_user_data(key, prev_digest, &user_data.encrypt(key.pubkey))
             .await?;
         Ok(())
     }
@@ -185,16 +171,11 @@ where
     async fn sync_transfer(
         &self,
         key: KeySet,
-        meta: &MetaData,
+        meta: MetaDataWithBlockNumber,
         transfer_data: &TransferData,
     ) -> Result<(), SyncError> {
         log::info!("sync_transfer: {:?}", meta);
-        if meta.block_number.is_none() {
-            return Err(SyncError::InternalError(
-                "block number is not set".to_string(),
-            ));
-        }
-        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
+        let (mut user_data, prev_digest) = self.get_user_data_and_digest(key).await?;
         // user's balance proof before applying the tx
         let prev_balance_proof = get_balance_proof(&user_data)?;
 
@@ -204,7 +185,7 @@ where
             &self.balance_prover,
             key,
             transfer_data.sender,
-            meta.block_number.unwrap(),
+            meta.block_number,
             transfer_data,
         )
         .await
@@ -213,7 +194,7 @@ where
             Err(SyncError::InvalidTransferError(e)) => {
                 log::error!(
                     "Ignore tx: {} because of invalid transfer: {}",
-                    meta.uuid,
+                    meta.meta.uuid,
                     e
                 );
                 return Ok(());
@@ -243,12 +224,11 @@ where
         // update user data
         let balance_proof = CompressedBalanceProof::new(&new_balance_proof)?;
         user_data.balance_proof = Some(balance_proof);
-        user_data.transfer_lpt = meta.timestamp;
-        user_data.processed_transfer_uuids.push(meta.uuid.clone());
+        user_data.transfer_status.process(meta.meta);
 
         // save proof and user data
         self.store_vault_server
-            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
+            .save_user_data(key, prev_digest, &user_data.encrypt(key.pubkey))
             .await?;
 
         Ok(())
@@ -257,23 +237,17 @@ where
     async fn sync_withdrawal(
         &self,
         key: KeySet,
-        meta: &MetaData,
+        meta: MetaDataWithBlockNumber,
         withdrawal_data: &TransferData,
     ) -> Result<(), SyncError> {
         log::info!("sync_withdrawal: {:?}", meta);
-        if meta.block_number.is_none() {
-            return Err(SyncError::InternalError(
-                "block number is not set".to_string(),
-            ));
-        }
-
         // sender balance proof after applying the tx
         let balance_proof = match update_send_by_receiver(
             &self.validity_prover,
             &self.balance_prover,
             key,
             key.pubkey,
-            meta.block_number.unwrap(),
+            meta.block_number,
             withdrawal_data,
         )
         .await
@@ -282,7 +256,7 @@ where
             Err(SyncError::InvalidTransferError(e)) => {
                 log::error!(
                     "Ignore tx: {} because of invalid transfer: {}",
-                    meta.uuid,
+                    meta.meta.uuid,
                     e
                 );
                 return Ok(());
@@ -310,11 +284,11 @@ where
             .await?;
 
         // update user data
-        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
-        user_data.withdrawal_lpt = meta.timestamp;
-        user_data.processed_withdrawal_uuids.push(meta.uuid.clone());
+        let (mut user_data, prev_digest) = self.get_user_data_and_digest(key).await?;
+        user_data.withdrawal_status.process(meta.meta);
+
         self.store_vault_server
-            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
+            .save_user_data(key, prev_digest, &user_data.encrypt(key.pubkey))
             .await?;
 
         Ok(())
@@ -323,15 +297,10 @@ where
     async fn sync_tx(
         &self,
         key: KeySet,
-        meta: &MetaData,
+        meta: MetaDataWithBlockNumber,
         tx_data: &TxData,
     ) -> Result<(), SyncError> {
         log::info!("sync_tx: {:?}", meta);
-        if meta.block_number.is_none() {
-            return Err(SyncError::InternalError(
-                "block number is not set".to_string(),
-            ));
-        }
         let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
         let prev_balance_proof = get_balance_proof(&user_data)?;
         let balance_proof = update_send_by_sender(
@@ -340,16 +309,16 @@ where
             key,
             &mut user_data.full_private_state,
             &prev_balance_proof,
-            meta.block_number.unwrap(),
+            meta.block_number,
             tx_data,
         )
         .await?;
         let balance_pis = BalancePublicInputs::from_pis(&balance_proof.public_inputs);
         // validation
-        if balance_pis.public_state.block_number != meta.block_number.unwrap() {
+        if balance_pis.public_state.block_number != meta.block_number {
             return Err(SyncError::BalanceProofBlockNumberMismatch {
                 balance_proof_block_number: balance_pis.public_state.block_number,
-                block_number: meta.block_number.unwrap(),
+                block_number: meta.block_number,
             });
         }
         if balance_pis.private_commitment != user_data.private_commitment() {
@@ -361,8 +330,7 @@ where
         // update user data
         let balance_proof = CompressedBalanceProof::new(&balance_proof)?;
         user_data.balance_proof = Some(balance_proof);
-        user_data.tx_lpt = meta.timestamp;
-        user_data.processed_tx_uuids.push(meta.uuid.clone());
+        user_data.tx_status.process(meta.meta);
 
         // save user data
         self.store_vault_server
@@ -408,6 +376,33 @@ where
             .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
             .await?;
 
+        Ok(())
+    }
+
+    async fn update_pending_receives(
+        &self,
+        key: KeySet,
+        pending_info: PendingInfo,
+    ) -> Result<(), SyncError> {
+        let (mut user_data, prev_digest) = self.get_user_data_and_digest(key).await?;
+        user_data.deposit_status.pending_uuids = pending_info.pending_deposit_uuids;
+        user_data.transfer_status.pending_uuids = pending_info.pending_transfer_uuids;
+        self.store_vault_server
+            .save_user_data(key, prev_digest, &user_data.encrypt(key.pubkey))
+            .await?;
+        Ok(())
+    }
+
+    async fn update_pending_withdrawals(
+        &self,
+        key: KeySet,
+        pending_withdrawal_uuids: Vec<String>,
+    ) -> Result<(), SyncError> {
+        let (mut user_data, prev_digest) = self.get_user_data_and_digest(key).await?;
+        user_data.withdrawal_status.pending_uuids = pending_withdrawal_uuids;
+        self.store_vault_server
+            .save_user_data(key, prev_digest, &user_data.encrypt(key.pubkey))
+            .await?;
         Ok(())
     }
 }

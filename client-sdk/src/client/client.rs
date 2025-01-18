@@ -8,6 +8,7 @@ use intmax2_interfaces::{
     },
     data::{
         deposit_data::{DepositData, TokenType},
+        encryption::Encryption as _,
         proof_compression::{CompressedBalanceProof, CompressedSpentProof},
         sender_proof_set::SenderProofSet,
         transfer_data::TransferData,
