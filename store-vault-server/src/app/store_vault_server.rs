@@ -4,7 +4,7 @@ use anyhow::{anyhow, Ok, Result};
 use intmax2_interfaces::{
     api::store_vault_server::{
         interface::{DataType, SaveDataEntry},
-        types::{DataWithMetaData, TimestampCursor, TimestampCursorResponse},
+        types::{DataWithMetaData, MetaDataCursor, MetaDataCursorResponse},
     },
     data::meta_data::MetaData,
     utils::digest::get_digest,
@@ -16,8 +16,13 @@ use uuid::Uuid;
 
 use crate::EnvVar;
 
+pub struct Config {
+    pub max_pagination_limit: u32,
+}
+
 pub struct StoreVaultServer {
     pool: PgPool,
+    config: Config,
 }
 
 impl StoreVaultServer {
@@ -27,8 +32,10 @@ impl StoreVaultServer {
             .idle_timeout(Duration::from_secs(env.database_timeout))
             .connect(&env.database_url)
             .await?;
-
-        Ok(Self { pool })
+        let config = Config {
+            max_pagination_limit: env.max_pagination_limit,
+        };
+        Ok(Self { pool, config })
     }
 
     pub async fn save_user_data(
@@ -177,33 +184,124 @@ impl StoreVaultServer {
         Ok(uuids)
     }
 
-    pub async fn get_data_list(
+    pub async fn get_data_batch(
         &self,
         data_type: DataType,
         pubkey: U256,
-        cursor: &TimestampCursor,
-    ) -> Result<(Vec<DataWithMetaData>, TimestampCursorResponse)> {
+        uuids: &[String],
+    ) -> Result<Vec<DataWithMetaData>> {
+        if uuids.len() > self.config.max_pagination_limit as usize {
+            return Err(anyhow!(
+                "Number of uuids exceeds the limit {}",
+                self.config.max_pagination_limit
+            ));
+        }
         let pubkey_hex = pubkey.to_hex();
-        let actual_limit = cursor.limit.unwrap_or(1000) as i64;
-        let cursor_timestamp = cursor.timestamp as i64;
-        let cursor_uuid = cursor.uuid.clone();
         let records = sqlx::query!(
             r#"
             SELECT uuid, timestamp, encrypted_data
             FROM encrypted_data
-            WHERE data_type = $1 AND pubkey = $2 AND (timestamp, uuid) >= ($3, $4)
-            ORDER BY timestamp ASC, uuid ASC
-            LIMIT $5
+            WHERE data_type = $1 AND pubkey = $2 AND uuid = ANY($3)
             "#,
             data_type as i32,
             pubkey_hex,
-            cursor_timestamp as i64,
-            cursor_uuid,
-            actual_limit + 1
+            &uuids
         )
         .fetch_all(&self.pool)
         .await?;
+        let result: Vec<DataWithMetaData> = records
+            .into_iter()
+            .map(|r| {
+                let meta = MetaData {
+                    uuid: r.uuid,
+                    timestamp: r.timestamp as u64,
+                };
+                DataWithMetaData {
+                    meta,
+                    data: r.encrypted_data,
+                }
+            })
+            .collect();
+        Ok(result)
+    }
 
+    pub async fn get_data_sequence(
+        &self,
+        data_type: DataType,
+        pubkey: U256,
+        cursor: &MetaDataCursor,
+    ) -> Result<(Vec<DataWithMetaData>, MetaDataCursorResponse)> {
+        let pubkey_hex = pubkey.to_hex();
+        let actual_limit = cursor.limit.unwrap_or(self.config.max_pagination_limit) as i64;
+        let cursor_meta = cursor.meta.as_ref();
+        let result = if let Some(cursor_meta) = cursor_meta {
+            let records = sqlx::query!(
+                r#"
+                SELECT uuid, timestamp, encrypted_data
+                FROM encrypted_data
+                WHERE data_type = $1 AND pubkey = $2 AND (timestamp, uuid) >= ($3, $4)
+                ORDER BY timestamp ASC, uuid ASC
+                LIMIT $5
+                "#,
+                data_type as i32,
+                pubkey_hex,
+                cursor_meta.timestamp as i64,
+                cursor_meta.uuid,
+                actual_limit + 1
+            )
+            .fetch_all(&self.pool)
+            .await?;
+            let result: Vec<DataWithMetaData> = records
+                .into_iter()
+                .map(|r| {
+                    let meta = MetaData {
+                        uuid: r.uuid,
+                        timestamp: r.timestamp as u64,
+                    };
+                    DataWithMetaData {
+                        meta,
+                        data: r.encrypted_data,
+                    }
+                })
+                .collect();
+            result
+        } else {
+            let records = sqlx::query!(
+                r#"
+                SELECT uuid, timestamp, encrypted_data
+                FROM encrypted_data
+                WHERE data_type = $1 AND pubkey = $2
+                ORDER BY timestamp ASC, uuid ASC
+                LIMIT $3
+                "#,
+                data_type as i32,
+                pubkey_hex,
+                actual_limit + 1
+            )
+            .fetch_all(&self.pool)
+            .await?;
+            let result: Vec<DataWithMetaData> = records
+                .into_iter()
+                .map(|r| {
+                    let meta = MetaData {
+                        uuid: r.uuid,
+                        timestamp: r.timestamp as u64,
+                    };
+                    DataWithMetaData {
+                        meta,
+                        data: r.encrypted_data,
+                    }
+                })
+                .collect();
+            result
+        };
+
+        let result = result
+            .into_iter()
+            .take(actual_limit as usize)
+            .collect::<Vec<DataWithMetaData>>();
+        let has_more = result.len() > actual_limit as usize;
+        let next_cursor = result.last().map(|r| r.meta.clone());
         let total_count = sqlx::query_scalar!(
             r#"
             SELECT COUNT(*) FROM encrypted_data
@@ -212,28 +310,9 @@ impl StoreVaultServer {
         .fetch_one(&self.pool)
         .await?
         .unwrap_or(0) as u32;
-
-        let result: Vec<DataWithMetaData> = records
-            .into_iter()
-            .map(|r| {
-                let meta = MetaData {
-                    uuid: r.uuid,
-                    timestamp: r.timestamp as u64,
-                    block_number: None,
-                };
-                DataWithMetaData {
-                    meta,
-                    data: r.encrypted_data,
-                }
-            })
-            .collect();
-        let (next_timestamp, next_uuid) = result
-            .last()
-            .map(|data| (data.meta.timestamp, data.meta.uuid.clone()))
-            .unzip();
-        let response_cursor = TimestampCursorResponse {
-            next_timestamp,
-            next_uuid,
+        let response_cursor = MetaDataCursorResponse {
+            next_cursor,
+            has_more,
             total_count,
         };
         Ok((result, response_cursor))

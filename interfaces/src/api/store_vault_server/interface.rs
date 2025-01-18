@@ -8,9 +8,9 @@ use intmax2_zkp::{
 use serde::{Deserialize, Serialize};
 use serde_with::{base64::Base64, serde_as};
 
-use crate::api::error::ServerError;
+use crate::{api::error::ServerError, data::meta_data::MetaData};
 
-use super::types::{DataWithMetaData, TimestampCursor, TimestampCursorResponse};
+use super::types::DataWithMetaData;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "camelCase")]
@@ -94,12 +94,19 @@ pub trait StoreVaultClientInterface {
         entries: &[SaveDataEntry],
     ) -> Result<Vec<String>, ServerError>;
 
-    async fn get_data_list(
+    async fn get_data_batch(
         &self,
-        data_type: DataType,
         key: KeySet,
-        cursor: &TimestampCursor,
-    ) -> Result<(Vec<DataWithMetaData>, TimestampCursorResponse), ServerError>;
+        data_type: DataType,
+        uuids: &[String],
+    ) -> Result<Vec<DataWithMetaData>, ServerError>;
+
+    async fn get_data_sequence(
+        &self,
+        key: KeySet,
+        data_type: DataType,
+        meta_cursor: &Option<MetaData>,
+    ) -> Result<Vec<DataWithMetaData>, ServerError>;
 }
 
 #[cfg(test)]

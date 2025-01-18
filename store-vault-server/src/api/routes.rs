@@ -7,7 +7,7 @@ use actix_web::{
 };
 use intmax2_interfaces::{
     api::store_vault_server::types::{
-        GetDataListRequest, GetDataListResponse, GetSenderProofSetRequest,
+        GetDataSequenceRequest, GetDataSequenceResponse, GetSenderProofSetRequest,
         GetSenderProofSetResponse, GetUserDataRequest, GetUserDataResponse, SaveDataBatchRequest,
         SaveDataBatchResponse, SaveSenderProofSetRequest, SaveUserDataRequest,
     },
@@ -127,8 +127,8 @@ pub async fn batch_save_data(
 #[post("/get-data-list")]
 pub async fn get_data_list(
     state: Data<State>,
-    request: Json<WithAuth<GetDataListRequest>>,
-) -> Result<Json<GetDataListResponse>, Error> {
+    request: Json<WithAuth<GetDataSequenceRequest>>,
+) -> Result<Json<GetDataSequenceResponse>, Error> {
     request
         .inner
         .verify(&request.auth)
@@ -137,11 +137,14 @@ pub async fn get_data_list(
     let request = &request.inner;
     let (data, cursor) = state
         .store_vault_server
-        .get_data_list(request.data_type, pubkey, &request.cursor)
+        .get_data_sequence(request.data_type, pubkey, &request.cursor)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
 
-    let res = GetDataListResponse { data, cursor };
+    let res = GetDataSequenceResponse {
+        data,
+        cursor_response,
+    };
     Ok(Json(res))
 }
 

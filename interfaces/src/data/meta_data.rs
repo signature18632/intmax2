@@ -1,10 +1,15 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MetaData {
-    pub uuid: String,
     pub timestamp: u64,
+    pub uuid: String,
+}
 
-    pub block_number: Option<u32>,
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetaDataWithBlockNumber {
+    pub meta: MetaData,
+    pub block_number: u32,
 }

@@ -5,14 +5,15 @@ use intmax2_interfaces::{
         store_vault_server::{
             interface::{DataType, SaveDataEntry, StoreVaultClientInterface},
             types::{
-                DataWithMetaData, GetDataListRequest, GetDataListResponse,
-                GetSenderProofSetRequest, GetSenderProofSetResponse, GetUserDataRequest,
-                GetUserDataResponse, SaveDataBatchRequest, SaveDataBatchResponse,
-                SaveSenderProofSetRequest, SaveUserDataRequest, TimestampCursor,
-                TimestampCursorResponse,
+                DataWithMetaData, GetDataBatchRequest, GetDataBatchResponse,
+                GetDataSequenceRequest, GetDataSequenceResponse, GetSenderProofSetRequest,
+                GetSenderProofSetResponse, GetUserDataRequest, GetUserDataResponse, MetaDataCursor,
+                SaveDataBatchRequest, SaveDataBatchResponse, SaveSenderProofSetRequest,
+                SaveUserDataRequest,
             },
         },
     },
+    data::meta_data::MetaData,
     utils::signature::Signable,
 };
 use intmax2_zkp::{common::signature::key_set::KeySet, ethereum_types::bytes32::Bytes32};
@@ -116,23 +117,46 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         Ok(response.uuids)
     }
 
-    async fn get_data_list(
+    async fn get_data_batch(
         &self,
-        data_type: DataType,
         key: KeySet,
-        cursor: &TimestampCursor,
-    ) -> Result<(Vec<DataWithMetaData>, TimestampCursorResponse), ServerError> {
-        let request = GetDataListRequest {
+        data_type: DataType,
+        uuids: &[String],
+    ) -> Result<Vec<DataWithMetaData>, ServerError> {
+        let request = GetDataBatchRequest {
             data_type,
-            cursor: cursor.clone(),
+            uuids: uuids.to_vec(),
         };
         let request_with_auth = request.sign(key, TIME_TO_EXPIRY);
-        let response: GetDataListResponse = post_request(
+        let response: GetDataBatchResponse = post_request(
+            &self.base_url,
+            "/store-vault-server/get-data-batch",
+            Some(&request_with_auth),
+        )
+        .await?;
+        Ok(response.data)
+    }
+
+    async fn get_data_sequence(
+        &self,
+        key: KeySet,
+        data_type: DataType,
+        metadata_cursor: &Option<MetaData>,
+    ) -> Result<Vec<DataWithMetaData>, ServerError> {
+        let request = GetDataSequenceRequest {
+            data_type,
+            cursor: MetaDataCursor {
+                meta: metadata_cursor.clone(),
+                limit: None,
+            },
+        };
+        let request_with_auth = request.sign(key, TIME_TO_EXPIRY);
+        let response: GetDataSequenceResponse = post_request(
             &self.base_url,
             "/store-vault-server/get-data-list",
             Some(&request_with_auth),
         )
         .await?;
-        Ok((response.data, response.cursor))
+        Ok(response.data)
     }
 }

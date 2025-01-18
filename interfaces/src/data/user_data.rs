@@ -16,6 +16,7 @@ use super::{
     deposit_data::DepositData,
     encryption::algorithm::{decrypt, encrypt},
     error::DataError,
+    meta_data::MetaData,
     proof_compression::CompressedBalanceProof,
     transfer_data::TransferData,
     tx_data::TxData,
@@ -27,22 +28,21 @@ type Result<T> = std::result::Result<T, DataError>;
 #[serde(rename_all = "camelCase")]
 pub struct UserData {
     pub pubkey: U256,
-
     pub full_private_state: FullPrivateState,
-
     pub balance_proof: Option<CompressedBalanceProof>,
+    pub deposit_status: ProcessStatus,
+    pub transfer_status: ProcessStatus,
+    pub tx_status: ProcessStatus,
+    pub withdrawal_status: ProcessStatus,
+}
 
-    // The latest unix timestamp of processed (incorporated into the balance proof or rejected)
-    // actions
-    pub deposit_lpt: u64,
-    pub transfer_lpt: u64,
-    pub tx_lpt: u64,
-    pub withdrawal_lpt: u64,
-
-    pub processed_deposit_uuids: Vec<String>,
-    pub processed_transfer_uuids: Vec<String>,
-    pub processed_tx_uuids: Vec<String>,
-    pub processed_withdrawal_uuids: Vec<String>,
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessStatus {
+    // Last processed meta data
+    pub last_processed_meta_data: Option<MetaData>,
+    pub pending_uuids: Vec<String>,
+    pub processed_uuids: Vec<String>,
 }
 
 impl UserData {
@@ -53,15 +53,10 @@ impl UserData {
 
             balance_proof: None,
 
-            deposit_lpt: 0,
-            transfer_lpt: 0,
-            tx_lpt: 0,
-            withdrawal_lpt: 0,
-
-            processed_deposit_uuids: vec![],
-            processed_transfer_uuids: vec![],
-            processed_tx_uuids: vec![],
-            processed_withdrawal_uuids: vec![],
+            deposit_status: ProcessStatus::default(),
+            transfer_status: ProcessStatus::default(),
+            tx_status: ProcessStatus::default(),
+            withdrawal_status: ProcessStatus::default(),
         }
     }
 

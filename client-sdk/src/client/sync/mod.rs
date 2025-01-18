@@ -100,8 +100,6 @@ where
                             }
                         }
                     }
-                    self.update_deposit_lpt(key, new_deposit_lpt).await?;
-                    self.update_transfer_lpt(key, new_transfer_lpt).await?;
                 }
                 Action::Tx(meta, tx_data) => {
                     self.sync_tx(key, &meta, &tx_data).await?;
@@ -135,7 +133,6 @@ where
         for (meta, data) in &withdrawals {
             self.sync_withdrawal(key, meta, data).await?;
         }
-        self.update_withdrawal_lpt(key, new_withdrawal_lpt).await?;
         Ok(())
     }
 
@@ -174,6 +171,7 @@ where
         let new_balance_proof = CompressedBalanceProof::new(&new_balance_proof)?;
         // update user data
         user_data.balance_proof = Some(new_balance_proof);
+        user_data.deposit_lpt = meta.timestamp;
         user_data.processed_deposit_uuids.push(meta.uuid.clone());
         // save user data
         self.store_vault_server
@@ -244,6 +242,7 @@ where
         // update user data
         let balance_proof = CompressedBalanceProof::new(&new_balance_proof)?;
         user_data.balance_proof = Some(balance_proof);
+        user_data.transfer_lpt = meta.timestamp;
         user_data.processed_transfer_uuids.push(meta.uuid.clone());
 
         // save proof and user data
@@ -311,41 +310,12 @@ where
 
         // update user data
         let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
+        user_data.withdrawal_lpt = meta.timestamp;
         user_data.processed_withdrawal_uuids.push(meta.uuid.clone());
         self.store_vault_server
             .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
             .await?;
 
-        Ok(())
-    }
-
-    async fn update_deposit_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), SyncError> {
-        log::info!("update_deposit_lpt: {:?}", timestamp);
-        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
-        user_data.deposit_lpt = timestamp;
-        self.store_vault_server
-            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
-            .await?;
-        Ok(())
-    }
-
-    async fn update_transfer_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), SyncError> {
-        log::info!("update_transfer_lpt: {:?}", timestamp);
-        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
-        user_data.transfer_lpt = timestamp;
-        self.store_vault_server
-            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
-            .await?;
-        Ok(())
-    }
-
-    async fn update_withdrawal_lpt(&self, key: KeySet, timestamp: u64) -> Result<(), SyncError> {
-        log::info!("update_withdrawal_lpt: {:?}", timestamp);
-        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
-        user_data.withdrawal_lpt = timestamp;
-        self.store_vault_server
-            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
-            .await?;
         Ok(())
     }
 

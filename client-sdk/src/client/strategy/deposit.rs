@@ -2,7 +2,7 @@ use intmax2_interfaces::{
     api::{
         store_vault_server::{
             interface::{DataType, StoreVaultClientInterface},
-            types::DataWithMetaData,
+            types::{DataWithMetaData, MetaDataCursor},
         },
         validity_prover::interface::ValidityProverClientInterface,
     },
@@ -34,8 +34,16 @@ pub async fn fetch_deposit_info<S: StoreVaultClientInterface, V: ValidityProverC
     let mut pending = Vec::new();
     let mut timeout = Vec::new();
 
-    let data_with_meta = store_vault_server
-        .get_data_all_after(DataType::Deposit, key, deposit_lpt)
+    let (data_with_meta, _) = store_vault_server
+        .get_data_list(
+            DataType::Deposit,
+            key,
+            &MetaDataCursor {
+                timestamp: deposit_lpt,
+                uuid: processed_deposit_uuids.last().cloned(),
+                limit: None,
+            },
+        )
         .await?;
     for DataWithMetaData { meta, data } in data_with_meta {
         if processed_deposit_uuids.contains(&meta.uuid) {

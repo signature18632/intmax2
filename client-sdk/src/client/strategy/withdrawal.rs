@@ -3,7 +3,7 @@ use intmax2_interfaces::{
     api::{
         store_vault_server::{
             interface::{DataType, StoreVaultClientInterface},
-            types::DataWithMetaData,
+            types::{DataWithMetaData, MetaDataCursor},
         },
         validity_prover::interface::ValidityProverClientInterface,
     },
@@ -34,8 +34,16 @@ pub async fn fetch_withdrawal_info<
     let mut pending = Vec::new();
     let mut timeout = Vec::new();
 
-    let encrypted_data = store_vault_server
-        .get_data_all_after(DataType::Withdrawal, key, withdrawal_lpt)
+    let (encrypted_data, _) = store_vault_server
+        .get_data_list(
+            DataType::Withdrawal,
+            key,
+            &MetaDataCursor {
+                timestamp: withdrawal_lpt,
+                uuid: processed_withdrawal_uuids.last().cloned(),
+                limit: None,
+            },
+        )
         .await?;
     for DataWithMetaData { meta, data } in encrypted_data {
         if processed_withdrawal_uuids.contains(&meta.uuid) {

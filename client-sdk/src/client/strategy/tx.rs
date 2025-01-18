@@ -3,7 +3,7 @@ use intmax2_interfaces::{
     api::{
         store_vault_server::{
             interface::{DataType, StoreVaultClientInterface},
-            types::DataWithMetaData,
+            types::{DataWithMetaData, MetaDataCursor},
         },
         validity_prover::interface::ValidityProverClientInterface,
     },
@@ -30,8 +30,16 @@ pub async fn fetch_tx_info<S: StoreVaultClientInterface, V: ValidityProverClient
     let mut pending = Vec::new();
     let mut timeout = Vec::new();
 
-    let encrypted_data = store_vault_server
-        .get_data_all_after(DataType::Tx, key, tx_lpt)
+    let (encrypted_data, _) = store_vault_server
+        .get_data_list(
+            DataType::Tx,
+            key,
+            &MetaDataCursor {
+                timestamp: tx_lpt,
+                uuid: processed_tx_uuids.last().cloned(),
+                limit: None,
+            },
+        )
         .await?;
     for DataWithMetaData { meta, data } in encrypted_data {
         if processed_tx_uuids.contains(&meta.uuid) {
