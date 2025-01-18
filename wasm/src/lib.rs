@@ -81,7 +81,7 @@ pub async fn prepare_deposit(
         )
         .await
         .map_err(|e| JsError::new(&format!("failed to prepare deposit call: {}", e)))?;
-    Ok(JsDepositResult::from_deposit_result(&deposit_result))
+    Ok(deposit_result.into())
 }
 
 /// Function to send a tx request to the block builder. The return value contains information to take a backup.
@@ -102,7 +102,7 @@ pub async fn send_tx_request(
     let key = str_privkey_to_keyset(private_key)?;
     let transfers: Vec<Transfer> = transfers
         .iter()
-        .map(|transfer| transfer.to_transfer())
+        .map(|transfer| transfer.clone().try_into())
         .collect::<Result<Vec<_>, JsError>>()?;
 
     let client = get_client(config);
@@ -146,7 +146,7 @@ pub async fn query_and_finalize(
     let tx_result = client
         .finalize_tx(block_builder_url, key, &tx_request_memo, &proposal)
         .await?;
-    Ok(JsTxResult::from_tx_result(&tx_result))
+    Ok(tx_result.into())
 }
 
 /// Synchronize the user's balance proof. It may take a long time to generate ZKP.
@@ -177,7 +177,7 @@ pub async fn get_user_data(config: &Config, private_key: &str) -> Result<JsUserD
     let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
     let (user_data, _) = client.get_user_data_and_digest(key).await?;
-    Ok(JsUserData::from_user_data(&user_data))
+    Ok(user_data.into())
 }
 
 /// Decrypt the deposit data.
@@ -190,7 +190,7 @@ pub async fn decrypt_deposit_data(
     let key = str_privkey_to_keyset(private_key)?;
     let deposit_data =
         DepositData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
-    Ok(JsDepositData::from_deposit_data(&deposit_data))
+    Ok(deposit_data.into())
 }
 
 /// Decrypt the transfer data. This is also used to decrypt the withdrawal data.
@@ -203,7 +203,7 @@ pub async fn decrypt_transfer_data(
     let key = str_privkey_to_keyset(private_key)?;
     let transfer_data =
         TransferData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
-    Ok(JsTransferData::from_transfer_data(&transfer_data))
+    Ok(transfer_data.into())
 }
 
 /// Decrypt the tx data.
@@ -212,7 +212,7 @@ pub async fn decrypt_tx_data(private_key: &str, data: &[u8]) -> Result<JsTxData,
     init_logger();
     let key = str_privkey_to_keyset(private_key)?;
     let tx_data = TxData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
-    Ok(JsTxData::from_tx_data(&tx_data))
+    Ok(tx_data.into())
 }
 
 fn init_logger() {

@@ -18,8 +18,8 @@ pub struct JsDepositData {
     pub token_id: String,      // 10 base string
 }
 
-impl JsDepositData {
-    pub fn from_deposit_data(deposit_data: &DepositData) -> Self {
+impl From<DepositData> for JsDepositData {
+    fn from(deposit_data: DepositData) -> Self {
         Self {
             deposit_salt: deposit_data.deposit_salt.to_string(),
             pubkey_salt_hash: deposit_data.pubkey_salt_hash.to_hex(),
@@ -38,11 +38,11 @@ pub struct JsTransferData {
     pub transfer: JsTransfer,
 }
 
-impl JsTransferData {
-    pub fn from_transfer_data(transfer_data: &TransferData) -> Self {
+impl From<TransferData> for JsTransferData {
+    fn from(transfer_data: TransferData) -> Self {
         Self {
             sender: transfer_data.sender.to_hex(),
-            transfer: JsTransfer::from_transfer(&transfer_data.transfer),
+            transfer: transfer_data.transfer.into(),
         }
     }
 }
@@ -54,22 +54,22 @@ pub struct JsTxData {
     pub transfers: Vec<JsTransfer>,
 }
 
-impl JsTxData {
-    pub fn from_tx_data(tx_data: &TxData) -> Self {
-        let tx = JsTx::from_tx(&tx_data.spent_witness.tx);
+impl From<TxData> for JsTxData {
+    fn from(tx_data: TxData) -> Self {
+        let tx: JsTx = tx_data.spent_witness.tx.into();
         let transfers = tx_data
             .spent_witness
             .transfers
-            .iter()
+            .into_iter()
             .flat_map(|transfer| {
-                if transfer == &Transfer::default() {
+                if transfer == Transfer::default() {
                     // ignore default transfer
                     None
                 } else {
-                    Some(JsTransfer::from_transfer(transfer))
+                    Some(transfer.into())
                 }
             })
-            .collect::<Vec<_>>();
+            .collect();
         Self { tx, transfers }
     }
 }
@@ -81,11 +81,11 @@ pub struct JsDepositResult {
     pub deposit_uuid: String,
 }
 
-impl JsDepositResult {
-    pub fn from_deposit_result(deposit_result: &DepositResult) -> Self {
+impl From<DepositResult> for JsDepositResult {
+    fn from(deposit_result: DepositResult) -> Self {
         Self {
-            deposit_data: JsDepositData::from_deposit_data(&deposit_result.deposit_data),
-            deposit_uuid: deposit_result.deposit_uuid.clone(),
+            deposit_data: deposit_result.deposit_data.into(),
+            deposit_uuid: deposit_result.deposit_uuid.to_string(),
         }
     }
 }
@@ -98,13 +98,12 @@ pub struct JsTxResult {
     pub withdrawal_uuids: Vec<String>,
 }
 
-impl JsTxResult {
-    pub fn from_tx_result(tx_result: &TxResult) -> Self {
-        let tx_tree_root = tx_result.tx_tree_root.to_hex();
+impl From<TxResult> for JsTxResult {
+    fn from(tx_result: TxResult) -> Self {
         Self {
-            tx_tree_root,
-            transfer_uuids: tx_result.transfer_uuids.clone(),
-            withdrawal_uuids: tx_result.withdrawal_uuids.clone(),
+            tx_tree_root: tx_result.tx_tree_root.to_hex(),
+            transfer_uuids: tx_result.transfer_uuids,
+            withdrawal_uuids: tx_result.withdrawal_uuids,
         }
     }
 }
@@ -160,8 +159,8 @@ pub struct TokenBalance {
     pub is_insufficient: bool,
 }
 
-impl JsUserData {
-    pub fn from_user_data(user_data: &UserData) -> Self {
+impl From<UserData> for JsUserData {
+    fn from(user_data: UserData) -> Self {
         let balances = user_data
             .balances()
             .0

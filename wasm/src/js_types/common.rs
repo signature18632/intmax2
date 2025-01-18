@@ -19,8 +19,8 @@ pub struct JsGenericAddress {
     pub data: String,
 }
 
-impl JsGenericAddress {
-    pub fn from_generic_address(generic_address: &GenericAddress) -> Self {
+impl From<GenericAddress> for JsGenericAddress {
+    fn from(generic_address: GenericAddress) -> Self {
         let is_pubkey = generic_address.is_pubkey;
         let data = if is_pubkey {
             generic_address.to_pubkey().unwrap().to_hex()
@@ -29,14 +29,18 @@ impl JsGenericAddress {
         };
         Self { is_pubkey, data }
     }
+}
 
-    pub fn to_generic_address(&self) -> Result<GenericAddress, JsError> {
-        if self.is_pubkey {
-            let pubkey =
-                U256::from_hex(&self.data).map_err(|_| JsError::new("Failed to parse pubkey"))?;
+impl TryFrom<JsGenericAddress> for GenericAddress {
+    type Error = JsError;
+
+    fn try_from(js_generic_address: JsGenericAddress) -> Result<Self, Self::Error> {
+        if js_generic_address.is_pubkey {
+            let pubkey = U256::from_hex(&js_generic_address.data)
+                .map_err(|_| JsError::new("Failed to parse pubkey"))?;
             Ok(GenericAddress::from_pubkey(pubkey))
         } else {
-            let address = Address::from_hex(&self.data)
+            let address = Address::from_hex(&js_generic_address.data)
                 .map_err(|_| JsError::new("Failed to parse address"))?;
             Ok(GenericAddress::from_address(address))
         }
@@ -84,7 +88,7 @@ impl JsTransfer {
     }
 
     pub fn to_withdrawal(&self) -> Result<JsContractWithdrawal, JsError> {
-        let transfer = self.to_transfer()?;
+        let transfer: Transfer = self.clone().try_into()?;
         if transfer.recipient.is_pubkey {
             return Err(JsError::new("Recipient must be an ethereum address"));
         }
@@ -96,28 +100,32 @@ impl JsTransfer {
             amount: transfer.amount,
             nullifier,
         };
-        Ok(JsContractWithdrawal::from_contract_withdrawal(&withdrawal))
+        Ok(withdrawal.into())
     }
 }
 
-impl JsTransfer {
-    pub(crate) fn from_transfer(transfer: &Transfer) -> Self {
+impl From<Transfer> for JsTransfer {
+    fn from(transfer: Transfer) -> JsTransfer {
         Self {
-            recipient: JsGenericAddress::from_generic_address(&transfer.recipient),
+            recipient: transfer.recipient.into(),
             token_index: transfer.token_index,
             amount: transfer.amount.to_string(),
             salt: transfer.salt.to_string(),
         }
     }
+}
 
-    pub(crate) fn to_transfer(&self) -> Result<Transfer, JsError> {
-        let recipient = self.recipient.to_generic_address()?;
+impl TryFrom<JsTransfer> for Transfer {
+    type Error = JsError;
+
+    fn try_from(js_transfer: JsTransfer) -> Result<Transfer, Self::Error> {
+        let recipient = js_transfer.recipient.try_into()?;
         let amount =
-            parse_u256(&self.amount).map_err(|_| JsError::new("Failed to parse amount"))?;
-        let salt = parse_salt(&self.salt)?;
+            parse_u256(&js_transfer.amount).map_err(|_| JsError::new("Failed to parse amount"))?;
+        let salt = parse_salt(&js_transfer.salt)?;
         Ok(Transfer {
             recipient,
-            token_index: self.token_index,
+            token_index: js_transfer.token_index,
             amount,
             salt,
         })
@@ -131,8 +139,8 @@ pub struct JsTx {
     pub nonce: u32,
 }
 
-impl JsTx {
-    pub(crate) fn from_tx(tx: &Tx) -> Self {
+impl From<Tx> for JsTx {
+    fn from(tx: Tx) -> Self {
         Self {
             transfer_tree_root: tx.transfer_tree_root.to_string(),
             nonce: tx.nonce,
@@ -149,26 +157,32 @@ pub struct JsContractWithdrawal {
     pub nullifier: String,
 }
 
-impl JsContractWithdrawal {
-    fn to_contract_withdrawal(&self) -> Result<ContractWithdrawal, JsError> {
-        let recipient = parse_address(&self.recipient)?;
-        let amount = parse_u256(&self.amount)?;
-        let nullifier = parse_bytes32(&self.nullifier)?;
-        Ok(ContractWithdrawal {
-            recipient,
-            token_index: self.token_index,
-            amount,
-            nullifier,
-        })
-    }
-
-    fn from_contract_withdrawal(contract_withdrawal: &ContractWithdrawal) -> Self {
+impl From<ContractWithdrawal> for JsContractWithdrawal {
+    fn from(contract_withdrawal: ContractWithdrawal) -> Self {
         Self {
             recipient: contract_withdrawal.recipient.to_hex(),
             token_index: contract_withdrawal.token_index,
             amount: contract_withdrawal.amount.to_string(),
             nullifier: contract_withdrawal.nullifier.to_hex(),
         }
+    }
+}
+
+impl TryFrom<JsContractWithdrawal> for ContractWithdrawal {
+    type Error = JsError;
+
+    fn try_from(
+        js_contract_withdrawal: JsContractWithdrawal,
+    ) -> Result<ContractWithdrawal, Self::Error> {
+        let recipient = parse_address(&js_contract_withdrawal.recipient)?;
+        let amount = parse_u256(&js_contract_withdrawal.amount)?;
+        let nullifier = parse_bytes32(&js_contract_withdrawal.nullifier)?;
+        Ok(ContractWithdrawal {
+            recipient,
+            token_index: js_contract_withdrawal.token_index,
+            amount,
+            nullifier,
+        })
     }
 }
 
@@ -185,7 +199,7 @@ impl JsContractWithdrawal {
     }
 
     pub fn hash(&self) -> Result<String, JsError> {
-        let contract_withdrawal = self.to_contract_withdrawal()?;
+        let contract_withdrawal: ContractWithdrawal = self.clone().try_into()?;
         let hash = contract_withdrawal.withdrawal_hash().to_hex();
         Ok(hash)
     }
