@@ -6,7 +6,7 @@ use intmax2_interfaces::{
     data::{
         deposit_data::DepositData,
         encryption::Encryption as _,
-        meta_data::MetaData,
+        meta_data::{MetaData, MetaDataWithBlockNumber},
         transfer_data::TransferData,
         tx_data::TxData,
         user_data::{Balances, UserData},
@@ -30,19 +30,19 @@ use super::{
 #[derive(Debug, Clone)]
 pub enum Action {
     Receive(Vec<ReceiveAction>),
-    Tx(MetaData, TxData),              // Send tx
-    PendingReceives(MetaData, TxData), // Pending receives to proceed the next tx
-    PendingTx(MetaData, TxData),       // Pending tx
+    Tx(MetaDataWithBlockNumber, TxData),              // Send tx
+    PendingReceives(MetaDataWithBlockNumber, TxData), // Pending receives to proceed the next tx
+    PendingTx(MetaData, TxData),                      // Pending tx
 }
 
 #[derive(Debug, Clone)]
 pub enum ReceiveAction {
-    Deposit(MetaData, DepositData),
-    Transfer(MetaData, Box<TransferData>),
+    Deposit(MetaDataWithBlockNumber, DepositData),
+    Transfer(MetaDataWithBlockNumber, Box<TransferData>),
 }
 
 impl ReceiveAction {
-    pub fn meta(&self) -> &MetaData {
+    pub fn meta(&self) -> &MetaDataWithBlockNumber {
         match self {
             ReceiveAction::Deposit(meta, _) => meta,
             ReceiveAction::Transfer(meta, _) => meta,
@@ -101,7 +101,7 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
     if let Some((meta, tx_data)) = tx_info.pending.first() {
         return Ok((
             vec![Action::PendingTx(meta.clone(), tx_data.clone())],
-            PendingInfo::default(),
+            PendingInfo::default(), // no need to return pending deposit/transfer
         ));
     }
 
@@ -123,20 +123,6 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
         tx_timeout,
     )
     .await?;
-
-    // Get the timestamp of the oldest pending deposit
-    let oldest_pending_deposit_timestamp = deposit_info
-        .pending
-        .iter()
-        .map(|(meta, _)| meta.timestamp)
-        .min();
-
-    // Get the timestamp of the oldest pending transfer
-    let oldest_pending_transfer_timestamp = transfer_info
-        .pending
-        .iter()
-        .map(|(meta, _)| meta.timestamp)
-        .min();
 
     let mut deposits = deposit_info.settled;
     let mut transfers = transfer_info.settled;
@@ -169,44 +155,13 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
 
         // Here tx can be incorporated
 
-        // The smallest timestamp among the remaining deposits and pending deposits is 1 less than the new lpt.
-        let new_deposit_lpt = deposits
-            .iter()
-            .map(|(meta, _)| meta.timestamp)
-            .chain(oldest_pending_deposit_timestamp)
-            .min()
-            .map(|timestamp| timestamp - 1)
-            .unwrap_or(current_timestamp);
-        // The smallest timestamp among the remaining transfers and pending transfers is 1 less than the new lpt.
-        let new_transfer_lpt = transfers
-            .iter()
-            .map(|(meta, _)| meta.timestamp)
-            .chain(oldest_pending_transfer_timestamp)
-            .min()
-            .map(|timestamp| timestamp - 1)
-            .unwrap_or(current_timestamp);
-
-        sequence.push(Action::Receive {
-            receives,
-            new_deposit_lpt,
-            new_transfer_lpt,
-        });
+        sequence.push(Action::Receive(receives));
         sequence.push(Action::Tx(tx_meta.clone(), tx_data.clone()));
     }
 
     // Finally, take all deposits and transfers
     let receives = collect_receives(&None, &mut deposits, &mut transfers).await?;
-    let new_deposit_lpt = oldest_pending_deposit_timestamp
-        .map(|timestamp| timestamp - 1)
-        .unwrap_or(current_timestamp);
-    let new_transfer_lpt = oldest_pending_transfer_timestamp
-        .map(|timestamp| timestamp - 1)
-        .unwrap_or(current_timestamp);
-    sequence.push(Action::Receive {
-        receives,
-        new_deposit_lpt,
-        new_transfer_lpt,
-    });
+    sequence.push(Action::Receive(receives));
     Ok((
         sequence,
         PendingInfo {
@@ -219,29 +174,29 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
 /// For each settled tx, take deposits and transfers that are strictly smaller than the block number of the tx
 /// If there is no tx, take all deposit and transfer data
 async fn collect_receives(
-    tx: &Option<(MetaData, TxData)>,
-    deposits: &mut Vec<(MetaData, DepositData)>,
-    transfers: &mut Vec<(MetaData, TransferData)>,
+    tx: &Option<(MetaDataWithBlockNumber, TxData)>,
+    deposits: &mut Vec<(MetaDataWithBlockNumber, DepositData)>,
+    transfers: &mut Vec<(MetaDataWithBlockNumber, TransferData)>,
 ) -> Result<Vec<ReceiveAction>, StrategyError> {
     let mut receives: Vec<ReceiveAction> = Vec::new();
     if let Some((meta, _tx_data)) = tx {
-        let block_number = meta.block_number.unwrap();
+        let block_number = meta.block_number;
 
         // take and remove deposit that are strictly smaller than the block number of the tx
         let receive_deposit = deposits
             .iter()
-            .filter(|(meta, _)| meta.block_number.unwrap() < block_number)
+            .filter(|(meta, _)| meta.block_number < block_number)
             .map(|(meta, data)| ReceiveAction::Deposit(meta.clone(), data.clone()))
             .collect_vec();
-        deposits.retain(|(meta, _)| meta.block_number.unwrap() >= block_number);
+        deposits.retain(|(meta, _)| meta.block_number >= block_number);
 
         // take and remove transfer that are strictly smaller than the block number of the tx
         let receive_transfer = transfers
             .iter()
-            .filter(|(meta, _)| meta.block_number.unwrap() < block_number)
+            .filter(|(meta, _)| meta.block_number < block_number)
             .map(|(meta, data)| ReceiveAction::Transfer(meta.clone(), Box::new(data.clone())))
             .collect_vec();
-        transfers.retain(|(meta, _)| meta.block_number.unwrap() >= block_number);
+        transfers.retain(|(meta, _)| meta.block_number >= block_number);
 
         // add to receives
         receives.extend(receive_deposit);
@@ -267,7 +222,7 @@ async fn collect_receives(
     // sort by block number first, then by uuid to make the order deterministic
     receives.sort_by_key(|action| {
         let meta = action.meta();
-        (meta.block_number.unwrap(), meta.uuid.clone())
+        (meta.block_number, meta.meta.uuid.clone())
     });
 
     Ok(receives)
@@ -282,7 +237,13 @@ pub async fn determine_withdrawals<
     validity_prover: &V,
     key: KeySet,
     tx_timeout: u64,
-) -> Result<(Vec<(MetaData, TransferData)>, u64), StrategyError> {
+) -> Result<
+    (
+        Vec<(MetaDataWithBlockNumber, TransferData)>,
+        Vec<(MetaData, TransferData)>, // pending withdrawals
+    ),
+    StrategyError,
+> {
     log::info!("determine_withdrawals");
     let user_data = store_vault_server
         .get_user_data(key)
@@ -291,33 +252,13 @@ pub async fn determine_withdrawals<
         .transpose()
         .map_err(|e| StrategyError::UserDataDecryptionError(e.to_string()))?
         .unwrap_or(UserData::new(key.pubkey));
-
-    // Add some buffer to the current timestamp
-    let mut current_timestamp = chrono::Utc::now().timestamp() as u64;
-    current_timestamp = current_timestamp.saturating_sub(tx_timeout);
-
     let withdrawal_info = fetch_withdrawal_info(
         store_vault_server,
         validity_prover,
         key,
-        user_data.withdrawal_lpt,
-        &user_data.processed_withdrawal_uuids,
+        &user_data.withdrawal_status,
         tx_timeout,
     )
     .await?;
-    let oldest_pending_withdrawal_timestamp = withdrawal_info
-        .pending
-        .iter()
-        .map(|(meta, _)| meta.timestamp)
-        .min();
-    let withdrawals = withdrawal_info.settled;
-    let new_withdrawal_lpt = withdrawals
-        .iter()
-        .map(|(meta, _)| meta.timestamp)
-        .chain(oldest_pending_withdrawal_timestamp)
-        .min()
-        .map(|timestamp| timestamp - 1)
-        .unwrap_or(current_timestamp);
-
-    Ok((withdrawals, new_withdrawal_lpt))
+    Ok((withdrawal_info.settled, withdrawal_info.pending))
 }
