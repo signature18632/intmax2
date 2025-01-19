@@ -15,7 +15,7 @@ use tracing_subscriber::{
     EnvFilter,
 };
 
-use crate::{env::Env, health_check::load_name_and_version};
+use crate::{env::Env, health_check::load_name_and_version, tracer};
 use common::env::EnvType;
 
 #[derive(Error, Debug)]
@@ -32,7 +32,7 @@ pub enum InitLoggerError {
 
 pub fn init_logger() -> Result<(), InitLoggerError> {
     // Get package info for log file naming
-    let (_name, _version) = load_name_and_version();
+    let (name, version) = load_name_and_version();
 
     dotenv::dotenv().ok();
     let env = envy::from_env::<Env>().expect("Failed to load environment variables");
@@ -47,6 +47,10 @@ pub fn init_logger() -> Result<(), InitLoggerError> {
             .with(env_filter)
             .try_init()?;
     } else {
+        use opentelemetry::trace::TracerProvider as _;
+        let provider = tracer::init_tracer(name.clone(), version);
+        let otlp_tracer = provider.tracer(name);
+
         // Log to stdout
         let subscriber = fmt::Layer::new()
             .with_target(false)
@@ -55,6 +59,7 @@ pub fn init_logger() -> Result<(), InitLoggerError> {
         tracing_subscriber::registry()
             .with(subscriber)
             .with(env_filter)
+            .with(tracing_opentelemetry::layer().with_tracer(otlp_tracer))
             .try_init()?;
     }
     Ok(())
