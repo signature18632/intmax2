@@ -1,7 +1,7 @@
 use std::io;
 
 use actix_cors::Cors;
-use actix_web::{middleware::Logger, web::Data, App, HttpServer};
+use actix_web::{web::Data, App, HttpServer};
 use block_builder::{
     api::{api::block_builder_scope, block_builder::BlockBuilder, state::State},
     Env,
@@ -9,13 +9,14 @@ use block_builder::{
 use intmax2_client_sdk::external_api::contract::utils::get_address;
 use server_common::{
     health_check::{health_check, set_name_and_version},
-    logger::init_logger,
+    logger,
 };
+use tracing_actix_web::TracingLogger;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     set_name_and_version(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
-    init_logger().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    logger::init_logger().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     dotenv::dotenv().ok();
 
@@ -51,7 +52,7 @@ async fn main() -> std::io::Result<()> {
         let cors = Cors::permissive();
         App::new()
             .wrap(cors)
-            .wrap(Logger::new("Request: %r | Status: %s | Duration: %Ts"))
+            .wrap(TracingLogger::<logger::CustomRootSpanBuilder>::new())
             .app_data(state.clone())
             .service(health_check)
             .service(block_builder_scope())

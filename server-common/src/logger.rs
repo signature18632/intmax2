@@ -1,4 +1,12 @@
+use actix_web::{
+    body::MessageBody,
+    dev::{ServiceRequest, ServiceResponse},
+    HttpMessage,
+};
+use std::time::Instant;
 use thiserror::Error;
+use tracing::Span;
+use tracing_actix_web::RootSpanBuilder;
 use tracing_appender::rolling::InitError;
 use tracing_subscriber::{
     fmt,
@@ -40,11 +48,57 @@ pub fn init_logger() -> Result<(), InitLoggerError> {
             .try_init()?;
     } else {
         // Log to stdout
-        let subscriber = fmt::Layer::new().with_target(false).json();
+        let subscriber = fmt::Layer::new()
+            .with_target(false)
+            .with_span_events(fmt::format::FmtSpan::NEW | fmt::format::FmtSpan::CLOSE)
+            .json();
         tracing_subscriber::registry()
             .with(subscriber)
             .with(env_filter)
             .try_init()?;
     }
     Ok(())
+}
+
+pub struct CustomRootSpanBuilder;
+
+impl RootSpanBuilder for CustomRootSpanBuilder {
+    fn on_request_start(request: &ServiceRequest) -> tracing::Span {
+        request.extensions_mut().insert(Instant::now());
+        let span = tracing::info_span!(
+            "http-request",
+            "http.client_ip" = %request.connection_info().peer_addr().unwrap_or(""),
+            "http.flavor" = ?request.version(),
+            "http.host" = %request.connection_info().host(),
+            "http.method" = %request.method(),
+            "http.route" = %request.path(),
+            "http.scheme" = %request.connection_info().scheme(),
+            "http.user_agent" = %request.headers().get("user-agent").and_then(|h| h.to_str().ok()).unwrap_or(""),
+            "otel.kind" = "server",
+            "otel.name" = %format!("{} {}", request.method(), request.path()),
+            "request_id" = %uuid::Uuid::new_v4(),
+            status_code = tracing::field::Empty,
+            latency = tracing::field::Empty,
+        );
+        span
+    }
+
+    fn on_request_end<B: MessageBody>(
+        span: Span,
+        response: &Result<ServiceResponse<B>, actix_web::Error>,
+    ) {
+        match response {
+            Ok(resp) => {
+                span.record("status_code", resp.status().as_u16());
+                if let Some(start_time) = resp.request().extensions().get::<Instant>() {
+                    span.record("latency", format!("{:?}", start_time.elapsed()));
+                }
+                tracing::info!("request-end");
+            }
+            Err(error) => {
+                span.record("error", error.to_string());
+                tracing::error!(error = %error, "request failed");
+            }
+        }
+    }
 }

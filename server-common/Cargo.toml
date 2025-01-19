@@ -13,8 +13,15 @@ envy = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 cargo_metadata = "0.19.1"
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = "2.0"
 tracing = "0.1.41"
+tracing-actix-web = { workspace = true }
 tracing-appender = "0.2.3"
+tracing-bunyan-formatter = "0.3.10"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
+tracing-stackdriver = "0.10"
 tokio = { workspace = true }
 log = { workspace = true }
+uuid = { workspace = true }
