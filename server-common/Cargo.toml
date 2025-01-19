@@ -19,10 +19,8 @@ opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
 opentelemetry-semantic-conventions = "0.27"
 tracing = "0.1.41"
 tracing-actix-web = { workspace = true }
-tracing-appender = "0.2.3"
 tracing-opentelemetry = "0.28"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
-tracing-stackdriver = "0.10"
 tokio = { workspace = true }
 log = { workspace = true }
 uuid = { workspace = true }

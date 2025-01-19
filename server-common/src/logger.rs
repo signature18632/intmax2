@@ -8,7 +8,6 @@ use std::time::Instant;
 use thiserror::Error;
 use tracing::Span;
 use tracing_actix_web::RootSpanBuilder;
-use tracing_appender::rolling::InitError;
 use tracing_subscriber::{
     fmt,
     layer::SubscriberExt as _,
@@ -23,9 +22,6 @@ use common::env::EnvType;
 pub enum InitLoggerError {
     #[error("Failed to initialize logger: {0}")]
     SetGlobalSubscriberError(#[from] tracing::subscriber::SetGlobalDefaultError),
-
-    #[error("Failed to build file appender: {0}")]
-    FailedToBuildFileAppender(#[from] InitError),
 
     #[error("Failed to initialize logger: {0}")]
     TryInitError(#[from] TryInitError),
