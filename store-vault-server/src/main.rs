@@ -1,12 +1,11 @@
 use actix_cors::Cors;
 use actix_web::{
-    middleware::Logger,
     web::{Data, JsonConfig},
     App, HttpServer,
 };
 use server_common::{
     health_check::{health_check, set_name_and_version},
-    logger::init_logger,
+    logger,
 };
 use std::io::{self};
 use store_vault_server::{
@@ -15,11 +14,12 @@ use store_vault_server::{
     // middleware::authorization::authorization_middleware,
     EnvVar,
 };
+use tracing_actix_web::TracingLogger;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     set_name_and_version(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
-    init_logger().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    logger::init_logger().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     dotenv::dotenv().ok();
 
@@ -41,7 +41,7 @@ async fn main() -> std::io::Result<()> {
         let cors = Cors::permissive();
         App::new()
             .wrap(cors)
-            .wrap(Logger::new("Request: %r | Status: %s | Duration: %Ts"))
+            .wrap(TracingLogger::<logger::CustomRootSpanBuilder>::new())
             // .wrap(from_fn(authorization_middleware))
             .app_data(JsonConfig::default().limit(35_000_000))
             .app_data(state.clone())

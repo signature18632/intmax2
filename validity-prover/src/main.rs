@@ -1,11 +1,12 @@
-use actix_cors::Cors;
-use actix_web::{middleware::Logger, web::Data, App, HttpServer};
-use server_common::{
-    health_check::{health_check, set_name_and_version},
-    logger::init_logger,
-};
 use std::io::{self};
 
+use actix_cors::Cors;
+use actix_web::{web::Data, App, HttpServer};
+use server_common::{
+    health_check::{health_check, set_name_and_version},
+    logger,
+};
+use tracing_actix_web::TracingLogger;
 use validity_prover::{
     api::{coordinator::coordinator_scope, state::State, witness_generator::validity_prover_scope},
     Env,
@@ -14,7 +15,7 @@ use validity_prover::{
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     set_name_and_version(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
-    init_logger().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+    logger::init_logger().map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
     dotenv::dotenv().ok();
     let env: Env = envy::from_env().map_err(|e| {
@@ -39,7 +40,7 @@ async fn main() -> std::io::Result<()> {
         let cors = Cors::permissive();
         App::new()
             .wrap(cors)
-            .wrap(Logger::new("Request: %r | Status: %s | Duration: %Ts"))
+            .wrap(TracingLogger::<logger::CustomRootSpanBuilder>::new())
             .app_data(data.clone())
             .service(health_check)
             .service(validity_prover_scope())

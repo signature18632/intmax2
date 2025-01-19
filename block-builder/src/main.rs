@@ -1,5 +1,3 @@
-use std::io;
-
 use actix_cors::Cors;
 use actix_web::{web::Data, App, HttpServer};
 use block_builder::{
@@ -11,6 +9,7 @@ use server_common::{
     health_check::{health_check, set_name_and_version},
     logger,
 };
+use std::io;
 use tracing_actix_web::TracingLogger;
 
 #[actix_web::main]
