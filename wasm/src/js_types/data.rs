@@ -2,7 +2,7 @@ use intmax2_client_sdk::client::client::{DepositResult, TxResult};
 use intmax2_interfaces::data::{
     deposit_data::DepositData, transfer_data::TransferData, tx_data::TxData, user_data::UserData,
 };
-use intmax2_zkp::ethereum_types::u32limb_trait::U32LimbTrait as _;
+use intmax2_zkp::{common::transfer::Transfer, ethereum_types::u32limb_trait::U32LimbTrait as _};
 use wasm_bindgen::prelude::wasm_bindgen;
 
 use super::common::{JsTransfer, JsTx};
@@ -18,8 +18,8 @@ pub struct JsDepositData {
     pub token_id: String,      // 10 base string
 }
 
-impl JsDepositData {
-    pub fn from_deposit_data(deposit_data: &DepositData) -> Self {
+impl From<DepositData> for JsDepositData {
+    fn from(deposit_data: DepositData) -> Self {
         Self {
             deposit_salt: deposit_data.deposit_salt.to_string(),
             pubkey_salt_hash: deposit_data.pubkey_salt_hash.to_hex(),
@@ -38,11 +38,11 @@ pub struct JsTransferData {
     pub transfer: JsTransfer,
 }
 
-impl JsTransferData {
-    pub fn from_transfer_data(transfer_data: &TransferData) -> Self {
+impl From<TransferData> for JsTransferData {
+    fn from(transfer_data: TransferData) -> Self {
         Self {
             sender: transfer_data.sender.to_hex(),
-            transfer: JsTransfer::from_transfer(&transfer_data.transfer),
+            transfer: transfer_data.transfer.into(),
         }
     }
 }
@@ -54,15 +54,22 @@ pub struct JsTxData {
     pub transfers: Vec<JsTransfer>,
 }
 
-impl JsTxData {
-    pub fn from_tx_data(tx_data: &TxData) -> Self {
-        let tx = JsTx::from_tx(&tx_data.spent_witness.tx);
+impl From<TxData> for JsTxData {
+    fn from(tx_data: TxData) -> Self {
+        let tx: JsTx = tx_data.spent_witness.tx.into();
         let transfers = tx_data
             .spent_witness
             .transfers
-            .iter()
-            .map(JsTransfer::from_transfer)
-            .collect::<Vec<_>>();
+            .into_iter()
+            .flat_map(|transfer| {
+                if transfer == Transfer::default() {
+                    // ignore default transfer
+                    None
+                } else {
+                    Some(transfer.into())
+                }
+            })
+            .collect();
         Self { tx, transfers }
     }
 }
@@ -74,11 +81,11 @@ pub struct JsDepositResult {
     pub deposit_uuid: String,
 }
 
-impl JsDepositResult {
-    pub fn from_deposit_result(deposit_result: &DepositResult) -> Self {
+impl From<DepositResult> for JsDepositResult {
+    fn from(deposit_result: DepositResult) -> Self {
         Self {
-            deposit_data: JsDepositData::from_deposit_data(&deposit_result.deposit_data),
-            deposit_uuid: deposit_result.deposit_uuid.clone(),
+            deposit_data: deposit_result.deposit_data.into(),
+            deposit_uuid: deposit_result.deposit_uuid.to_string(),
         }
     }
 }
@@ -91,13 +98,12 @@ pub struct JsTxResult {
     pub withdrawal_uuids: Vec<String>,
 }
 
-impl JsTxResult {
-    pub fn from_tx_result(tx_result: &TxResult) -> Self {
-        let tx_tree_root = tx_result.tx_tree_root.to_hex();
+impl From<TxResult> for JsTxResult {
+    fn from(tx_result: TxResult) -> Self {
         Self {
-            tx_tree_root,
-            transfer_uuids: tx_result.transfer_uuids.clone(),
-            withdrawal_uuids: tx_result.withdrawal_uuids.clone(),
+            tx_tree_root: tx_result.tx_tree_root.to_hex(),
+            transfer_uuids: tx_result.transfer_uuids,
+            withdrawal_uuids: tx_result.withdrawal_uuids,
         }
     }
 }
@@ -153,8 +159,8 @@ pub struct TokenBalance {
     pub is_insufficient: bool,
 }
 
-impl JsUserData {
-    pub fn from_user_data(user_data: &UserData) -> Self {
+impl From<UserData> for JsUserData {
+    fn from(user_data: UserData) -> Self {
         let balances = user_data
             .balances()
             .0
@@ -178,14 +184,34 @@ impl JsUserData {
                 .to_private_state()
                 .commitment()
                 .to_string(),
-            deposit_lpt: user_data.deposit_lpt,
-            transfer_lpt: user_data.transfer_lpt,
-            tx_lpt: user_data.tx_lpt,
-            withdrawal_lpt: user_data.withdrawal_lpt,
-            processed_deposit_uuids: user_data.processed_deposit_uuids.clone(),
-            processed_transfer_uuids: user_data.processed_transfer_uuids.clone(),
-            processed_tx_uuids: user_data.processed_tx_uuids.clone(),
-            processed_withdrawal_uuids: user_data.processed_withdrawal_uuids.clone(),
+            deposit_lpt: user_data
+                .deposit_status
+                .last_processed_meta_data
+                .as_ref()
+                .map(|x| x.timestamp)
+                .unwrap_or(0),
+            transfer_lpt: user_data
+                .transfer_status
+                .last_processed_meta_data
+                .as_ref()
+                .map(|x| x.timestamp)
+                .unwrap_or(0),
+            tx_lpt: user_data
+                .tx_status
+                .last_processed_meta_data
+                .as_ref()
+                .map(|x| x.timestamp)
+                .unwrap_or(0),
+            withdrawal_lpt: user_data
+                .withdrawal_status
+                .last_processed_meta_data
+                .as_ref()
+                .map(|x| x.timestamp)
+                .unwrap_or(0),
+            processed_deposit_uuids: user_data.deposit_status.processed_uuids.clone(),
+            processed_transfer_uuids: user_data.transfer_status.processed_uuids.clone(),
+            processed_tx_uuids: user_data.tx_status.processed_uuids.clone(),
+            processed_withdrawal_uuids: user_data.withdrawal_status.processed_uuids.clone(),
         }
     }
 }

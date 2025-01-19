@@ -26,15 +26,6 @@ pub enum SyncError {
     #[error("Decryption error: {0}")]
     DecryptionError(String),
 
-    #[error("Block number is not set for meta data")]
-    BlockNumberIsNotSetForMetaData,
-
-    #[error("Pending receives error: {0}")]
-    PendingReceivesError(String),
-
-    #[error("Pending tx error: {0}")]
-    PendingTxError(String),
-
     #[error("Pending withdrawal error: {0}")]
     PendingWithdrawalError(String),
 
@@ -44,11 +35,8 @@ pub enum SyncError {
     #[error("Failed to update private state: {0}")]
     FailedToUpdatePrivateState(String),
 
-    #[error("Validity prover is not up to date validity_prover_block_number: {validity_prover_block_number} < block_number: {block_number}")]
-    ValidityProverIsNotUpToDate {
-        validity_prover_block_number: u32,
-        block_number: u32,
-    },
+    #[error("Validity prover is not up to date: {0}")]
+    ValidityProverIsNotSynced(String),
 
     #[error("Deposit info not found: {0}")]
     DepositInfoNotFound(Bytes32),

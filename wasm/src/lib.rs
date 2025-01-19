@@ -1,4 +1,3 @@
-use crate::js_types::common::JsTx;
 use client::{get_client, Config};
 use intmax2_client_sdk::{
     client::key_from_eth::generate_intmax_account_from_eth_key as inner_generate_intmax_account_from_eth_key,
@@ -6,6 +5,7 @@ use intmax2_client_sdk::{
 };
 use intmax2_interfaces::data::{
     deposit_data::{DepositData, TokenType},
+    encryption::Encryption as _,
     transfer_data::TransferData,
     tx_data::TxData,
 };
@@ -18,7 +18,7 @@ use js_types::{
     common::JsTransfer,
     data::{JsDepositData, JsDepositResult, JsTransferData, JsTxData, JsTxResult, JsUserData},
     utils::{parse_address, parse_u256},
-    wrapper::{JsBlockProposal, JsTxRequestMemo},
+    wrapper::JsTxRequestMemo,
 };
 use num_bigint::BigUint;
 use utils::{parse_h256, parse_h256_as_u256, str_privkey_to_keyset};
@@ -51,7 +51,6 @@ pub async fn generate_intmax_account_from_eth_key(
 }
 
 /// Function to take a backup before calling the deposit function of the liquidity contract.
-///
 /// You can also get the pubkey_salt_hash from the return value.
 #[wasm_bindgen]
 pub async fn prepare_deposit(
@@ -82,7 +81,7 @@ pub async fn prepare_deposit(
         )
         .await
         .map_err(|e| JsError::new(&format!("failed to prepare deposit call: {}", e)))?;
-    Ok(JsDepositResult::from_deposit_result(&deposit_result))
+    Ok(deposit_result.into())
 }
 
 /// Function to send a tx request to the block builder. The return value contains information to take a backup.
@@ -103,7 +102,7 @@ pub async fn send_tx_request(
     let key = str_privkey_to_keyset(private_key)?;
     let transfers: Vec<Transfer> = transfers
         .iter()
-        .map(|transfer| transfer.to_transfer())
+        .map(|transfer| transfer.clone().try_into())
         .collect::<Result<Vec<_>, JsError>>()?;
 
     let client = get_client(config);
@@ -115,53 +114,8 @@ pub async fn send_tx_request(
     Ok(JsTxRequestMemo::from_tx_request_memo(&memo))
 }
 
-/// Function to query the block proposal from the block builder.
-/// The return value is the block proposal or null if the proposal is not found.
-/// If got an invalid proposal, it will return an error.
-#[wasm_bindgen]
-pub async fn query_proposal(
-    config: &Config,
-    block_builder_url: &str,
-    private_key: &str,
-    is_registration_block: bool,
-    tx: &JsTx,
-) -> Result<Option<JsBlockProposal>, JsError> {
-    init_logger();
-    let key = str_privkey_to_keyset(private_key)?;
-    let tx = tx.to_tx()?;
-
-    let client = get_client(config);
-    let proposal = client
-        .query_proposal(block_builder_url, key, is_registration_block, tx)
-        .await?;
-    let proposal = proposal.map(|proposal| JsBlockProposal::from_block_proposal(&proposal));
-    Ok(proposal)
-}
-
-/// Send the signed tx tree root to the block builder during taking a backup of the tx.
-///
-/// You need to call send_tx_request before calling this function.
-/// The return value is the tx result, which contains the tx tree root and transfer data.
-#[wasm_bindgen]
-pub async fn finalize_tx(
-    config: &Config,
-    block_builder_url: &str,
-    private_key: &str,
-    tx_request_memo: &JsTxRequestMemo,
-    proposal: &JsBlockProposal,
-) -> Result<JsTxResult, JsError> {
-    init_logger();
-    let key = str_privkey_to_keyset(private_key)?;
-    let tx_request_memo = tx_request_memo.to_tx_request_memo()?;
-    let proposal = proposal.to_block_proposal()?;
-    let client = get_client(config);
-    let tx_result = client
-        .finalize_tx(block_builder_url, key, &tx_request_memo, &proposal)
-        .await?;
-    Ok(JsTxResult::from_tx_result(&tx_result))
-}
-
-/// Batch function of query_proposal and finalize_tx.
+/// Function to query the block proposal from the block builder, and
+/// send the signed tx tree root to the block builder during taking a backup of the tx.
 #[wasm_bindgen]
 pub async fn query_and_finalize(
     config: &Config,
@@ -192,7 +146,7 @@ pub async fn query_and_finalize(
     let tx_result = client
         .finalize_tx(block_builder_url, key, &tx_request_memo, &proposal)
         .await?;
-    Ok(JsTxResult::from_tx_result(&tx_result))
+    Ok(tx_result.into())
 }
 
 /// Synchronize the user's balance proof. It may take a long time to generate ZKP.
@@ -223,7 +177,7 @@ pub async fn get_user_data(config: &Config, private_key: &str) -> Result<JsUserD
     let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
     let (user_data, _) = client.get_user_data_and_digest(key).await?;
-    Ok(JsUserData::from_user_data(&user_data))
+    Ok(user_data.into())
 }
 
 /// Decrypt the deposit data.
@@ -236,7 +190,7 @@ pub async fn decrypt_deposit_data(
     let key = str_privkey_to_keyset(private_key)?;
     let deposit_data =
         DepositData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
-    Ok(JsDepositData::from_deposit_data(&deposit_data))
+    Ok(deposit_data.into())
 }
 
 /// Decrypt the transfer data. This is also used to decrypt the withdrawal data.
@@ -249,7 +203,7 @@ pub async fn decrypt_transfer_data(
     let key = str_privkey_to_keyset(private_key)?;
     let transfer_data =
         TransferData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
-    Ok(JsTransferData::from_transfer_data(&transfer_data))
+    Ok(transfer_data.into())
 }
 
 /// Decrypt the tx data.
@@ -258,7 +212,7 @@ pub async fn decrypt_tx_data(private_key: &str, data: &[u8]) -> Result<JsTxData,
     init_logger();
     let key = str_privkey_to_keyset(private_key)?;
     let tx_data = TxData::decrypt(data, key).map_err(|e| JsError::new(&format!("{}", e)))?;
-    Ok(JsTxData::from_tx_data(&tx_data))
+    Ok(tx_data.into())
 }
 
 fn init_logger() {

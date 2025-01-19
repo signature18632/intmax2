@@ -11,13 +11,7 @@ use intmax2_zkp::{
     utils::poseidon_hash_out::PoseidonHashOut,
 };
 
-use super::{
-    encryption::algorithm::{decrypt, encrypt},
-    error::DataError,
-    sender_proof_set::SenderProofSet,
-};
-
-type Result<T> = std::result::Result<T, DataError>;
+use super::{encryption::Encryption, sender_proof_set::SenderProofSet, validation::Validation};
 
 /// Backup data for receiving transfers
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -39,45 +33,23 @@ pub struct TransferData {
 }
 
 impl TransferData {
-    fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap()
-    }
-
-    fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let data = bincode::deserialize(bytes)?;
-        Ok(data)
-    }
-
-    pub fn encrypt(&self, pubkey: U256) -> Vec<u8> {
-        encrypt(pubkey, &self.to_bytes())
-    }
-
-    pub fn decrypt(bytes: &[u8], key: KeySet) -> Result<Self> {
-        let data = decrypt(key, bytes).map_err(|e| DataError::DecryptionError(e.to_string()))?;
-        let data = Self::from_bytes(&data)?;
-        data.validate(key)?;
-        Ok(data)
-    }
-
-    pub fn validate(&self, _key: KeySet) -> Result<()> {
-        let tx_tree_root: PoseidonHashOut = self
-            .tx_tree_root
-            .try_into()
-            .map_err(|_| DataError::ValidationError("Invalid tx_tree_root".to_string()))?;
-        self.tx_merkle_proof
-            .verify(&self.tx, self.tx_index as u64, tx_tree_root)
-            .map_err(|_| DataError::ValidationError("Invalid tx_merkle_proof".to_string()))?;
-        self.transfer_merkle_proof
-            .verify(
-                &self.transfer,
-                self.transfer_index as u64,
-                self.tx.transfer_tree_root,
-            )
-            .map_err(|_| DataError::ValidationError("Invalid transfer_merkle_proof".to_string()))?;
-        Ok(())
-    }
-
     pub fn set_sender_proof_set(&mut self, sender_proof_set: SenderProofSet) {
         self.sender_proof_set = Some(sender_proof_set);
+    }
+}
+
+impl Encryption for TransferData {}
+
+impl Validation for TransferData {
+    fn validate(&self, _key: KeySet) -> anyhow::Result<()> {
+        let tx_tree_root: PoseidonHashOut = self.tx_tree_root.try_into()?;
+        self.tx_merkle_proof
+            .verify(&self.tx, self.tx_index as u64, tx_tree_root)?;
+        self.transfer_merkle_proof.verify(
+            &self.transfer,
+            self.transfer_index as u64,
+            self.tx.transfer_tree_root,
+        )?;
+        Ok(())
     }
 }

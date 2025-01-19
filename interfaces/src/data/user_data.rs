@@ -5,7 +5,6 @@ use intmax2_zkp::{
     circuits::balance::balance_processor::get_prev_balance_pis,
     common::{
         private_state::{FullPrivateState, PrivateState},
-        signature::key_set::KeySet,
         trees::asset_tree::AssetLeaf,
     },
     ethereum_types::u256::U256,
@@ -13,12 +12,8 @@ use intmax2_zkp::{
 };
 
 use super::{
-    deposit_data::DepositData,
-    encryption::algorithm::{decrypt, encrypt},
-    error::DataError,
-    proof_compression::CompressedBalanceProof,
-    transfer_data::TransferData,
-    tx_data::TxData,
+    deposit_data::DepositData, encryption::Encryption, error::DataError, meta_data::MetaData,
+    proof_compression::CompressedBalanceProof, transfer_data::TransferData, tx_data::TxData,
 };
 
 type Result<T> = std::result::Result<T, DataError>;
@@ -27,22 +22,29 @@ type Result<T> = std::result::Result<T, DataError>;
 #[serde(rename_all = "camelCase")]
 pub struct UserData {
     pub pubkey: U256,
-
     pub full_private_state: FullPrivateState,
-
     pub balance_proof: Option<CompressedBalanceProof>,
+    pub deposit_status: ProcessStatus,
+    pub transfer_status: ProcessStatus,
+    pub tx_status: ProcessStatus,
+    pub withdrawal_status: ProcessStatus,
+}
 
-    // The latest unix timestamp of processed (incorporated into the balance proof or rejected)
-    // actions
-    pub deposit_lpt: u64,
-    pub transfer_lpt: u64,
-    pub tx_lpt: u64,
-    pub withdrawal_lpt: u64,
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProcessStatus {
+    // Last processed meta data
+    pub last_processed_meta_data: Option<MetaData>,
+    pub processed_uuids: Vec<String>,
+    pub pending_uuids: Vec<String>,
+}
 
-    pub processed_deposit_uuids: Vec<String>,
-    pub processed_transfer_uuids: Vec<String>,
-    pub processed_tx_uuids: Vec<String>,
-    pub processed_withdrawal_uuids: Vec<String>,
+impl ProcessStatus {
+    pub fn process(&mut self, meta: MetaData) {
+        self.last_processed_meta_data = Some(meta.clone());
+        self.pending_uuids.retain(|uuid| uuid != &meta.uuid);
+        self.processed_uuids.push(meta.uuid);
+    }
 }
 
 impl UserData {
@@ -53,15 +55,10 @@ impl UserData {
 
             balance_proof: None,
 
-            deposit_lpt: 0,
-            transfer_lpt: 0,
-            tx_lpt: 0,
-            withdrawal_lpt: 0,
-
-            processed_deposit_uuids: vec![],
-            processed_transfer_uuids: vec![],
-            processed_tx_uuids: vec![],
-            processed_withdrawal_uuids: vec![],
+            deposit_status: ProcessStatus::default(),
+            transfer_status: ProcessStatus::default(),
+            tx_status: ProcessStatus::default(),
+            withdrawal_status: ProcessStatus::default(),
         }
     }
 
@@ -73,25 +70,6 @@ impl UserData {
             .transpose()?;
         let balance_pis = get_prev_balance_pis(self.pubkey, &balance_proof);
         Ok(balance_pis.public_state.block_number)
-    }
-
-    fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(&self).unwrap()
-    }
-
-    fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let user_data = bincode::deserialize(bytes)?;
-        Ok(user_data)
-    }
-
-    pub fn encrypt(&self, pubkey: U256) -> Vec<u8> {
-        encrypt(pubkey, &self.to_bytes())
-    }
-
-    pub fn decrypt(bytes: &[u8], key: KeySet) -> Result<Self> {
-        let data = decrypt(key, bytes).map_err(|e| DataError::DecryptionError(e.to_string()))?;
-        let data = Self::from_bytes(&data)?;
-        Ok(data)
     }
 
     pub fn private_state(&self) -> PrivateState {
@@ -113,6 +91,8 @@ impl UserData {
         Balances(leaves)
     }
 }
+
+impl Encryption for UserData {}
 
 /// Token index -> AssetLeaf
 pub struct Balances(pub HashMap<u32, AssetLeaf>);

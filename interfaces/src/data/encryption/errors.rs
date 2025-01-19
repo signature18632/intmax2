@@ -10,3 +10,12 @@ pub enum ECIESError {
     #[error("encrypted data is not large enough for all fields")]
     EncryptedDataTooSmall,
 }
+
+#[derive(Debug, Error)]
+pub enum EncryptionError {
+    #[error("Deserialization error: {0}")]
+    DeserializeError(#[from] bincode::Error),
+
+    #[error("Decryption error: {0}")]
+    DecryptionError(String),
+}

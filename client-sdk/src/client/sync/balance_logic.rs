@@ -33,7 +33,7 @@ use plonky2::{
 
 use super::{
     error::SyncError,
-    utils::{generate_salt, generate_transfer_tree},
+    utils::{generate_salt, generate_transfer_tree, wait_till_validity_prover_synced},
 };
 
 type F = GoldilocksField;
@@ -192,13 +192,7 @@ pub async fn update_send_by_sender<
     tx_data: &TxData,
 ) -> Result<ProofWithPublicInputs<F, C, D>, SyncError> {
     // sync check
-    let validity_prover_block_number = validity_prover.get_block_number().await?;
-    if tx_block_number > validity_prover_block_number {
-        return Err(SyncError::ValidityProverIsNotUpToDate {
-            validity_prover_block_number,
-            block_number: tx_block_number,
-        });
-    }
+    wait_till_validity_prover_synced(validity_prover, tx_block_number).await?;
     let prev_balance_pis = get_prev_balance_pis(key.pubkey, prev_balance_proof);
     if tx_block_number <= prev_balance_pis.public_state.block_number {
         return Err(SyncError::InternalError(
@@ -302,6 +296,8 @@ pub async fn update_send_by_receiver<
     tx_block_number: u32,
     transfer_data: &TransferData,
 ) -> Result<ProofWithPublicInputs<F, C, D>, SyncError> {
+    wait_till_validity_prover_synced(validity_prover, tx_block_number).await?;
+
     // inputs validation
     let sender_proof_set = transfer_data.sender_proof_set.as_ref().unwrap();
     let spent_proof = sender_proof_set.spent_proof.decompress()?;
@@ -325,14 +321,6 @@ pub async fn update_send_by_receiver<
            format!("balance proof's prev_private_commitment: {} != spent_proof.prev_private_commitment: {}",
               prev_balance_pis.private_commitment, spent_pis.prev_private_commitment)
         ));
-    }
-    // sync check
-    let validity_prover_block_number = validity_prover.get_block_number().await?;
-    if tx_block_number > validity_prover_block_number {
-        return Err(SyncError::ValidityProverIsNotUpToDate {
-            validity_prover_block_number,
-            block_number: tx_block_number,
-        });
     }
     // get witness
     let validity_pis = validity_prover
@@ -413,19 +401,7 @@ pub async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverCl
     prev_balance_proof: &Option<ProofWithPublicInputs<F, C, D>>,
     to_block_number: u32,
 ) -> Result<ProofWithPublicInputs<F, C, D>, SyncError> {
-    // sync check
-    let validity_prover_block_number = validity_prover.get_block_number().await?;
-    if to_block_number > validity_prover_block_number {
-        return Err(SyncError::ValidityProverIsNotUpToDate {
-            validity_prover_block_number,
-            block_number: to_block_number,
-        });
-    }
-    if to_block_number == 0 {
-        return Err(SyncError::InternalError(
-            "Block number should be greater than 0".to_string(),
-        ));
-    }
+    wait_till_validity_prover_synced(validity_prover, to_block_number).await?;
     let prev_balance_pis = get_prev_balance_pis(key.pubkey, prev_balance_proof);
     let prev_block_number = prev_balance_pis.public_state.block_number;
     if to_block_number <= prev_block_number {

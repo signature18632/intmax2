@@ -27,7 +27,7 @@ impl JsTxRequestMemo {
 impl JsTxRequestMemo {
     pub fn tx(&self) -> Result<JsTx, JsError> {
         let memo = self.to_tx_request_memo()?;
-        let tx = JsTx::from_tx(&memo.tx);
+        let tx = memo.tx.into();
         Ok(tx)
     }
 

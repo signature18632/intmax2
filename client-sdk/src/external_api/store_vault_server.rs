@@ -5,13 +5,15 @@ use intmax2_interfaces::{
         store_vault_server::{
             interface::{DataType, SaveDataEntry, StoreVaultClientInterface},
             types::{
-                DataWithMetaData, GetDataAllAfterRequest, GetDataAllAfterResponse,
-                GetSenderProofSetRequest, GetSenderProofSetResponse, GetUserDataRequest,
-                GetUserDataResponse, SaveDataBatchRequest, SaveDataBatchResponse,
+                DataWithMetaData, GetDataBatchRequest, GetDataBatchResponse,
+                GetDataSequenceRequest, GetDataSequenceResponse, GetSenderProofSetRequest,
+                GetSenderProofSetResponse, GetUserDataRequest, GetUserDataResponse, MetaDataCursor,
+                MetaDataCursorResponse, SaveDataBatchRequest, SaveDataBatchResponse,
                 SaveSenderProofSetRequest, SaveUserDataRequest,
             },
         },
     },
+    data::meta_data::MetaData,
     utils::signature::Signable,
 };
 use intmax2_zkp::{common::signature::key_set::KeySet, ethereum_types::bytes32::Bytes32};
@@ -115,23 +117,69 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
         Ok(response.uuids)
     }
 
-    async fn get_data_all_after(
+    async fn get_data_batch(
         &self,
-        data_type: DataType,
         key: KeySet,
-        timestamp: u64,
+        data_type: DataType,
+        uuids: &[String],
     ) -> Result<Vec<DataWithMetaData>, ServerError> {
-        let request = GetDataAllAfterRequest {
+        let request = GetDataBatchRequest {
             data_type,
-            timestamp,
+            uuids: uuids.to_vec(),
         };
         let request_with_auth = request.sign(key, TIME_TO_EXPIRY);
-        let response: GetDataAllAfterResponse = post_request(
+        let response: GetDataBatchResponse = post_request(
             &self.base_url,
-            "/store-vault-server/get-data-all-after",
+            "/store-vault-server/get-data-batch",
             Some(&request_with_auth),
         )
         .await?;
         Ok(response.data)
+    }
+
+    async fn get_data_sequence(
+        &self,
+        key: KeySet,
+        data_type: DataType,
+        metadata_cursor: &Option<MetaData>,
+    ) -> Result<Vec<DataWithMetaData>, ServerError> {
+        let mut data_array = vec![];
+
+        let mut has_more = true;
+        let mut metadata_cursor = metadata_cursor.clone();
+        while has_more {
+            let (data, cursor) = self
+                .get_data_sequence_inner(key, data_type, &metadata_cursor)
+                .await?;
+            has_more = cursor.has_more;
+            metadata_cursor = cursor.next_cursor;
+            data_array.extend(data);
+        }
+        Ok(data_array)
+    }
+}
+
+impl StoreVaultServerClient {
+    async fn get_data_sequence_inner(
+        &self,
+        key: KeySet,
+        data_type: DataType,
+        metadata_cursor: &Option<MetaData>,
+    ) -> Result<(Vec<DataWithMetaData>, MetaDataCursorResponse), ServerError> {
+        let request = GetDataSequenceRequest {
+            data_type,
+            cursor: MetaDataCursor {
+                cursor: metadata_cursor.clone(),
+                limit: None,
+            },
+        };
+        let request_with_auth = request.sign(key, TIME_TO_EXPIRY);
+        let response: GetDataSequenceResponse = post_request(
+            &self.base_url,
+            "/store-vault-server/get-data-sequence",
+            Some(&request_with_auth),
+        )
+        .await?;
+        Ok((response.data, response.cursor_response))
     }
 }

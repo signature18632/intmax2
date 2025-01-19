@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use super::{encryption::Encryption, validation::Validation};
 use intmax2_zkp::{
     common::{
         signature::key_set::KeySet, trees::tx_tree::TxMerkleProof,
@@ -7,13 +8,6 @@ use intmax2_zkp::{
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
     utils::poseidon_hash_out::PoseidonHashOut,
-};
-
-type Result<T> = std::result::Result<T, DataError>;
-
-use super::{
-    encryption::algorithm::{decrypt, encrypt},
-    error::DataError,
 };
 
 // tx data for syncing sender's balance proof
@@ -30,35 +24,13 @@ pub struct TxData {
     pub sender_proof_set_ephemeral_key: U256,
 }
 
-impl TxData {
-    fn to_bytes(&self) -> Vec<u8> {
-        bincode::serialize(self).unwrap()
-    }
+impl Encryption for TxData {}
 
-    fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        let data = bincode::deserialize(bytes)?;
-        Ok(data)
-    }
-
-    pub fn encrypt(&self, pubkey: U256) -> Vec<u8> {
-        encrypt(pubkey, &self.to_bytes())
-    }
-
-    pub fn decrypt(bytes: &[u8], key: KeySet) -> Result<Self> {
-        let data = decrypt(key, bytes).map_err(|e| DataError::DecryptionError(e.to_string()))?;
-        let data = Self::from_bytes(&data)?;
-        data.validate(key)?;
-        Ok(data)
-    }
-
-    pub fn validate(&self, _key: KeySet) -> Result<()> {
-        let tx_tree_root: PoseidonHashOut = self
-            .tx_tree_root
-            .try_into()
-            .map_err(|_| DataError::ValidationError("Invalid tx_tree_root".to_string()))?;
+impl Validation for TxData {
+    fn validate(&self, _key: KeySet) -> anyhow::Result<()> {
+        let tx_tree_root: PoseidonHashOut = self.tx_tree_root.try_into()?;
         self.tx_merkle_proof
-            .verify(&self.spent_witness.tx, self.tx_index as u64, tx_tree_root)
-            .map_err(|_| DataError::ValidationError("Invalid tx_merkle_proof".to_string()))?;
+            .verify(&self.spent_witness.tx, self.tx_index as u64, tx_tree_root)?;
         Ok(())
     }
 }

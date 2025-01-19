@@ -4,7 +4,7 @@ use anyhow::{anyhow, Ok, Result};
 use intmax2_interfaces::{
     api::store_vault_server::{
         interface::{DataType, SaveDataEntry},
-        types::DataWithMetaData,
+        types::{DataWithMetaData, MetaDataCursor, MetaDataCursorResponse},
     },
     data::meta_data::MetaData,
     utils::digest::get_digest,
@@ -16,8 +16,13 @@ use uuid::Uuid;
 
 use crate::EnvVar;
 
+pub struct Config {
+    pub max_pagination_limit: u32,
+}
+
 pub struct StoreVaultServer {
     pool: PgPool,
+    config: Config,
 }
 
 impl StoreVaultServer {
@@ -27,8 +32,10 @@ impl StoreVaultServer {
             .idle_timeout(Duration::from_secs(env.database_timeout))
             .connect(&env.database_url)
             .await?;
-
-        Ok(Self { pool })
+        let config = Config {
+            max_pagination_limit: env.max_pagination_limit,
+        };
+        Ok(Self { pool, config })
     }
 
     pub async fn save_user_data(
@@ -177,35 +184,37 @@ impl StoreVaultServer {
         Ok(uuids)
     }
 
-    pub async fn get_data_all_after(
+    pub async fn get_data_batch(
         &self,
         data_type: DataType,
         pubkey: U256,
-        timestamp: u64,
+        uuids: &[String],
     ) -> Result<Vec<DataWithMetaData>> {
+        if uuids.len() > self.config.max_pagination_limit as usize {
+            return Err(anyhow!(
+                "Number of uuids exceeds the limit {}",
+                self.config.max_pagination_limit
+            ));
+        }
         let pubkey_hex = pubkey.to_hex();
-
         let records = sqlx::query!(
             r#"
             SELECT uuid, timestamp, encrypted_data
             FROM encrypted_data
-            WHERE data_type = $1 AND pubkey = $2 AND timestamp >= $3
-            ORDER BY timestamp ASC
+            WHERE data_type = $1 AND pubkey = $2 AND uuid = ANY($3)
             "#,
             data_type as i32,
             pubkey_hex,
-            timestamp as i64
+            &uuids
         )
         .fetch_all(&self.pool)
         .await?;
-
-        let result = records
+        let result: Vec<DataWithMetaData> = records
             .into_iter()
             .map(|r| {
                 let meta = MetaData {
                     uuid: r.uuid,
                     timestamp: r.timestamp as u64,
-                    block_number: None,
                 };
                 DataWithMetaData {
                     meta,
@@ -213,21 +222,116 @@ impl StoreVaultServer {
                 }
             })
             .collect();
-
         Ok(result)
+    }
+
+    pub async fn get_data_sequence(
+        &self,
+        data_type: DataType,
+        pubkey: U256,
+        cursor: &MetaDataCursor,
+    ) -> Result<(Vec<DataWithMetaData>, MetaDataCursorResponse)> {
+        let pubkey_hex = pubkey.to_hex();
+        let actual_limit = cursor.limit.unwrap_or(self.config.max_pagination_limit) as i64;
+        let cursor_meta = cursor.cursor.as_ref();
+        let result = if let Some(cursor_meta) = cursor_meta {
+            let records = sqlx::query!(
+                r#"
+                SELECT uuid, timestamp, encrypted_data
+                FROM encrypted_data
+                WHERE data_type = $1 AND pubkey = $2 AND (timestamp, uuid) > ($3, $4)
+                ORDER BY timestamp ASC, uuid ASC
+                LIMIT $5
+                "#,
+                data_type as i32,
+                pubkey_hex,
+                cursor_meta.timestamp as i64,
+                cursor_meta.uuid,
+                actual_limit + 1
+            )
+            .fetch_all(&self.pool)
+            .await?;
+            let result: Vec<DataWithMetaData> = records
+                .into_iter()
+                .map(|r| {
+                    let meta = MetaData {
+                        uuid: r.uuid,
+                        timestamp: r.timestamp as u64,
+                    };
+                    DataWithMetaData {
+                        meta,
+                        data: r.encrypted_data,
+                    }
+                })
+                .collect();
+            result
+        } else {
+            let records = sqlx::query!(
+                r#"
+                SELECT uuid, timestamp, encrypted_data
+                FROM encrypted_data
+                WHERE data_type = $1 AND pubkey = $2
+                ORDER BY timestamp ASC, uuid ASC
+                LIMIT $3
+                "#,
+                data_type as i32,
+                pubkey_hex,
+                actual_limit + 1
+            )
+            .fetch_all(&self.pool)
+            .await?;
+            let result: Vec<DataWithMetaData> = records
+                .into_iter()
+                .map(|r| {
+                    let meta = MetaData {
+                        uuid: r.uuid,
+                        timestamp: r.timestamp as u64,
+                    };
+                    DataWithMetaData {
+                        meta,
+                        data: r.encrypted_data,
+                    }
+                })
+                .collect();
+            result
+        };
+
+        let result = result
+            .into_iter()
+            .take(actual_limit as usize)
+            .collect::<Vec<DataWithMetaData>>();
+        let has_more = result.len() > actual_limit as usize;
+        let next_cursor = result.last().map(|r| r.meta.clone());
+        let total_count = sqlx::query_scalar!(
+            r#"
+            SELECT COUNT(*) FROM encrypted_data
+            "#,
+        )
+        .fetch_one(&self.pool)
+        .await?
+        .unwrap_or(0) as u32;
+        let response_cursor = MetaDataCursorResponse {
+            next_cursor,
+            has_more,
+            total_count,
+        };
+        Ok((result, response_cursor))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use ethers::core::rand;
-    use intmax2_interfaces::{data::user_data::UserData, utils::digest::get_digest};
+    use intmax2_interfaces::{
+        data::{encryption::Encryption as _, meta_data::MetaData, user_data::UserData},
+        utils::digest::get_digest,
+    };
     use intmax2_zkp::common::signature::key_set::KeySet;
 
     use crate::{app::store_vault_server::StoreVaultServer, EnvVar};
 
     #[tokio::test]
-    async fn test_get_and_save() -> anyhow::Result<()> {
+    async fn test_user_data_get_and_save() -> anyhow::Result<()> {
         dotenv::dotenv().ok();
         let env: EnvVar = envy::from_env()?;
         let store_vault_server = StoreVaultServer::new(&env).await?;
@@ -242,18 +346,27 @@ mod tests {
         store_vault_server
             .save_user_data(key.pubkey, None, &encrypted)
             .await?;
-
         let got_encrypted_user_data = store_vault_server.get_user_data(key.pubkey).await?;
         assert_eq!(got_encrypted_user_data.as_ref().unwrap(), &encrypted);
         let digest2 = get_digest(&got_encrypted_user_data.unwrap());
         assert_eq!(digest, digest2);
-
-        user_data.deposit_lpt = 1;
+        user_data.deposit_status.last_processed_meta_data = Some(MetaData {
+            timestamp: 1,
+            uuid: "test".to_string(),
+        });
         let encrypted = user_data.encrypt(key.pubkey);
+        let digest3 = get_digest(&encrypted);
         store_vault_server
             .save_user_data(key.pubkey, Some(digest), &encrypted)
             .await?;
 
+        user_data.deposit_status.last_processed_meta_data = Some(MetaData {
+            timestamp: 2,
+            uuid: "test2".to_string(),
+        });
+        store_vault_server
+            .save_user_data(key.pubkey, Some(digest3), &encrypted)
+            .await?;
         Ok(())
     }
 }

@@ -19,4 +19,10 @@ pub enum StrategyError {
 
     #[error("User data decryption error: {0}")]
     UserDataDecryptionError(String),
+
+    #[error("Pending receives error: {0}")]
+    PendingReceivesError(String),
+
+    #[error("Pending tx error: {0}")]
+    PendingTxError(String),
 }

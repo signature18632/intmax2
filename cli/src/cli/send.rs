@@ -53,16 +53,6 @@ pub async fn transfer(key: KeySet, transfer_inputs: &[TransferInput]) -> Result<
     let env = envy::from_env::<EnvVar>()?;
     let client = get_client()?;
 
-    let pending_info = client.sync(key).await?;
-    log::info!(
-        "Pending deposits: {:?}",
-        pending_info.pending_deposits.len()
-    );
-    log::info!(
-        "Pending transfers: {:?}",
-        pending_info.pending_transfers.len()
-    );
-
     // override block builder base url if it is set in the env
     let block_builder_url = if let Some(block_builder_base_url) = env.block_builder_base_url {
         block_builder_base_url.to_string()

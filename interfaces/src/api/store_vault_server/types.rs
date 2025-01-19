@@ -89,21 +89,56 @@ pub struct SaveDataBatchResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetDataAllAfterRequest {
+pub struct GetDataBatchRequest {
     pub data_type: DataType,
-    pub timestamp: u64,
+    pub uuids: Vec<String>,
 }
 
-impl Signable for GetDataAllAfterRequest {
+impl Signable for GetDataBatchRequest {
     fn content(&self) -> Vec<u8> {
-        bincode::serialize(&(self.data_type, self.timestamp)).unwrap()
+        bincode::serialize(&(self.data_type, self.uuids.clone())).unwrap()
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetDataAllAfterResponse {
+pub struct GetDataBatchResponse {
     pub data: Vec<DataWithMetaData>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetDataSequenceRequest {
+    pub data_type: DataType,
+    pub cursor: MetaDataCursor,
+}
+
+impl Signable for GetDataSequenceRequest {
+    fn content(&self) -> Vec<u8> {
+        bincode::serialize(&(self.data_type, self.cursor.clone())).unwrap()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetDataSequenceResponse {
+    pub data: Vec<DataWithMetaData>,
+    pub cursor_response: MetaDataCursorResponse,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetaDataCursor {
+    pub cursor: Option<MetaData>,
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetaDataCursorResponse {
+    pub next_cursor: Option<MetaData>,
+    pub has_more: bool,
+    pub total_count: u32,
 }
 
 #[serde_as]
