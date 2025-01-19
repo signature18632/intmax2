@@ -62,6 +62,16 @@ impl ValidityProverClientInterface for ValidityProverClient {
         Ok(response.block_number)
     }
 
+    async fn get_validity_proof_block_number(&self) -> Result<u32, ServerError> {
+        let response: GetBlockNumberResponse = get_request::<(), _>(
+            &self.base_url,
+            "/validity-prover/validity-proof-block-number",
+            None,
+        )
+        .await?;
+        Ok(response.block_number)
+    }
+
     async fn get_next_deposit_index(&self) -> Result<u32, ServerError> {
         let response: GetNextDepositIndexResponse =
             get_request::<(), _>(&self.base_url, "/validity-prover/next-deposit-index", None)
