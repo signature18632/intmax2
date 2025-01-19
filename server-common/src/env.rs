@@ -9,6 +9,9 @@ pub struct Env {
 
     #[serde(default = "default_app_log_level")]
     pub app_log: String,
+
+    #[serde(default = "default_otlp_collector_endpoint")]
+    pub otlp_collector_endpoint: String,
 }
 
 fn default_env() -> EnvType {
@@ -17,4 +20,8 @@ fn default_env() -> EnvType {
 
 fn default_app_log_level() -> String {
     "info".to_string()
+}
+
+fn default_otlp_collector_endpoint() -> String {
+    "".to_string()
 }

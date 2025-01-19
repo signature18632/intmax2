@@ -3,6 +3,7 @@ use actix_web::{
     dev::{ServiceRequest, ServiceResponse},
     HttpMessage,
 };
+use opentelemetry::trace::TracerProvider as _;
 use std::time::Instant;
 use thiserror::Error;
 use tracing::Span;
@@ -40,27 +41,39 @@ pub fn init_logger() -> Result<(), InitLoggerError> {
 
     // Initialize the global subscriber
     if env.env == EnvType::Local {
-        // Log to stdout
+        // log to stdout with human-readable log format
         let subscriber = fmt::Layer::new().with_line_number(true);
         tracing_subscriber::registry()
             .with(subscriber)
             .with(env_filter)
             .try_init()?;
     } else {
-        use opentelemetry::trace::TracerProvider as _;
-        let provider = tracer::init_tracer(name.clone(), version);
-        let otlp_tracer = provider.tracer(name);
+        let provider = tracer::init_tracer(
+            name.as_str(),
+            version.as_str(),
+            env.otlp_collector_endpoint.as_str(),
+        );
 
-        // Log to stdout
+        // log to stdout with json structured log format
         let subscriber = fmt::Layer::new()
             .with_target(false)
             .with_span_events(fmt::format::FmtSpan::NEW | fmt::format::FmtSpan::CLOSE)
             .json();
-        tracing_subscriber::registry()
-            .with(subscriber)
-            .with(env_filter)
-            .with(tracing_opentelemetry::layer().with_tracer(otlp_tracer))
-            .try_init()?;
+
+        if let Some(p) = provider {
+            // NOTE: setup with otlp tracer when set OTLP_COLLECTOR_ENDPOINT env value
+            let otlp_tracer = p.tracer(name);
+            tracing_subscriber::registry()
+                .with(subscriber)
+                .with(env_filter)
+                .with(tracing_opentelemetry::layer().with_tracer(otlp_tracer))
+                .try_init()?;
+        } else {
+            tracing_subscriber::registry()
+                .with(subscriber)
+                .with(env_filter)
+                .try_init()?;
+        };
     }
     Ok(())
 }
