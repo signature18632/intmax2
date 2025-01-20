@@ -12,6 +12,7 @@ members = [
     "tests",
     "validity-prover-worker",
     "server-common",
+    "common",
 ]
 resolver = "2"
 
@@ -25,24 +26,13 @@ intmax2-zkp = { git = "https://github.com/InternetMaximalism/intmax2-zkp", branc
 plonky2_bn254 = { git = "https://github.com/InternetMaximalism/plonky2_bn254" }
 plonky2_keccak = { git = "https://github.com/InternetMaximalism/plonky2_keccak" }
 # Only features sync,macros,io-util,rt,time are supported on wasm.
-tokio = { version = "1", features = [
-    "sync",
-    "macros",
-    "io-util",
-    "rt",
-    "time",
-] }
+tokio = { version = "1", features = ["io-util", "macros", "rt", "sync", "time"] }
 reqwest = { version = "0.12.12", features = ["json"] }
 serde_json = "1.0.133"
 serde = { version = "1.0.215", features = ["derive"] }
 ethers = "2.0"
 anyhow = "1.0.88"
-sqlx = { version = "0.8.2", features = [
-    "runtime-tokio-native-tls",
-    "postgres",
-    "chrono",
-    "uuid",
-] }
+sqlx = { version = "0.8.2", features = ["chrono", "postgres", "runtime-tokio-native-tls", "uuid"] }
 chrono = "0.4.39"
 log = "0.4.22"
 uuid = "1.11.0"
@@ -53,6 +43,7 @@ thiserror = "2.0.3"
 hashbrown = "0.15.2"
 actix-web = "4.9.0"
 actix-cors = "0.7.0"
+tracing-actix-web = "0.7"
 serde_qs = { version = "0.13.0", features = ["actix4"] }
 env_logger = "0.11.5"
 ark-ec = "0.4.2"

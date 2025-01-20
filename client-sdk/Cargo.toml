@@ -39,7 +39,7 @@ base64 = "0.22.1"
 env_logger = "0.11.5"
 itertools = "0.14.0"
 hashbrown = "0.15.2"
-getrandom = { version = "0.2", features = ["js"]}
+getrandom = { version = "0.2", features = ["js"] }
 gloo-timers = { version = "0.3.0", features = ["futures"] }
 ark-bn254 = { workspace = true }
 ark-ec = { workspace = true }

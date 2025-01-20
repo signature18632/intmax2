@@ -1,5 +1,7 @@
 use ethers::types::Address;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+
+use common::env::EnvType;
 
 #[derive(Deserialize)]
 pub struct EnvVar {
@@ -35,13 +37,4 @@ pub struct EnvVar {
 
     // optional token mapping base url
     pub token_mapping_base_url: Option<String>,
-}
-
-#[derive(Clone, Debug, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub enum EnvType {
-    Local,
-    Dev,
-    Staging,
-    Prod,
 }

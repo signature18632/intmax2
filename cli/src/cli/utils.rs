@@ -1,7 +1,9 @@
 use ethers::types::{Address, U256};
 use intmax2_zkp::ethereum_types::u32limb_trait::U32LimbTrait as _;
 
-use crate::env_var::{EnvType, EnvVar};
+use common::env::EnvType;
+
+use crate::env_var::EnvVar;
 
 use super::error::CliError;
 

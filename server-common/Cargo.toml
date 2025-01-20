@@ -5,13 +5,22 @@ edition = "2021"
 
 
 [dependencies]
+common = { path = "../common" }
 actix-web = { workspace = true }
 actix-cors = { workspace = true }
+dotenv = { workspace = true }
+envy = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 cargo_metadata = "0.19.1"
+opentelemetry = { version = "0.27", default-features = false, features = ["trace"] }
+opentelemetry-otlp = { version = "0.27", features = ["tonic"] }
+opentelemetry_sdk = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-semantic-conventions = "0.27"
 tracing = "0.1.41"
-tracing-appender = "0.2.3"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing-actix-web = { workspace = true }
+tracing-opentelemetry = "0.28"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
 tokio = { workspace = true }
 log = { workspace = true }
+uuid = { workspace = true }
