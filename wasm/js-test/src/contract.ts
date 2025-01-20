@@ -3,7 +3,6 @@
 import { ethers } from 'ethers';
 import * as RollupArtifact from '../abi/Rollup.json';
 import * as LiquidityArtifact from '../abi/Liquidity.json';
-import { Withdrawal } from './withdrawal-status';
 
 export async function claimWithdrawals(privateKey: string, l1RpcUrl: string, liquidityContractAddress: string, contractWithdrawals: Withdrawal[]) {
     const { liquidityContract } = await getContract(privateKey, l1RpcUrl, liquidityContractAddress, "", "");
@@ -35,7 +34,7 @@ function getWithdrawHash(w: Withdrawal): string {
     );
 }
 
-export async function deposit(privateKey: string, l1RpcUrl: string, liquidityContractAddress: string, l2RpcUrl: string, rollupContractAddress: string, amount: bigint, tokenType: number, tokenAddress: string, tokenId: string, pubkeySaltHash: string,) {
+export async function deposit(privateKey: string, l1RpcUrl: string, liquidityContractAddress: string, l2RpcUrl: string, rollupContractAddress: string, amount: bigint, tokenType: number, tokenAddress: string, tokenId: string, pubkeySaltHash: string, depositor: string) {
     const { liquidityContract, rollupContract } = await getContract(privateKey, l1RpcUrl, liquidityContractAddress, l2RpcUrl, rollupContractAddress);
     if (tokenType === 0) {
         await liquidityContract.depositNativeToken(pubkeySaltHash, { value: amount });
@@ -56,17 +55,17 @@ export async function deposit(privateKey: string, l1RpcUrl: string, liquidityCon
 
     if (process.env.ENV === "local") {
         // following code is not used in testnet-alpha. Relay the deposits to the rollup contract
-        const depositHash = getDepositHash(pubkeySaltHash, tokenIndex, amount);
+        const depositHash = getDepositHash(depositor, pubkeySaltHash, amount, tokenIndex, true);
         const tx = await rollupContract.processDeposits(0, [depositHash,]);
         await tx.wait();
         console.log("Deposits relayed to the rollup contract");
     }
 }
 
-function getDepositHash(recipientSaltHash: string, tokenIndex: number, amount: bigint): string {
+function getDepositHash(depositor: string, recipientSaltHash: string, amount: bigint, tokenIndex: number, isEligible: boolean): string {
     return ethers.solidityPackedKeccak256(
-        ['bytes32', 'uint32', 'uint256'],
-        [recipientSaltHash, tokenIndex, amount]
+        ['address', 'bytes32', 'uint256', 'uint32', 'uint32',],
+        [depositor, recipientSaltHash, amount, tokenIndex, isEligible ? 1 : 0,]
     );
 }
 
@@ -98,4 +97,11 @@ export async function getEthBalance(privateKey: string, rpcUrl: string): Promise
     }
     const balance = await wallet.provider.getBalance(wallet.address);
     return balance;
+}
+
+export interface Withdrawal {
+    recipient: string;
+    tokenIndex: number;
+    amount: string;
+    nullifier: string;
 }

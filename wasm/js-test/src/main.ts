@@ -1,10 +1,8 @@
 import { cleanEnv, num, str, url } from 'envalid';
-import { Config, generate_intmax_account_from_eth_key, get_user_data, JsGenericAddress, JsTransfer, JsTxRequestMemo, prepare_deposit, query_and_finalize, send_tx_request, sync, sync_withdrawals, } from '../pkg';
+import { Config, fetch_history, generate_intmax_account_from_eth_key, get_user_data, get_withdrawal_info, JsGenericAddress, JsHistoryEntry, JsTransfer, JsTxRequestMemo, prepare_deposit, query_and_finalize, send_tx_request, sync, sync_withdrawals, } from '../pkg';
 import { generateRandomHex } from './utils';
-import { printHistory } from './history';
 import { deposit, getEthBalance } from './contract';
 import * as dotenv from 'dotenv';
-import { WithdrawalServerClient } from './withdrawal-status';
 import { ethers } from 'ethers';
 dotenv.config();
 
@@ -88,10 +86,10 @@ async function main() {
   const pubkeySaltHash = depositResult.deposit_data.pubkey_salt_hash;
   console.log("pubkeySaltHash: ", pubkeySaltHash);
 
-  await deposit(ethKey, env.L1_RPC_URL, env.LIQUIDITY_CONTRACT_ADDRESS, env.L2_RPC_URL, env.ROLLUP_CONTRACT_ADDRESS, BigInt(amount), tokenType, tokenAddress, tokenId, pubkeySaltHash);
+  await deposit(ethKey, env.L1_RPC_URL, env.LIQUIDITY_CONTRACT_ADDRESS, env.L2_RPC_URL, env.ROLLUP_CONTRACT_ADDRESS, BigInt(amount), tokenType, tokenAddress, tokenId, pubkeySaltHash, ethAddress);
 
-  console.log("Deposit done. Sleeping for 600s...");
-  await sleep(600);
+  // console.log("Deposit done. Sleeping for 600s...");
+  // await sleep(600);
 
   // wait for the validity prover syncs
   console.log("Waiting for the validity prover to sync...");
@@ -146,13 +144,18 @@ async function main() {
   // print the history 
   await syncBalanceProof(config, privateKey);
   console.log("balance proof synced");
-  userData = await get_user_data(config, privateKey);
-  await printHistory(env.STORE_VAULT_SERVER_BASE_URL, privateKey, userData);
 
+  const history = await fetch_history(config, privateKey,);
+  for (let i = 0; i < history.length; i++) {
+    const entry = history[i];
+    await printHistoryEntry(entry);
+  }
   // print withdrawal status 
-  const withdrawalClient = new WithdrawalServerClient(env.WITHDRAWAL_SERVER_BASE_URL);
-  const withdrawalStatus = await withdrawalClient.getWithdrawalInfo(publicKey);
-  console.log("Withdrawal status: ", withdrawalStatus);
+  const withdrawalInfo = await get_withdrawal_info(config, privateKey);
+  for (let i = 0; i < withdrawalInfo.length; i++) {
+    const withdrawal = withdrawalInfo[i];
+    console.log("Withdrawal: ", withdrawal);
+  }
 }
 
 async function syncBalanceProof(config: Config, privateKey: string) {
@@ -183,6 +186,19 @@ async function sendTx(config: Config, block_builder_base_url: string, privateKey
 
 async function sleep(sec: number) {
   return new Promise((resolve) => setTimeout(resolve, sec * 1000));
+}
+
+
+async function printHistoryEntry(entry: JsHistoryEntry) {
+  if (entry.deposit) {
+    console.log("Deposit: ", entry.deposit);
+  }
+  if (entry.receive) {
+    console.log("Receive: ", entry.receive);
+  }
+  if (entry.send) {
+    console.log("Send: ", entry.send);
+  }
 }
 
 main().then(() => {

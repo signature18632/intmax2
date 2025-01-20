@@ -103,22 +103,8 @@ pub fn verify_signature(signature: FlatG2, pubkey: U256, hash: Bytes32) -> anyho
     Ok(())
 }
 
-// WASM compatible time function
-cfg_if::cfg_if! {
-    if #[cfg(target_arch = "wasm32")] {
-        use js_sys::Date;
-
-        pub fn current_time() -> u64 {
-            (Date::now() / 1000.0) as u64
-        }
-    } else {
-        pub fn current_time() -> u64 {
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
-        }
-    }
+pub fn current_time() -> u64 {
+    chrono::Utc::now().timestamp() as u64
 }
 
 fn hash_to_message_point(hash: Bytes32) -> G2Affine {

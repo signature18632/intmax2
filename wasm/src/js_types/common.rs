@@ -1,5 +1,6 @@
 use intmax2_interfaces::{
-    api::withdrawal_server::interface::ContractWithdrawal, data::meta_data::MetaData,
+    api::withdrawal_server::interface::{ContractWithdrawal, WithdrawalInfo},
+    data::meta_data::MetaData,
 };
 use intmax2_zkp::{
     common::{
@@ -219,6 +220,22 @@ impl From<MetaData> for JsMetaData {
         Self {
             timestamp: meta_data.timestamp,
             uuid: meta_data.uuid.to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[wasm_bindgen(getter_with_clone)]
+pub struct JsWithdrawalInfo {
+    pub status: String,
+    pub contract_withdrawal: JsContractWithdrawal,
+}
+
+impl From<WithdrawalInfo> for JsWithdrawalInfo {
+    fn from(withdrawal_info: WithdrawalInfo) -> Self {
+        Self {
+            status: withdrawal_info.status.to_string(),
+            contract_withdrawal: withdrawal_info.contract_withdrawal.into(),
         }
     }
 }

@@ -15,8 +15,9 @@ use intmax2_zkp::{
     ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
 };
 use js_types::{
-    common::JsTransfer,
+    common::{JsTransfer, JsWithdrawalInfo},
     data::{JsDepositData, JsDepositResult, JsTransferData, JsTxData, JsTxResult, JsUserData},
+    history::JsHistoryEntry,
     utils::{parse_address, parse_u256},
     wrapper::JsTxRequestMemo,
 };
@@ -178,6 +179,32 @@ pub async fn get_user_data(config: &Config, private_key: &str) -> Result<JsUserD
     let client = get_client(config);
     let (user_data, _) = client.get_user_data_and_digest(key).await?;
     Ok(user_data.into())
+}
+
+#[wasm_bindgen]
+pub async fn get_withdrawal_info(
+    config: &Config,
+    private_key: &str,
+) -> Result<Vec<JsWithdrawalInfo>, JsError> {
+    init_logger();
+    let key = str_privkey_to_keyset(private_key)?;
+    let client = get_client(config);
+    let info = client.get_withdrawal_info(key).await?;
+    let js_info = info.into_iter().map(JsWithdrawalInfo::from).collect();
+    Ok(js_info)
+}
+
+#[wasm_bindgen]
+pub async fn fetch_history(
+    config: &Config,
+    private_key: &str,
+) -> Result<Vec<JsHistoryEntry>, JsError> {
+    init_logger();
+    let key = str_privkey_to_keyset(private_key)?;
+    let client = get_client(config);
+    let history = client.fetch_history(key).await?;
+    let js_history = history.into_iter().map(JsHistoryEntry::from).collect();
+    Ok(js_history)
 }
 
 /// Decrypt the deposit data.
