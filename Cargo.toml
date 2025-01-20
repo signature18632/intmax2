@@ -28,7 +28,7 @@ plonky2_keccak = { git = "https://github.com/InternetMaximalism/plonky2_keccak" 
 # Only features sync,macros,io-util,rt,time are supported on wasm.
 tokio = { version = "1", features = ["io-util", "macros", "rt", "sync", "time"] }
 reqwest = { version = "0.12.12", features = ["json"] }
-serde_json = "1.0.133"
+serde_json = "1.0.137"
 serde = { version = "1.0.215", features = ["derive"] }
 ethers = "2.0"
 anyhow = "1.0.88"
