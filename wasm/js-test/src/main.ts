@@ -88,9 +88,6 @@ async function main() {
 
   await deposit(ethKey, env.L1_RPC_URL, env.LIQUIDITY_CONTRACT_ADDRESS, env.L2_RPC_URL, env.ROLLUP_CONTRACT_ADDRESS, BigInt(amount), tokenType, tokenAddress, tokenId, pubkeySaltHash, ethAddress);
 
-  // console.log("Deposit done. Sleeping for 600s...");
-  // await sleep(600);
-
   // wait for the validity prover syncs
   console.log("Waiting for the validity prover to sync...");
   await sleep(40);

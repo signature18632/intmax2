@@ -1,5 +1,5 @@
 import { cleanEnv, num, str, url } from 'envalid';
-import { Config, generate_intmax_account_from_eth_key, get_user_data, JsGenericAddress, JsTransfer, sync, } from '../pkg';
+import { Config, get_user_data, JsGenericAddress, JsTransfer, sync, } from '../pkg';
 import * as dotenv from 'dotenv';
 import { ethers } from 'ethers';
 dotenv.config();
