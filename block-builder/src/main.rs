@@ -37,14 +37,7 @@ async fn main() -> std::io::Result<()> {
         &env.validity_prover_base_url,
     );
     let state = State::new(block_builder);
-
-    // Start the block builder job
-    let state_for_registration_cycle = state.clone();
-    state_for_registration_cycle.main_job(true).await;
-    let state_for_non_registration_cycle = state.clone();
-    state_for_non_registration_cycle.main_job(false).await;
-    let state_for_post_empty_block = state.clone();
-    state_for_post_empty_block.post_empty_block_job().await;
+    state.run().await;
 
     let state = Data::new(state);
     HttpServer::new(move || {
