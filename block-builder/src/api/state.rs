@@ -22,11 +22,10 @@ impl State {
         }
     }
 
-    pub async fn post_empty_block_job(self) {
-        let env = envy::from_env::<Env>().unwrap();
+    pub async fn post_empty_block_job(self, deposit_check_interval: u64) {
         actix_web::rt::spawn(async move {
             loop {
-                tokio::time::sleep(Duration::from_secs(env.deposit_check_interval)).await;
+                tokio::time::sleep(Duration::from_secs(deposit_check_interval)).await;
                 match self.block_builder.write().await.check_new_deposits().await {
                     Ok(new_deposits_exist) => {
                         if new_deposits_exist {
@@ -119,5 +118,17 @@ impl State {
         }
 
         Ok(())
+    }
+
+    pub async fn run(&self) {
+        self.clone().main_job(true).await;
+        self.clone().main_job(false).await;
+
+        let env = envy::from_env::<Env>().unwrap();
+        if let Some(deposit_check_interval) = env.deposit_check_interval {
+            self.clone()
+                .post_empty_block_job(deposit_check_interval)
+                .await;
+        }
     }
 }

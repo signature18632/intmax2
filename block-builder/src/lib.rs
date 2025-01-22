@@ -18,5 +18,5 @@ pub struct Env {
 
     pub accepting_tx_interval: u64,
     pub proposing_block_interval: u64,
-    pub deposit_check_interval: u64,
+    pub deposit_check_interval: Option<u64>,
 }
