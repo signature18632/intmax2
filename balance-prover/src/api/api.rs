@@ -29,7 +29,7 @@ pub async fn prove_send(
     let proof = state
         .prove_send(
             request.pubkey,
-            &request.tx_witnes,
+            &request.tx_witness,
             &request.update_witness,
             &request.spent_proof,
             &request.prev_proof,
