@@ -33,7 +33,7 @@ pub struct ProveSpentRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ProveSendRequest {
     pub pubkey: U256,
-    pub tx_witnes: TxWitness,
+    pub tx_witness: TxWitness,
     pub update_witness: UpdateWitness<F, C, D>,
     pub spent_proof: ProofWithPublicInputs<F, C, D>,
     pub prev_proof: Option<ProofWithPublicInputs<F, C, D>>,

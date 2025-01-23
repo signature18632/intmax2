@@ -68,14 +68,14 @@ impl BalanceProverClientInterface for BalanceProverClient {
         &self,
         _key: KeySet,
         pubkey: U256,
-        tx_witnes: &TxWitness,
+        tx_witness: &TxWitness,
         update_witness: &UpdateWitness<F, C, D>,
         spent_proof: &ProofWithPublicInputs<F, C, D>,
         prev_proof: &Option<ProofWithPublicInputs<F, C, D>>,
     ) -> Result<ProofWithPublicInputs<F, C, D>, ServerError> {
         let request = ProveSendRequest {
             pubkey,
-            tx_witnes: tx_witnes.clone(),
+            tx_witness: tx_witness.clone(),
             update_witness: update_witness.clone(),
             spent_proof: spent_proof.clone(),
             prev_proof: prev_proof.clone(),
