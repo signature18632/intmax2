@@ -194,6 +194,7 @@ impl ValidityProver {
                 .observer
                 .get_deposits_between_blocks(block_number)
                 .await?;
+            // Caution! This change the state of the deposit hash tree
             for event in deposit_events {
                 self.deposit_hash_tree
                     .push(block_number as u64, DepositHash(event.deposit_hash))
@@ -201,6 +202,8 @@ impl ValidityProver {
             }
             let deposit_tree_root = self.deposit_hash_tree.get_root(block_number as u64).await?;
             if full_block.block.deposit_tree_root != deposit_tree_root {
+                // Reset merkle tree
+                self.reset_merkle_tree(block_number).await?;
                 return Err(ValidityProverError::DepositTreeRootMismatch(
                     full_block.block.deposit_tree_root,
                     deposit_tree_root,
@@ -218,15 +221,20 @@ impl ValidityProver {
 
             // Caution! This change the state of the account tree and block tree
             // TODO: atomic update
-            let validity_witness = update_trees(
+            let validity_witness = match update_trees(
                 &block_witness,
                 block_number as u64,
                 &self.account_tree,
                 &self.block_tree,
             )
             .await
-            .map_err(|e| ValidityProverError::FailedToUpdateTrees(e.to_string()))?;
-
+            {
+                Ok(w) => w,
+                Err(e) => {
+                    self.reset_merkle_tree(block_number).await?;
+                    return Err(ValidityProverError::FailedToUpdateTrees(e.to_string()));
+                }
+            };
             let validity_proof = self
                 .validity_processor()
                 .prove(&prev_validity_proof, &validity_witness)
@@ -435,6 +443,34 @@ impl ValidityProver {
         Ok(IncrementalMerkleProof(MerkleProof {
             siblings: proof.0.siblings,
         }))
+    }
+
+    async fn reset_merkle_tree(&self, block_number: u32) -> Result<(), ValidityProverError> {
+        log::warn!("Reset merkle tree from block number {}", block_number);
+        // delete all records which timestamp_value is equal or greater than block_number.
+        let mut tx = self.pool.begin().await?;
+        sqlx::query!(
+            "DELETE FROM hash_nodes WHERE timestamp_value >= $1",
+            block_number as i64
+        )
+        .execute(tx.as_mut())
+        .await?;
+
+        sqlx::query!(
+            "DELETE FROM leaves WHERE timestamp_value >= $1",
+            block_number as i64
+        )
+        .execute(tx.as_mut())
+        .await?;
+
+        sqlx::query!(
+            "DELETE FROM leaves_len WHERE timestamp_value >= $1",
+            block_number as i64
+        )
+        .execute(tx.as_mut())
+        .await?;
+        tx.commit().await?;
+        Ok(())
     }
 
     pub fn validity_processor(&self) -> &ValidityProcessor<F, C, D> {
