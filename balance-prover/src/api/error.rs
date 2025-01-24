@@ -12,4 +12,6 @@ pub enum BalanceProverError {
     ProveUpdateError(String),
     #[error("ProveSingleWithdrawalError: {0}")]
     ProveSingleWithdrawalError(String),
+    #[error("ProveSingleClaimError: {0}")]
+    ProveSingleClaimError(String),
 }

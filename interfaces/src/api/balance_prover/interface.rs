@@ -3,7 +3,7 @@ use intmax2_zkp::{
     common::{
         signature::key_set::KeySet,
         witness::{
-            receive_deposit_witness::ReceiveDepositWitness,
+            claim_witness::ClaimWitness, receive_deposit_witness::ReceiveDepositWitness,
             receive_transfer_witness::ReceiveTransferWitness, spent_witness::SpentWitness,
             tx_witness::TxWitness, update_witness::UpdateWitness,
             withdrawal_witness::WithdrawalWitness,
@@ -68,5 +68,11 @@ pub trait BalanceProverClientInterface {
         &self,
         key: KeySet,
         withdrawal_witness: &WithdrawalWitness<F, C, D>,
+    ) -> Result<ProofWithPublicInputs<F, C, D>, ServerError>;
+
+    async fn prove_single_claim(
+        &self,
+        key: KeySet,
+        claim_witness: &ClaimWitness<F, C, D>,
     ) -> Result<ProofWithPublicInputs<F, C, D>, ServerError>;
 }

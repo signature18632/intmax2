@@ -1,6 +1,6 @@
 use intmax2_zkp::{
     common::witness::{
-        receive_deposit_witness::ReceiveDepositWitness,
+        claim_witness::ClaimWitness, receive_deposit_witness::ReceiveDepositWitness,
         receive_transfer_witness::ReceiveTransferWitness, spent_witness::SpentWitness,
         tx_witness::TxWitness, update_witness::UpdateWitness,
         withdrawal_witness::WithdrawalWitness,
@@ -67,4 +67,10 @@ pub struct ProveReceiveDepositRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ProveSingleWithdrawalRequest {
     pub withdrawal_witness: WithdrawalWitness<F, C, D>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProveSingleClaimRequest {
+    pub claim_witness: ClaimWitness<F, C, D>,
 }

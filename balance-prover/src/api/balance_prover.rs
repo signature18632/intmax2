@@ -1,8 +1,11 @@
 use intmax2_interfaces::utils::circuit_verifiers::CircuitVerifiers;
 use intmax2_zkp::{
-    circuits::withdrawal::single_withdrawal_circuit::SingleWithdrawalCircuit,
+    circuits::{
+        claim::single_claim_processor::SingleClaimProcessor,
+        withdrawal::single_withdrawal_circuit::SingleWithdrawalCircuit,
+    },
     common::witness::{
-        receive_deposit_witness::ReceiveDepositWitness,
+        claim_witness::ClaimWitness, receive_deposit_witness::ReceiveDepositWitness,
         receive_transfer_witness::ReceiveTransferWitness, spent_witness::SpentWitness,
         tx_witness::TxWitness, update_witness::UpdateWitness,
         withdrawal_witness::WithdrawalWitness,
@@ -30,6 +33,7 @@ pub struct BalanceProver {
     pub balance_vd: VerifierCircuitData<F, C, D>,
     pub balance_processor: BalanceProcessor<F, C, D>,
     pub single_withdrawal_circuit: SingleWithdrawalCircuit<F, C, D>,
+    pub single_claim_processor: SingleClaimProcessor<F, C, D>,
 }
 
 impl BalanceProver {
@@ -45,12 +49,14 @@ impl BalanceProver {
             .verifier_data()
             .clone();
         let single_withdrawal_circuit = SingleWithdrawalCircuit::new(&balance_common_data);
+        let single_claim_processor = SingleClaimProcessor::new(&validity_vd);
 
         Ok(Self {
             validity_vd,
             balance_vd,
             balance_processor,
             single_withdrawal_circuit,
+            single_claim_processor,
         })
     }
 
@@ -140,5 +146,16 @@ impl BalanceProver {
             .prove(&transition_inclusion_value)
             .map_err(|e| BalanceProverError::ProveSingleWithdrawalError(e.to_string()))?;
         Ok(single_withdrawal_proof)
+    }
+
+    pub fn prove_single_claim(
+        &self,
+        claim_witness: &ClaimWitness<F, C, D>,
+    ) -> Result<ProofWithPublicInputs<F, C, D>, BalanceProverError> {
+        let single_claim_proof = self
+            .single_claim_processor
+            .prove(claim_witness)
+            .map_err(|e| BalanceProverError::ProveSingleWithdrawalError(e.to_string()))?;
+        Ok(single_claim_proof)
     }
 }

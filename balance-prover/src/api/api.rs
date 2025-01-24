@@ -5,7 +5,7 @@ use actix_web::{
 };
 use intmax2_interfaces::api::balance_prover::types::{
     ProveReceiveDepositRequest, ProveReceiveTransferRequest, ProveResponse, ProveSendRequest,
-    ProveSingleWithdrawalRequest, ProveSpentRequest, ProveUpdateRequest,
+    ProveSingleClaimRequest, ProveSingleWithdrawalRequest, ProveSpentRequest, ProveUpdateRequest,
 };
 
 use crate::api::balance_prover::BalanceProver;
@@ -93,6 +93,18 @@ pub async fn prove_single_withdrawal(
     Ok(Json(ProveResponse { proof }))
 }
 
+#[post("/prove-single-claim")]
+pub async fn prove_single_claim(
+    state: Data<BalanceProver>,
+    request: Json<ProveSingleClaimRequest>,
+) -> Result<Json<ProveResponse>, Error> {
+    let request = request.into_inner();
+    let proof = state
+        .prove_single_claim(&request.claim_witness)
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+    Ok(Json(ProveResponse { proof }))
+}
+
 pub fn balance_prover_scope() -> Scope {
     scope("/balance-prover")
         .service(prove_spent)
@@ -101,4 +113,5 @@ pub fn balance_prover_scope() -> Scope {
         .service(prove_receive_transfer)
         .service(prove_receive_deposit)
         .service(prove_single_withdrawal)
+        .service(prove_single_claim)
 }
