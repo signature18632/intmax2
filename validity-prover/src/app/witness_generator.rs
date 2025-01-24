@@ -8,7 +8,10 @@ use intmax2_zkp::{
             account_tree::AccountMembershipProof, block_hash_tree::BlockHashMerkleProof,
             deposit_tree::DepositMerkleProof, sender_tree::SenderLeaf,
         },
-        witness::{update_witness::UpdateWitness, validity_witness::ValidityWitness},
+        witness::{
+            deposit_time_witness::DepositTimePublicWitness, update_witness::UpdateWitness,
+            validity_witness::ValidityWitness,
+        },
     },
     constants::{ACCOUNT_TREE_HEIGHT, BLOCK_HASH_TREE_HEIGHT, DEPOSIT_TREE_HEIGHT},
     ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait as _},
@@ -445,6 +448,29 @@ impl WitnessGenerator {
         Ok(IncrementalMerkleProof(MerkleProof {
             siblings: proof.0.siblings,
         }))
+    }
+
+    pub async fn get_deposit_time_public_witness_proof(
+        &self,
+        block_number: u32,
+        deposit_index: u32,
+    ) -> Result<DepositTimePublicWitness, ValidityProverError> {
+        let prev_full_block = self.observer.get_full_block(block_number - 1).await?;
+        let prev_block = prev_full_block.block;
+        let full_block = self.observer.get_full_block(block_number).await?;
+        let block = full_block.block;
+        let prev_deposit_merkle_proof = self
+            .get_deposit_merkle_proof(block_number - 1, deposit_index)
+            .await?;
+        let deposit_merkle_proof = self
+            .get_deposit_merkle_proof(block_number, deposit_index)
+            .await?;
+        Ok(DepositTimePublicWitness {
+            prev_block,
+            block,
+            prev_deposit_merkle_proof,
+            deposit_merkle_proof,
+        })
     }
 
     pub fn job(self) {

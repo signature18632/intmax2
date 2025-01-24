@@ -8,6 +8,7 @@ use intmax2_interfaces::api::{
             GetBlockMerkleProofQuery, GetBlockMerkleProofResponse, GetBlockNumberByTxTreeRootQuery,
             GetBlockNumberByTxTreeRootResponse, GetBlockNumberResponse, GetDepositInfoQuery,
             GetDepositInfoResponse, GetDepositMerkleProofQuery, GetDepositMerkleProofResponse,
+            GetDepositTimePublicWitnessQuery, GetDepositTimePublicWitnessResponse,
             GetNextDepositIndexResponse, GetSenderLeavesQuery, GetSenderLeavesResponse,
             GetUpdateWitnessQuery, GetUpdateWitnessResponse, GetValidityPisQuery,
             GetValidityPisResponse, HeartBeatRequest,
@@ -21,7 +22,7 @@ use intmax2_zkp::{
             block_hash_tree::BlockHashMerkleProof, deposit_tree::DepositMerkleProof,
             sender_tree::SenderLeaf,
         },
-        witness::update_witness::UpdateWitness,
+        witness::{deposit_time_witness::DepositTimePublicWitness, update_witness::UpdateWitness},
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
 };
@@ -191,6 +192,24 @@ impl ValidityProverClientInterface for ValidityProverClient {
         )
         .await?;
         Ok(response.deposit_merkle_proof)
+    }
+
+    async fn get_deposit_time_public_witness(
+        &self,
+        block_number: u32,
+        deposit_index: u32,
+    ) -> Result<DepositTimePublicWitness, ServerError> {
+        let query = GetDepositTimePublicWitnessQuery {
+            block_number,
+            deposit_index,
+        };
+        let response: GetDepositTimePublicWitnessResponse = get_request(
+            &self.base_url,
+            "/validity-prover/get-deposit-time-public-witness",
+            Some(query),
+        )
+        .await?;
+        Ok(response.witness)
     }
 
     async fn get_account_info(&self, pubkey: U256) -> Result<AccountInfo, ServerError> {

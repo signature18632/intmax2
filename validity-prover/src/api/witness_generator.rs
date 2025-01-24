@@ -9,6 +9,7 @@ use intmax2_interfaces::api::validity_prover::types::{
     GetBlockMerkleProofResponse, GetBlockNumberByTxTreeRootQuery,
     GetBlockNumberByTxTreeRootResponse, GetBlockNumberResponse, GetDepositInfoQuery,
     GetDepositInfoResponse, GetDepositMerkleProofQuery, GetDepositMerkleProofResponse,
+    GetDepositTimePublicWitnessQuery, GetDepositTimePublicWitnessResponse,
     GetNextDepositIndexResponse, GetSenderLeavesQuery, GetSenderLeavesResponse,
     GetUpdateWitnessQuery, GetUpdateWitnessResponse, GetValidityPisQuery, GetValidityPisResponse,
 };
@@ -167,6 +168,20 @@ pub async fn get_deposit_merkle_proof(
     }))
 }
 
+#[get("/get-deposit-time-public-witness")]
+pub async fn get_deposit_time_public_witness(
+    state: Data<State>,
+    query: QsQuery<GetDepositTimePublicWitnessQuery>,
+) -> Result<Json<GetDepositTimePublicWitnessResponse>, Error> {
+    let query = query.into_inner();
+    let witness = state
+        .witness_generator
+        .get_deposit_time_public_witness_proof(query.block_number, query.deposit_index)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+    Ok(Json(GetDepositTimePublicWitnessResponse { witness }))
+}
+
 pub fn validity_prover_scope() -> actix_web::Scope {
     actix_web::web::scope("/validity-prover")
         .service(get_block_number)
@@ -180,4 +195,5 @@ pub fn validity_prover_scope() -> actix_web::Scope {
         .service(get_sender_leaves)
         .service(get_block_merkle_proof)
         .service(get_deposit_merkle_proof)
+        .service(get_deposit_time_public_witness)
 }

@@ -6,7 +6,10 @@ use intmax2_zkp::{
             block_hash_tree::BlockHashMerkleProof, deposit_tree::DepositMerkleProof,
             sender_tree::SenderLeaf,
         },
-        witness::{update_witness::UpdateWitness, validity_witness::ValidityWitness},
+        witness::{
+            deposit_time_witness::DepositTimePublicWitness, update_witness::UpdateWitness,
+            validity_witness::ValidityWitness,
+        },
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
 };
@@ -89,6 +92,12 @@ pub trait ValidityProverClientInterface {
         block_number: u32,
         deposit_index: u32,
     ) -> Result<DepositMerkleProof, ServerError>;
+
+    async fn get_deposit_time_public_witness(
+        &self,
+        block_number: u32,
+        deposit_index: u32,
+    ) -> Result<DepositTimePublicWitness, ServerError>;
 
     async fn get_account_info(&self, pubkey: U256) -> Result<AccountInfo, ServerError>;
 }

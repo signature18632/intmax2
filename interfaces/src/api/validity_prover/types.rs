@@ -7,7 +7,7 @@ use intmax2_zkp::{
             block_hash_tree::BlockHashMerkleProof, deposit_tree::DepositMerkleProof,
             sender_tree::SenderLeaf,
         },
-        witness::update_witness::UpdateWitness,
+        witness::{deposit_time_witness::DepositTimePublicWitness, update_witness::UpdateWitness},
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
 };
@@ -119,6 +119,19 @@ pub struct GetDepositMerkleProofQuery {
 #[serde(rename_all = "camelCase")]
 pub struct GetDepositMerkleProofResponse {
     pub deposit_merkle_proof: DepositMerkleProof,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetDepositTimePublicWitnessQuery {
+    pub block_number: u32,
+    pub deposit_index: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetDepositTimePublicWitnessResponse {
+    pub witness: DepositTimePublicWitness,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
