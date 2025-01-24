@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use anyhow::{anyhow, Ok, Result};
 use intmax2_interfaces::{
     api::store_vault_server::{
@@ -11,8 +9,10 @@ use intmax2_interfaces::{
 };
 use intmax2_zkp::ethereum_types::{bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait};
 
-use sqlx::{postgres::PgPoolOptions, PgPool, Postgres};
+use sqlx::Postgres;
 use uuid::Uuid;
+
+use server_common::db::{DbPool, DbPoolConfig};
 
 use crate::EnvVar;
 
@@ -21,17 +21,18 @@ pub struct Config {
 }
 
 pub struct StoreVaultServer {
-    pool: PgPool,
+    pool: DbPool,
     config: Config,
 }
 
 impl StoreVaultServer {
     pub async fn new(env: &EnvVar) -> Result<Self> {
-        let pool = PgPoolOptions::new()
-            .max_connections(env.database_max_connections)
-            .idle_timeout(Duration::from_secs(env.database_timeout))
-            .connect(&env.database_url)
-            .await?;
+        let pool = DbPool::from_config(&DbPoolConfig {
+            max_connections: env.database_max_connections,
+            idle_timeout: env.database_timeout,
+            url: env.database_url.clone(),
+        })
+        .await?;
         let config = Config {
             max_pagination_limit: env.max_pagination_limit,
         };

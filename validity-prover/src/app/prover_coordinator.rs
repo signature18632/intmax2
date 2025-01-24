@@ -12,7 +12,8 @@ use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
-use sqlx::{postgres::PgPoolOptions, PgPool};
+
+use server_common::db::{DbPool, DbPoolConfig};
 
 use crate::Env;
 
@@ -45,27 +46,28 @@ type Result<T> = std::result::Result<T, ProverCoordinatorError>;
 //     sender_leaves JSONB NOT NULL
 //  );
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Config {
     pub heartbeat_timeout: u64,
     pub cleanup_interval: u64,
     pub validity_proof_interval: u64,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ProverCoordinator {
     pub validity_circuit: Arc<ValidityCircuit<F, C, D>>,
-    pub pool: PgPool,
+    pub pool: DbPool,
     pub config: Config,
 }
 
 impl ProverCoordinator {
     pub async fn new(env: &Env) -> Result<Self> {
-        let pool = PgPoolOptions::new()
-            .max_connections(env.database_max_connections)
-            .idle_timeout(Duration::from_secs(env.database_timeout))
-            .connect(&env.database_url)
-            .await?;
+        let pool = DbPool::from_config(&DbPoolConfig {
+            max_connections: env.database_max_connections,
+            idle_timeout: env.database_timeout,
+            url: env.database_url.clone(),
+        })
+        .await?;
         let transition_vd = CircuitVerifiers::load().get_transition_vd();
         let validity_circuit = ValidityCircuit::new(&transition_vd);
         let heartbeat_config = Config {

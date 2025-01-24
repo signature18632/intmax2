@@ -13,15 +13,16 @@ use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
-use sqlx::{postgres::PgPoolOptions, PgPool};
 use uuid::Uuid;
+
+use server_common::db::{DbPool, DbPoolConfig};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
 pub struct WithdrawalServer {
-    pub pool: PgPool,
+    pub pool: DbPool,
 }
 
 impl WithdrawalServer {
@@ -30,11 +31,12 @@ impl WithdrawalServer {
         database_max_connections: u32,
         database_timeout: u64,
     ) -> anyhow::Result<Self> {
-        let pool = PgPoolOptions::new()
-            .max_connections(database_max_connections)
-            .idle_timeout(std::time::Duration::from_secs(database_timeout))
-            .connect(database_url)
-            .await?;
+        let pool = DbPool::from_config(&DbPoolConfig {
+            max_connections: database_max_connections,
+            idle_timeout: database_timeout,
+            url: database_url.to_string(),
+        })
+        .await?;
         Ok(Self { pool })
     }
 

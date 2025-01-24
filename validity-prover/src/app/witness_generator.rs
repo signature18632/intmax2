@@ -22,7 +22,6 @@ use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
-use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -31,6 +30,8 @@ use std::{
     time::Duration,
 };
 use tokio::time::interval;
+
+use server_common::db::{DbPool, DbPoolConfig};
 
 use super::{error::ValidityProverError, observer::Observer};
 use crate::{
@@ -71,7 +72,7 @@ pub struct WitnessGenerator {
     account_tree: HistoricalAccountTree<ADB>,
     block_tree: HistoricalBlockHashTree<BDB>,
     deposit_hash_tree: HistoricalDepositHashTree<DDB>,
-    pool: PgPool,
+    pool: DbPool,
 }
 
 impl WitnessGenerator {
@@ -94,11 +95,12 @@ impl WitnessGenerator {
         )
         .await?;
 
-        let pool = PgPoolOptions::new()
-            .max_connections(env.database_max_connections)
-            .idle_timeout(Duration::from_secs(env.database_timeout))
-            .connect(&env.database_url)
-            .await?;
+        let pool = DbPool::from_config(&DbPoolConfig {
+            max_connections: env.database_max_connections,
+            idle_timeout: env.database_timeout,
+            url: env.database_url.clone(),
+        })
+        .await?;
 
         let account_db = SqlMerkleTree::new(&env.database_url, ACCOUNT_DB_TAG, ACCOUNT_TREE_HEIGHT);
         let account_tree = HistoricalAccountTree::initialize(account_db).await?;
