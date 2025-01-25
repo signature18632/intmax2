@@ -192,10 +192,10 @@ impl ProverCoordinator {
         .fetch_optional(&self.pool)
         .await?;
         let (mut last_validity_proof_block_number, mut prev_proof) = match record {
-            Some(record) => (
-                record.block_number as u32,
-                bincode::deserialize(&record.proof)?,
-            ),
+            Some(record) => (record.block_number as u32, {
+                let proof: ProofWithPublicInputs<F, C, D> = bincode::deserialize(&record.proof)?;
+                Some(proof)
+            }),
             None => (0, None),
         };
 
