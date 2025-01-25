@@ -4,7 +4,7 @@ use serde::Deserialize;
 pub mod api;
 
 #[derive(Deserialize)]
-pub struct Env {
+pub struct EnvVar {
     pub port: u16,
     pub l2_rpc_url: String,
     pub l2_chain_id: u64,

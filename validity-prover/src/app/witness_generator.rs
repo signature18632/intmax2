@@ -1,3 +1,11 @@
+use std::{
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::Duration,
+};
+
 use intmax2_client_sdk::external_api::contract::rollup_contract::RollupContract;
 use intmax2_interfaces::api::validity_prover::interface::{AccountInfo, DepositInfo};
 use intmax2_zkp::{
@@ -22,16 +30,9 @@ use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
-use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
-    },
-    time::Duration,
-};
-use tokio::time::interval;
 
 use server_common::db::{DbPool, DbPoolConfig};
+use tokio::time::interval;
 
 use super::{error::ValidityProverError, observer::Observer};
 use crate::{
@@ -183,6 +184,7 @@ impl WitnessGenerator {
                 .observer
                 .get_deposits_between_blocks(block_number)
                 .await?;
+            // Caution! This change the state of the deposit hash tree
             for event in deposit_events {
                 self.deposit_hash_tree
                     .push(block_number as u64, DepositHash(event.deposit_hash))
@@ -190,6 +192,8 @@ impl WitnessGenerator {
             }
             let deposit_tree_root = self.deposit_hash_tree.get_root(block_number as u64).await?;
             if full_block.block.deposit_tree_root != deposit_tree_root {
+                // Reset merkle tree
+                self.reset_merkle_tree(block_number).await?;
                 return Err(ValidityProverError::DepositTreeRootMismatch(
                     full_block.block.deposit_tree_root,
                     deposit_tree_root,
@@ -207,15 +211,20 @@ impl WitnessGenerator {
 
             // Caution! This change the state of the account tree and block tree
             // TODO: atomic update
-            let validity_witness = update_trees(
+            let validity_witness = match update_trees(
                 &block_witness,
                 block_number as u64,
                 &self.account_tree,
                 &self.block_tree,
             )
             .await
-            .map_err(|e| ValidityProverError::FailedToUpdateTrees(e.to_string()))?;
-
+            {
+                Ok(w) => w,
+                Err(e) => {
+                    self.reset_merkle_tree(block_number).await?;
+                    return Err(ValidityProverError::FailedToUpdateTrees(e.to_string()));
+                }
+            };
             // Update database state
             let mut tx = self.pool.begin().await?;
             sqlx::query!(
@@ -447,6 +456,34 @@ impl WitnessGenerator {
         Ok(IncrementalMerkleProof(MerkleProof {
             siblings: proof.0.siblings,
         }))
+    }
+
+    async fn reset_merkle_tree(&self, block_number: u32) -> Result<(), ValidityProverError> {
+        log::warn!("Reset merkle tree from block number {}", block_number);
+        // delete all records which timestamp_value is equal or greater than block_number.
+        let mut tx = self.pool.begin().await?;
+        sqlx::query!(
+            "DELETE FROM hash_nodes WHERE timestamp_value >= $1",
+            block_number as i64
+        )
+        .execute(tx.as_mut())
+        .await?;
+
+        sqlx::query!(
+            "DELETE FROM leaves WHERE timestamp_value >= $1",
+            block_number as i64
+        )
+        .execute(tx.as_mut())
+        .await?;
+
+        sqlx::query!(
+            "DELETE FROM leaves_len WHERE timestamp_value >= $1",
+            block_number as i64
+        )
+        .execute(tx.as_mut())
+        .await?;
+        tx.commit().await?;
+        Ok(())
     }
 
     pub fn job(self) {
