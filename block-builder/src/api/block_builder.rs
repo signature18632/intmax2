@@ -379,7 +379,7 @@ impl BlockBuilder {
         Ok(())
     }
 
-    pub async fn start_accepting_txs(
+    async fn start_accepting_txs(
         &self,
         is_registration_block: bool,
     ) -> Result<(), BlockBuilderError> {
@@ -395,7 +395,7 @@ impl BlockBuilder {
         Ok(())
     }
 
-    pub async fn check_new_deposits(&self) -> Result<bool, BlockBuilderError> {
+    async fn check_new_deposits(&self) -> Result<bool, BlockBuilderError> {
         log::info!("check_new_deposits");
         let next_deposit_index = self.validity_prover_client.get_next_deposit_index().await?;
         let current_next_deposit_index = *self.next_deposit_index.read().await; // release the lock immediately
@@ -418,17 +418,8 @@ impl BlockBuilder {
         Ok(true)
     }
 
-    pub async fn post_empty_block_if_necessary(&self) -> Result<(), BlockBuilderError> {
-        log::info!("post_empty_block");
-        let is_registration_block = false;
-        self.start_accepting_txs(is_registration_block).await?;
-        self.construct_block(is_registration_block).await?;
-        self.post_block(is_registration_block).await?;
-        Ok(())
-    }
-
     /// Reset the block builder.
-    pub async fn reset(&self, is_registration_block: bool) {
+    async fn reset(&self, is_registration_block: bool) {
         log::info!("reset");
         let mut state = self.state_write(is_registration_block).await;
         *state = BuilderState::default();
@@ -469,7 +460,7 @@ impl BlockBuilder {
     }
 
     // job
-    pub fn post_empty_block_job(self) {
+    fn post_empty_block_job(self) {
         actix_web::rt::spawn(async move {
             loop {
                 tokio::time::sleep(Duration::from_secs(self.config.deposit_check_interval)).await;
