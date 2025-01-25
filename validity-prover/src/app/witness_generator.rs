@@ -354,10 +354,8 @@ impl WitnessGenerator {
         )
         .fetch_optional(&self.pool)
         .await?
-        .ok_or(ValidityProverError::ValidityProofNotFound(block_number));
-
-        let validity_witness: ValidityWitness =
-            bincode::deserialize(&record.unwrap().validity_witness)?;
+        .ok_or(ValidityProverError::ValidityWitnessNotFound(block_number))?;
+        let validity_witness: ValidityWitness = bincode::deserialize(&record.validity_witness)?;
         Ok(validity_witness)
     }
 

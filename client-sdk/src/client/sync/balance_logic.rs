@@ -207,21 +207,16 @@ pub async fn update_send_by_sender<
     }
 
     // get witness
-    let validity_pis = validity_prover
-        .get_validity_pis(tx_block_number)
-        .await?
-        .ok_or(SyncError::InternalError(format!(
-            "validity public inputs not found for block number {}",
-            tx_block_number
-        )))?;
-
-    let sender_leaves = validity_prover
-        .get_sender_leaves(tx_block_number)
-        .await?
-        .ok_or(SyncError::InternalError(format!(
-            "sender leaves not found for block number {}",
-            tx_block_number
-        )))?;
+    let validity_witness = validity_prover
+        .get_validity_witness(tx_block_number)
+        .await?;
+    let validity_pis = validity_witness.to_validity_pis().map_err(|e| {
+        SyncError::InternalError(format!(
+            "failed to convert validity witness to validity public inputs: {}",
+            e
+        ))
+    })?;
+    let sender_leaves = validity_witness.block_witness.get_sender_tree().leaves();
     let tx_witness = TxWitness {
         validity_pis: validity_pis.clone(),
         sender_leaves: sender_leaves.clone(),
@@ -323,20 +318,16 @@ pub async fn update_send_by_receiver<
         ));
     }
     // get witness
-    let validity_pis = validity_prover
-        .get_validity_pis(tx_block_number)
-        .await?
-        .ok_or(SyncError::InternalError(format!(
-            "validity public inputs not found for block number {}",
-            tx_block_number
-        )))?;
-    let sender_leaves = validity_prover
-        .get_sender_leaves(tx_block_number)
-        .await?
-        .ok_or(SyncError::InternalError(format!(
-            "sender leaves not found for block number {}",
-            tx_block_number
-        )))?;
+    let validity_witness = validity_prover
+        .get_validity_witness(tx_block_number)
+        .await?;
+    let validity_pis = validity_witness.to_validity_pis().map_err(|e| {
+        SyncError::InternalError(format!(
+            "failed to convert validity witness to validity public inputs: {}",
+            e
+        ))
+    })?;
+    let sender_leaves = validity_witness.block_witness.get_sender_tree().leaves();
     // validation
     if !validity_pis.is_valid_block {
         return Err(SyncError::InvalidTransferError(

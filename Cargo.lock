@@ -6951,7 +6951,6 @@ dependencies = [
  "rand",
  "reqwest 0.12.12",
  "serde",
- "serde_json",
  "serde_qs",
  "server-common",
  "sqlx",

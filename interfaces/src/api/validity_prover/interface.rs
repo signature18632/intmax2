@@ -2,14 +2,8 @@ use async_trait::async_trait;
 use intmax2_zkp::{
     circuits::validity::validity_pis::ValidityPublicInputs,
     common::{
-        trees::{
-            block_hash_tree::BlockHashMerkleProof, deposit_tree::DepositMerkleProof,
-            sender_tree::SenderLeaf,
-        },
-        witness::{
-            deposit_time_witness::DepositTimePublicWitness, update_witness::UpdateWitness,
-            validity_witness::ValidityWitness,
-        },
+        trees::{block_hash_tree::BlockHashMerkleProof, deposit_tree::DepositMerkleProof},
+        witness::{update_witness::UpdateWitness, validity_witness::ValidityWitness},
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
 };
@@ -71,15 +65,8 @@ pub trait ValidityProverClientInterface {
         tx_tree_root: Bytes32,
     ) -> Result<Option<u32>, ServerError>;
 
-    async fn get_validity_pis(
-        &self,
-        block_number: u32,
-    ) -> Result<Option<ValidityPublicInputs>, ServerError>;
-
-    async fn get_sender_leaves(
-        &self,
-        block_number: u32,
-    ) -> Result<Option<Vec<SenderLeaf>>, ServerError>;
+    async fn get_validity_witness(&self, block_number: u32)
+        -> Result<ValidityWitness, ServerError>;
 
     async fn get_block_merkle_proof(
         &self,
@@ -92,12 +79,6 @@ pub trait ValidityProverClientInterface {
         block_number: u32,
         deposit_index: u32,
     ) -> Result<DepositMerkleProof, ServerError>;
-
-    async fn get_deposit_time_public_witness(
-        &self,
-        block_number: u32,
-        deposit_index: u32,
-    ) -> Result<DepositTimePublicWitness, ServerError>;
 
     async fn get_account_info(&self, pubkey: U256) -> Result<AccountInfo, ServerError>;
 }

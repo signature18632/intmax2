@@ -118,8 +118,8 @@ impl ProverCoordinator {
         .await?
         .ok_or(ProverCoordinatorError::ValidityWitnessNotFound(
             block_number,
-        ));
-        let validity_witness = bincode::deserialize(&record.unwrap().validity_witness)?;
+        ))?;
+        let validity_witness = bincode::deserialize(&record.validity_witness)?;
         Ok(validity_witness)
     }
 
@@ -220,7 +220,7 @@ impl ProverCoordinator {
             last_validity_proof_block_number = block_number;
 
             let transition_proof: ProofWithPublicInputs<F, C, D> =
-                bincode::deserialize(&record.transition_proof.as_ref().unwrap())?;
+                bincode::deserialize(record.transition_proof.as_ref().unwrap())?;
             let validity_proof = self
                 .validity_circuit
                 .prove(&transition_proof, &prev_proof)

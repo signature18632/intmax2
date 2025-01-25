@@ -68,6 +68,9 @@ pub enum ValidityProverError {
     #[error("Deposit tree not found for block number {0}")]
     DepositTreeRootNotFound(u32),
 
+    #[error("Validity witness not found for block number {0}")]
+    ValidityWitnessNotFound(u32),
+
     #[error("Input error {0}")]
     InputError(String),
 }
