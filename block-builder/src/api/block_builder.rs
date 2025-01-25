@@ -55,7 +55,6 @@ pub struct BlockBuilder {
     non_registration_state: Arc<RwLock<BuilderState>>,
 }
 
-// todo: remove status clone
 impl BlockBuilder {
     pub fn new(env: &EnvVar) -> Self {
         let validity_prover_client = ValidityProverClient::new(&env.validity_prover_base_url);
