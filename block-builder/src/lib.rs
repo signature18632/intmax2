@@ -19,6 +19,4 @@ pub struct EnvVar {
     pub accepting_tx_interval: u64,
     pub proposing_block_interval: u64,
     pub deposit_check_interval: u64,
-
-    pub lock_timeout: Option<u64>,
 }
