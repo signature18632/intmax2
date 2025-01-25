@@ -1,6 +1,8 @@
+use std::{sync::Arc, time::Duration};
+
 use ark_bn254::{Bn254, Fr, G1Affine, G2Affine};
 use ark_ec::{pairing::Pairing as _, AffineRepr as _};
-use ethers::types::{Address, H256};
+use ethers::types::H256;
 use intmax2_client_sdk::external_api::{
     contract::rollup_contract::RollupContract, validity_prover::ValidityProverClient,
 };
@@ -26,79 +28,117 @@ use intmax2_zkp::{
 };
 use num::BigUint;
 use plonky2_bn254::fields::recover::RecoverFromX as _;
+use tokio::{sync::RwLock, time::sleep};
 
-use super::{error::BlockBuilderError, internal_state::BuilderState};
+use crate::EnvVar;
+
+use super::{builder_state::BuilderState, error::BlockBuilderError};
+
+#[derive(Debug, Clone)]
+struct Config {
+    block_builder_private_key: H256,
+    eth_allowance_for_block: ethers::types::U256,
+    deposit_check_interval: u64,
+    accepting_tx_interval: u64,
+    proposing_block_interval: u64,
+}
 
 #[derive(Debug, Clone)]
 pub struct BlockBuilder {
+    config: Config,
     validity_prover_client: ValidityProverClient,
     rollup_contract: RollupContract,
-    block_builder_private_key: H256,
-    eth_allowance_for_block: ethers::types::U256,
 
-    next_deposit_index: u32,
-    registration_state: BuilderState,
-    non_registration_state: BuilderState,
+    force_post: Arc<RwLock<bool>>,
+    next_deposit_index: Arc<RwLock<u32>>,
+    registration_state: Arc<RwLock<BuilderState>>,
+    non_registration_state: Arc<RwLock<BuilderState>>,
 }
 
-// todo: remove status clone
 impl BlockBuilder {
-    pub fn new(
-        rpc_url: &str,
-        chain_id: u64,
-        rollup_contract_address: Address,
-        rollup_contract_deployed_block_number: u64,
-        block_builder_private_key: H256,
-        eth_allowance_for_block: ethers::types::U256,
-        validity_prover_base_url: &str,
-    ) -> Self {
-        let validity_prover_client = ValidityProverClient::new(validity_prover_base_url);
+    pub fn new(env: &EnvVar) -> Self {
+        let validity_prover_client = ValidityProverClient::new(&env.validity_prover_base_url);
         let rollup_contract = RollupContract::new(
-            rpc_url,
-            chain_id,
-            rollup_contract_address,
-            rollup_contract_deployed_block_number,
+            &env.l2_rpc_url,
+            env.l2_chain_id,
+            env.rollup_contract_address,
+            env.rollup_contract_deployed_block_number,
         );
+        let eth_allowance_for_block =
+            ethers::utils::parse_ether(env.eth_allowance_for_block.clone()).unwrap();
+        let config = Config {
+            block_builder_private_key: env.block_builder_private_key,
+            eth_allowance_for_block,
+            deposit_check_interval: env.deposit_check_interval,
+            accepting_tx_interval: env.accepting_tx_interval,
+            proposing_block_interval: env.proposing_block_interval,
+        };
         Self {
+            config,
             validity_prover_client,
             rollup_contract,
-            block_builder_private_key,
-            eth_allowance_for_block,
-            next_deposit_index: 0,
-            registration_state: BuilderState::new(),
-            non_registration_state: BuilderState::new(),
+            force_post: Arc::new(RwLock::new(false)),
+            next_deposit_index: Arc::new(RwLock::new(0)),
+            registration_state: Arc::new(RwLock::new(BuilderState::default())),
+            non_registration_state: Arc::new(RwLock::new(BuilderState::default())),
         }
     }
 
-    pub fn get_status(&self, is_registration_block: bool) -> BlockBuilderStatus {
+    async fn state_read(
+        &self,
+        is_registration_block: bool,
+    ) -> tokio::sync::RwLockReadGuard<'_, BuilderState> {
         if is_registration_block {
-            self.registration_state.get_status()
+            self.registration_state.read().await
         } else {
-            self.non_registration_state.get_status()
+            self.non_registration_state.read().await
+        }
+    }
+
+    async fn state_write(
+        &self,
+        is_registration_block: bool,
+    ) -> tokio::sync::RwLockWriteGuard<'_, BuilderState> {
+        if is_registration_block {
+            self.registration_state.write().await
+        } else {
+            self.non_registration_state.write().await
+        }
+    }
+
+    pub async fn get_status(&self, is_registration_block: bool) -> BlockBuilderStatus {
+        if is_registration_block {
+            self.registration_state.read().await.get_status()
+        } else {
+            self.non_registration_state.read().await.get_status()
         }
     }
 
     // Send a tx request by the user.
     pub async fn send_tx_request(
-        &mut self,
+        &self,
         is_registration_block: bool,
         pubkey: U256,
         tx: Tx,
     ) -> Result<(), BlockBuilderError> {
-        let mut status = if is_registration_block {
-            self.registration_state.clone()
-        } else {
-            self.non_registration_state.clone()
-        };
+        log::info!(
+            "send_tx_request is_registration_block: {}",
+            is_registration_block
+        );
 
-        if !status.is_accepting_txs() {
-            return Err(BlockBuilderError::NotAcceptingTx);
-        }
-        if status.count_tx_requests() >= NUM_SENDERS_IN_BLOCK {
-            return Err(BlockBuilderError::BlockIsFull);
-        }
-        if status.is_pubkey_contained(pubkey) {
-            return Err(BlockBuilderError::OnlyOneSenderAllowed);
+        {
+            // check if the block builder is accepting txs
+            let state = self.state_read(is_registration_block).await;
+            if !state.is_accepting_txs() {
+                return Err(BlockBuilderError::NotAcceptingTx);
+            }
+            if state.count_tx_requests() >= NUM_SENDERS_IN_BLOCK {
+                return Err(BlockBuilderError::BlockIsFull);
+            }
+            if state.is_pubkey_contained(pubkey) {
+                return Err(BlockBuilderError::OnlyOneSenderAllowed);
+            }
+            // drop the lock
         }
 
         // registration check
@@ -122,69 +162,66 @@ impl BlockBuilder {
             return Err(BlockBuilderError::AccountNotFound(pubkey));
         }
 
-        // update state
-        status.append_tx_request(pubkey, tx);
-        if is_registration_block {
-            self.registration_state = status;
-        } else {
-            self.non_registration_state = status;
+        let mut state = self.state_write(is_registration_block).await;
+
+        // check again after the async call
+        if !state.is_accepting_txs() {
+            return Err(BlockBuilderError::NotAcceptingTx);
         }
+        if state.count_tx_requests() >= NUM_SENDERS_IN_BLOCK {
+            return Err(BlockBuilderError::BlockIsFull);
+        }
+        if state.is_pubkey_contained(pubkey) {
+            return Err(BlockBuilderError::OnlyOneSenderAllowed);
+        }
+
+        // update state
+        state.append_tx_request(pubkey, tx);
+
         Ok(())
     }
 
     // Construct a block with the given tx requests by the block builder.
-    pub fn construct_block(
-        &mut self,
+    pub async fn construct_block(
+        &self,
         is_registration_block: bool,
     ) -> Result<(), BlockBuilderError> {
         log::info!(
             "construct_block is_registration_block: {}",
             is_registration_block
         );
-        let mut status = if is_registration_block {
-            self.registration_state.clone()
-        } else {
-            self.non_registration_state.clone()
-        };
-
-        if !status.is_accepting_txs() {
+        let mut state = self.state_write(is_registration_block).await;
+        if !state.is_accepting_txs() {
             return Err(BlockBuilderError::NotAcceptingTx);
         }
-
-        // update state
-        status.propose_block();
-        if is_registration_block {
-            self.registration_state = status;
-        } else {
-            self.non_registration_state = status;
-        }
+        state.propose_block();
         Ok(())
     }
 
     // Query the constructed proposal by the user.
-    pub fn query_proposal(
+    pub async fn query_proposal(
         &self,
         is_registration_block: bool,
         pubkey: U256,
         tx: Tx,
     ) -> Result<Option<BlockProposal>, BlockBuilderError> {
-        let status = if is_registration_block {
-            self.registration_state.clone()
-        } else {
-            self.non_registration_state.clone()
-        };
-        if status.is_pausing() {
+        log::info!(
+            "query_proposal is_registration_block: {}",
+            is_registration_block
+        );
+        let state = self.state_read(is_registration_block).await;
+        if state.is_pausing() {
             return Err(BlockBuilderError::BlockBuilderIsPausing);
         }
-        if status.is_accepting_txs() && !status.is_request_contained(pubkey, tx) {
+        if state.is_accepting_txs() && !state.is_request_contained(pubkey, tx) {
             return Err(BlockBuilderError::TxRequestNotFound);
         }
-        Ok(status.query_proposal(pubkey, tx))
+        Ok(state.query_proposal(pubkey, tx))
     }
 
     // Post the signature by the user.
-    pub fn post_signature(
-        &mut self,
+    pub async fn post_signature(
+        &self,
         is_registration_block: bool,
         tx: Tx,
         signature: UserSignature,
@@ -193,29 +230,19 @@ impl BlockBuilder {
             "post_signature is_registration_block: {}",
             is_registration_block
         );
-        let mut status = if is_registration_block {
-            self.registration_state.clone()
-        } else {
-            self.non_registration_state.clone()
-        };
-        if !status.is_proposing_block() {
+        let mut state = self.state_write(is_registration_block).await;
+        if !state.is_proposing_block() {
             return Err(BlockBuilderError::NotProposing);
         }
-        if status.is_request_contained(signature.pubkey, tx) {
+        if state.is_request_contained(signature.pubkey, tx) {
             return Err(BlockBuilderError::TxRequestNotFound);
         }
-        let memo = status.get_proposal_memo().unwrap();
+        let memo = state.get_proposal_memo().unwrap();
         signature
             .verify(memo.tx_tree_root, memo.pubkey_hash)
             .map_err(|e| BlockBuilderError::InvalidSignature(e.to_string()))?;
-
         // update state
-        status.append_signature(signature);
-        if is_registration_block {
-            self.registration_state = status;
-        } else {
-            self.non_registration_state = status;
-        }
+        state.append_signature(signature);
         Ok(())
     }
 
@@ -223,34 +250,29 @@ impl BlockBuilder {
         &self,
         is_registration_block: bool,
     ) -> Result<usize, BlockBuilderError> {
-        let status = if is_registration_block {
-            self.registration_state.clone()
-        } else {
-            self.non_registration_state.clone()
-        };
-        Ok(status.count_tx_requests())
+        log::info!(
+            "num_tx_requests is_registration_block: {}",
+            is_registration_block
+        );
+        let state = self.state_read(is_registration_block).await;
+        Ok(state.count_tx_requests())
     }
 
     // Post the block with the given signatures.
-    pub async fn post_block(
-        &mut self,
-        is_registration_block: bool,
-    ) -> Result<(), BlockBuilderError> {
+    pub async fn post_block(&self, is_registration_block: bool) -> Result<(), BlockBuilderError> {
         log::info!(
             "post_block is_registration_block: {}",
             is_registration_block
         );
-        let mut status = if is_registration_block {
-            self.registration_state.clone()
-        } else {
-            self.non_registration_state.clone()
-        };
-        if !status.is_proposing_block() {
+        let state = self.state_read(is_registration_block).await;
+        if !state.is_proposing_block() {
             return Err(BlockBuilderError::NotProposing);
         }
-        let memo = status.get_proposal_memo().unwrap();
-        let mut account_id_packed = None;
+        let memo = state.get_proposal_memo().unwrap();
+        let signatures = state.get_signatures().unwrap();
+        drop(state); // release the lock
 
+        let mut account_id_packed = None;
         if is_registration_block {
             for pubkey in memo.pubkeys.iter() {
                 if pubkey.is_dummy_pubkey() {
@@ -263,7 +285,7 @@ impl BlockBuilder {
                     .await?;
                 if account_info.account_id.is_some() {
                     // This is unrecoverable so abandon the block
-                    self.reset(is_registration_block);
+                    self.reset(is_registration_block).await;
                     return Err(BlockBuilderError::AccountAlreadyRegistered(
                         *pubkey,
                         account_info.account_id.unwrap(),
@@ -283,14 +305,13 @@ impl BlockBuilder {
                     .await?;
                 if account_info.account_id.is_none() {
                     // This is unrecoverable so abandon the block
-                    self.reset(is_registration_block);
+                    self.reset(is_registration_block).await;
                     return Err(BlockBuilderError::AccountNotFound(*pubkey));
                 }
                 account_ids.push(account_info.account_id.unwrap());
             }
             account_id_packed = Some(AccountIdPacked::pack(&account_ids));
         }
-
         let account_id_hash = account_id_packed.map_or(Bytes32::default(), |ids| ids.hash());
         let mut sender_with_signatures = memo
             .pubkeys
@@ -300,8 +321,6 @@ impl BlockBuilder {
                 signature: None,
             })
             .collect::<Vec<_>>();
-
-        let signatures = status.get_signatures().unwrap();
         for signature in signatures.iter() {
             let tx_index = memo
                 .pubkeys
@@ -327,8 +346,8 @@ impl BlockBuilder {
                 .collect::<Vec<_>>();
             self.rollup_contract
                 .post_registration_block(
-                    self.block_builder_private_key,
-                    self.eth_allowance_for_block,
+                    self.config.block_builder_private_key,
+                    self.config.eth_allowance_for_block,
                     memo.tx_tree_root,
                     signature.sender_flag,
                     signature.agg_pubkey,
@@ -340,8 +359,8 @@ impl BlockBuilder {
         } else {
             self.rollup_contract
                 .post_non_registration_block(
-                    self.block_builder_private_key,
-                    self.eth_allowance_for_block,
+                    self.config.block_builder_private_key,
+                    self.config.eth_allowance_for_block,
                     memo.tx_tree_root,
                     signature.sender_flag,
                     signature.agg_pubkey,
@@ -352,77 +371,137 @@ impl BlockBuilder {
                 )
                 .await?;
         };
-        status.finalize_block();
-        if is_registration_block {
-            self.registration_state = status;
-        } else {
-            self.non_registration_state = status;
-        }
+        // update state
+        self.state_write(is_registration_block)
+            .await
+            .finalize_block();
         Ok(())
     }
 
-    pub fn start_accepting_txs(
-        &mut self,
+    async fn start_accepting_txs(
+        &self,
         is_registration_block: bool,
     ) -> Result<(), BlockBuilderError> {
         log::info!(
             "start_accepting_txs is_registration_block: {}",
             is_registration_block
         );
-        let mut status = if is_registration_block {
-            self.registration_state.clone()
-        } else {
-            self.non_registration_state.clone()
-        };
-        if !status.is_pausing() {
+        let mut state = self.state_write(is_registration_block).await;
+        if !state.is_pausing() {
             return Err(BlockBuilderError::ShouldBePausing);
         }
-        status.start_accepting_txs();
-        if is_registration_block {
-            self.registration_state = status;
-        } else {
-            self.non_registration_state = status;
-        }
+        state.start_accepting_txs();
         Ok(())
     }
 
-    pub async fn check_new_deposits(&mut self) -> Result<bool, BlockBuilderError> {
+    async fn check_new_deposits(&self) -> Result<bool, BlockBuilderError> {
         log::info!("check_new_deposits");
         let next_deposit_index = self.validity_prover_client.get_next_deposit_index().await?;
+        let current_next_deposit_index = *self.next_deposit_index.read().await; // release the lock immediately
 
         // sanity check
-        if next_deposit_index < self.next_deposit_index {
+        if next_deposit_index < current_next_deposit_index {
             return Err(BlockBuilderError::UnexpectedError(format!(
                 "next_deposit_index is smaller than the current one: {} < {}",
-                next_deposit_index, self.next_deposit_index
+                next_deposit_index, current_next_deposit_index
             )));
         }
-
-        if next_deposit_index == self.next_deposit_index {
+        if next_deposit_index == current_next_deposit_index {
             return Ok(false);
         }
-        self.next_deposit_index = next_deposit_index;
+
+        // update the next deposit index
+        *self.next_deposit_index.write().await = next_deposit_index;
+
         log::info!("new deposit found: {}", next_deposit_index);
         Ok(true)
     }
 
-    pub async fn post_empty_block_if_necessary(&mut self) -> Result<(), BlockBuilderError> {
-        log::info!("post_empty_block");
-        let is_registration_block = false;
-        self.start_accepting_txs(is_registration_block)?;
-        self.construct_block(is_registration_block)?;
+    /// Reset the block builder.
+    async fn reset(&self, is_registration_block: bool) {
+        log::info!("reset");
+        let mut state = self.state_write(is_registration_block).await;
+        *state = BuilderState::default();
+    }
+
+    // Cycle of the block builder.
+    async fn cycle(&self, is_registration_block: bool) -> Result<(), BlockBuilderError> {
+        log::info!("cycle is_registration_block: {}", is_registration_block);
+        self.start_accepting_txs(is_registration_block).await?;
+
+        tokio::time::sleep(Duration::from_secs(self.config.accepting_tx_interval)).await;
+
+        let num_tx_requests = self.num_tx_requests(is_registration_block).await?;
+        let force_post = *self.force_post.read().await;
+        if num_tx_requests == 0 && (is_registration_block || !force_post) {
+            log::info!("No tx requests, not constructing block");
+            self.reset(is_registration_block).await;
+            return Ok(());
+        }
+
+        self.construct_block(is_registration_block).await?;
+
+        tokio::time::sleep(Duration::from_secs(self.config.proposing_block_interval)).await;
+
         self.post_block(is_registration_block).await?;
+
+        let force_post = *self.force_post.read().await;
+        if force_post {
+            *self.force_post.write().await = false;
+        }
+
         Ok(())
     }
 
-    /// Reset the block builder.
-    pub fn reset(&mut self, is_registration_block: bool) {
-        log::info!("reset");
-        if is_registration_block {
-            self.registration_state = BuilderState::new();
-        } else {
-            self.non_registration_state = BuilderState::new();
-        }
+    pub async fn evoke_force_post(&self) -> Result<(), BlockBuilderError> {
+        *self.force_post.write().await = true;
+        Ok(())
+    }
+
+    // job
+    fn post_empty_block_job(self) {
+        actix_web::rt::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(self.config.deposit_check_interval)).await;
+                match self.check_new_deposits().await {
+                    Ok(new_deposits_exist) => {
+                        if new_deposits_exist {
+                            self.evoke_force_post().await.unwrap();
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Error in checking new deposits: {}", e);
+                    }
+                }
+            }
+        });
+    }
+
+    fn cycle_job(self, is_registration_block: bool) {
+        actix_web::rt::spawn(async move {
+            loop {
+                match self.cycle(is_registration_block).await {
+                    Ok(_) => {
+                        log::info!(
+                            "Cycle successful for registration block: {}",
+                            is_registration_block
+                        );
+                    }
+                    Err(e) => {
+                        log::error!("Error in block builder: {}", e);
+                        self.reset(is_registration_block).await;
+                        *self.force_post.write().await = false;
+                        sleep(Duration::from_secs(10)).await;
+                    }
+                }
+            }
+        });
+    }
+
+    pub fn run(&self) {
+        self.clone().post_empty_block_job();
+        self.clone().cycle_job(true);
+        self.clone().cycle_job(false);
     }
 }
 

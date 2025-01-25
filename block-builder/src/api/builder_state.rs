@@ -10,6 +10,25 @@ use intmax2_zkp::{
     ethereum_types::{bytes32::Bytes32, u256::U256},
 };
 
+#[derive(Default, Debug, Clone)]
+pub enum BuilderState {
+    #[default]
+    Pausing, // not accepting tx requests
+    AcceptingTxs(AcceptingTxState),      // accepting  tx request
+    ProposingBlock(ProposingBlockState), // after constructed the block, accepting signatures for the block
+}
+
+#[derive(Debug, Clone)]
+pub struct AcceptingTxState {
+    tx_requests: Vec<(U256, Tx)>, // hold in the order the request came
+}
+
+#[derive(Debug, Clone)]
+pub struct ProposingBlockState {
+    memo: ProposalMemo,
+    signatures: Vec<UserSignature>,
+}
+
 #[derive(Debug, Clone)]
 pub struct ProposalMemo {
     pub tx_tree_root: Bytes32,
@@ -29,35 +48,7 @@ impl ProposalMemo {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct AcceptingTxState {
-    tx_requests: Vec<(U256, Tx)>, // hold in the order the request came
-}
-
-#[derive(Debug, Clone)]
-pub struct ProposingBlockState {
-    memo: ProposalMemo,
-    signatures: Vec<UserSignature>,
-}
-
-#[derive(Debug, Clone)]
-pub enum BuilderState {
-    Pausing,                             // not accepting tx requests
-    AcceptingTxs(AcceptingTxState),      // accepting  tx request
-    ProposingBlock(ProposingBlockState), // after constructed the block, accepting signatures for the block
-}
-
-impl Default for BuilderState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl BuilderState {
-    pub fn new() -> Self {
-        BuilderState::Pausing
-    }
-
     pub fn get_status(&self) -> BlockBuilderStatus {
         match self {
             BuilderState::Pausing => BlockBuilderStatus::Pausing,

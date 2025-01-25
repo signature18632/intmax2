@@ -16,6 +16,7 @@ use crate::api::state::State;
 #[post("/post-empty-block")]
 pub async fn post_empty_block(state: Data<State>) -> Result<Json<()>, Error> {
     state
+        .block_builder
         .evoke_force_post()
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
@@ -29,9 +30,8 @@ pub async fn get_status(
 ) -> Result<Json<GetBlockBuilderStatusResponse>, Error> {
     let status = state
         .block_builder
-        .read()
-        .await
-        .get_status(query.is_registration_block);
+        .get_status(query.is_registration_block)
+        .await;
     Ok(Json(GetBlockBuilderStatusResponse { status }))
 }
 
@@ -43,8 +43,6 @@ pub async fn tx_request(
     let request = request.into_inner();
     state
         .block_builder
-        .write()
-        .await
         .send_tx_request(request.is_registration_block, request.pubkey, request.tx)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
@@ -59,9 +57,8 @@ pub async fn query_proposal(
     let request = request.into_inner();
     let block_proposal = state
         .block_builder
-        .read()
-        .await
         .query_proposal(request.is_registration_block, request.pubkey, request.tx)
+        .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(QueryProposalResponse { block_proposal }))
 }
@@ -78,9 +75,8 @@ pub async fn post_signature(
     };
     state
         .block_builder
-        .write()
-        .await
         .post_signature(request.is_registration_block, request.tx, user_signature)
+        .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(()))
 }
