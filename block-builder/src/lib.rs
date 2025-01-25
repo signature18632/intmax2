@@ -4,7 +4,7 @@ use serde::Deserialize;
 pub mod api;
 
 #[derive(Deserialize)]
-pub struct Env {
+pub struct EnvVar {
     pub port: u16,
     pub l2_rpc_url: String,
     pub l2_chain_id: u64,
@@ -19,4 +19,6 @@ pub struct Env {
     pub accepting_tx_interval: u64,
     pub proposing_block_interval: u64,
     pub deposit_check_interval: u64,
+
+    pub lock_timeout: Option<u64>,
 }
