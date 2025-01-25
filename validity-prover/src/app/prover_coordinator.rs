@@ -25,27 +25,6 @@ const D: usize = 2;
 
 type Result<T> = std::result::Result<T, ProverCoordinatorError>;
 
-// CREATE TABLE IF NOT EXISTS validity_proofs (
-//     block_number INTEGER PRIMARY KEY,
-//     proof JSONB NOT NULL
-// );
-
-// CREATE TABLE IF NOT EXISTS prover_tasks (
-//     block_number INTEGER PRIMARY KEY,
-//     assigned BOOLEAN NOT NULL,
-//     assigned_at TIMESTAMP,
-//     last_heartbeat TIMESTAMP,
-//     completed BOOLEAN NOT NULL,
-//     completed_at TIMESTAMP,
-//     transition_proof JSONB
-// );
-
-// CREATE TABLE IF NOT EXISTS validity_state (
-//     block_number INTEGER NOT NULL PRIMARY KEY,
-//     validity_witness JSONB NOT NULL,
-//     sender_leaves JSONB NOT NULL
-//  );
-
 #[derive(Clone, Debug)]
 pub struct Config {
     pub heartbeat_timeout: u64,
@@ -136,15 +115,11 @@ impl ProverCoordinator {
             block_number as i32,
         )
         .fetch_optional(&self.pool)
-        .await?;
-        let validity_witness = match record {
-            Some(record) => serde_json::from_value(record.validity_witness.clone())?,
-            None => {
-                return Err(ProverCoordinatorError::ValidityWitnessNotFound(
-                    block_number,
-                ))
-            }
-        };
+        .await?
+        .ok_or(ProverCoordinatorError::ValidityWitnessNotFound(
+            block_number,
+        ));
+        let validity_witness = bincode::deserialize(&record.unwrap().validity_witness)?;
         Ok(validity_witness)
     }
 
@@ -189,7 +164,7 @@ impl ProverCoordinator {
             .verify(transition_proof.clone())
             .map_err(|e| ProverCoordinatorError::TransitionProofVerificationError(e.to_string()))?;
 
-        let transition_proof = serde_json::to_value(transition_proof)?;
+        let transition_proof = bincode::serialize(transition_proof)?;
         sqlx::query!(
             r#"
             UPDATE prover_tasks
@@ -219,7 +194,7 @@ impl ProverCoordinator {
         let (mut last_validity_proof_block_number, mut prev_proof) = match record {
             Some(record) => (
                 record.block_number as u32,
-                serde_json::from_value(record.proof.clone())?,
+                bincode::deserialize(&record.proof)?,
             ),
             None => (0, None),
         };
@@ -245,7 +220,7 @@ impl ProverCoordinator {
             last_validity_proof_block_number = block_number;
 
             let transition_proof: ProofWithPublicInputs<F, C, D> =
-                serde_json::from_value(record.transition_proof.clone().unwrap())?;
+                bincode::deserialize(&record.transition_proof.as_ref().unwrap())?;
             let validity_proof = self
                 .validity_circuit
                 .prove(&transition_proof, &prev_proof)
@@ -254,7 +229,6 @@ impl ProverCoordinator {
                 })?;
 
             // Add a new validity proof to the validity_proofs table
-            let validity_proof_value = serde_json::to_value(&validity_proof)?;
             sqlx::query!(
                 r#"
                 INSERT INTO validity_proofs (block_number, proof)
@@ -263,7 +237,7 @@ impl ProverCoordinator {
                 DO UPDATE SET proof = $2
                 "#,
                 block_number as i32,
-                validity_proof_value,
+                bincode::serialize(&validity_proof)?,
             )
             .execute(&self.pool)
             .await?;

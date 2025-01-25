@@ -12,7 +12,7 @@ pub enum ObserverError {
     DBError(#[from] sqlx::Error),
 
     #[error("Deserialization error: {0}")]
-    DeserializationError(#[from] serde_json::Error),
+    DeserializationError(#[from] bincode::Error),
 
     #[error("Full block sync error: {0}")]
     FullBlockSyncError(String),
@@ -45,7 +45,7 @@ pub enum ValidityProverError {
     DBError(#[from] sqlx::Error),
 
     #[error("Deserialization error: {0}")]
-    DeserializationError(#[from] serde_json::Error),
+    DeserializationError(#[from] bincode::Error),
 
     #[error("Failed to update trees: {0}")]
     FailedToUpdateTrees(String),
@@ -78,7 +78,7 @@ pub enum ProverCoordinatorError {
     DBError(#[from] sqlx::Error),
 
     #[error("Deserialization error: {0}")]
-    DeserializationError(#[from] serde_json::Error),
+    DeserializationError(#[from] bincode::Error),
 
     #[error("Failed to generate validity proof: {0}")]
     FailedToGenerateValidityProof(String),

@@ -56,7 +56,7 @@ impl Observer {
                 0i32,
                 genesis.eth_block_number as i64,
                 genesis.eth_tx_index as i64,
-                serde_json::to_value(&genesis.full_block).unwrap()
+                bincode::serialize(&genesis.full_block).unwrap()
             )
             .execute(&pool)
             .await?;
@@ -166,7 +166,7 @@ impl Observer {
         .await?;
 
         let full_block: FullBlock = match record {
-            Some(r) => serde_json::from_value(r.full_block)?,
+            Some(r) => bincode::deserialize(&r.full_block)?,
             None => return Err(ObserverError::BlockNotFound(block_number)),
         };
 
@@ -194,8 +194,7 @@ impl Observer {
         .await?;
         match record {
             Some(r) => {
-                let full_block: FullBlock = serde_json::from_value(r.full_block)?;
-
+                let full_block: FullBlock = bincode::deserialize(&r.full_block)?;
                 Ok(Some(FullBlockWithMeta {
                     full_block,
                     eth_block_number: r.eth_block_number as u64,
@@ -425,7 +424,7 @@ impl Observer {
                             block.full_block.block.block_number as i32,
                             block.eth_block_number as i64,
                             block.eth_tx_index as i64,
-                            serde_json::to_value(&block.full_block).unwrap()
+                            bincode::serialize(&block.full_block).unwrap()
                         )
                         .execute(&mut *tx)
                         .await?;

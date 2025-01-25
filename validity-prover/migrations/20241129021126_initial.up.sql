@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS full_blocks (
     block_number INTEGER PRIMARY KEY,
     eth_block_number BIGINT NOT NULL,
     eth_tx_index BIGINT NOT NULL,
-    full_block JSONB NOT NULL
+    full_block BYTEA NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS deposit_leaf_events (
@@ -26,8 +26,7 @@ CREATE TABLE IF NOT EXISTS deposit_leaf_events (
 -- Validity prover tables
 CREATE TABLE IF NOT EXISTS validity_state (
    block_number INTEGER NOT NULL PRIMARY KEY,
-   validity_witness JSONB NOT NULL,
-   sender_leaves JSONB NOT NULL
+   validity_witness BYTEA NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS tx_tree_roots (
@@ -37,7 +36,7 @@ CREATE TABLE IF NOT EXISTS tx_tree_roots (
 
 CREATE TABLE IF NOT EXISTS validity_proofs (
     block_number INTEGER PRIMARY KEY,
-    proof JSONB NOT NULL
+    proof BYTEA NOT NULL
 );
 
 -- Prover coordinator tables
@@ -48,7 +47,7 @@ CREATE TABLE IF NOT EXISTS prover_tasks (
     last_heartbeat TIMESTAMP,
     completed BOOLEAN NOT NULL,
     completed_at TIMESTAMP,
-    transition_proof JSONB 
+    transition_proof BYTEA 
 );
 
 --- Merkle tree tables
