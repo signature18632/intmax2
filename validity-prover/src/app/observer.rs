@@ -394,6 +394,15 @@ impl Observer {
                     first.full_block.block.block_number, next_block_number
                 )));
             }
+        } else {
+            // no new blocks
+            let rollup_block_number = self.rollup_contract.get_latest_block_number().await?;
+            if next_block_number <= rollup_block_number {
+                return Err(ObserverError::FullBlockSyncError(format!(
+                    "next_block_number is less than rollup_block_number: {} <= {}",
+                    next_block_number, rollup_block_number
+                )));
+            }
         }
         Ok((full_blocks, to_block))
     }
