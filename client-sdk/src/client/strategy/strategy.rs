@@ -9,12 +9,16 @@ use intmax2_interfaces::{
         meta_data::MetaDataWithBlockNumber,
         transfer_data::TransferData,
         tx_data::TxData,
-        user_data::{Balances, UserData},
+        user_data::{Balances, ProcessStatus, UserData},
     },
 };
 use itertools::Itertools;
 
-use intmax2_zkp::common::signature::key_set::KeySet;
+use intmax2_zkp::{
+    circuits::claim::determine_lock_time::get_lock_time, common::signature::key_set::KeySet,
+    ethereum_types::u256::U256,
+};
+use num_bigint::BigUint;
 
 use crate::{
     client::strategy::withdrawal::fetch_withdrawal_info,
@@ -75,13 +79,7 @@ pub async fn determine_sequence<S: StoreVaultClientInterface, V: ValidityProverC
     tx_timeout: u64,
 ) -> Result<(Vec<Action>, PendingInfo), StrategyError> {
     log::info!("determine_sequence");
-    let user_data = store_vault_server
-        .get_user_data(key)
-        .await?
-        .map(|encrypted| UserData::decrypt(&encrypted, key))
-        .transpose()
-        .map_err(|e| StrategyError::UserDataDecryptionError(e.to_string()))?
-        .unwrap_or(UserData::new(key.pubkey));
+    let user_data = get_user_data(store_vault_server, key).await?;
     let mut balances = user_data.balances();
     if balances.is_insufficient() {
         return Err(StrategyError::BalanceInsufficientBeforeSync);
@@ -258,13 +256,7 @@ pub async fn determine_withdrawals<
     StrategyError,
 > {
     log::info!("determine_withdrawals");
-    let user_data = store_vault_server
-        .get_user_data(key)
-        .await?
-        .map(|encrypted| UserData::decrypt(&encrypted, key))
-        .transpose()
-        .map_err(|e| StrategyError::UserDataDecryptionError(e.to_string()))?
-        .unwrap_or(UserData::new(key.pubkey));
+    let user_data = get_user_data(store_vault_server, key).await?;
     let withdrawal_info = fetch_withdrawal_info(
         store_vault_server,
         validity_prover,
@@ -281,56 +273,109 @@ pub async fn determine_withdrawals<
     Ok((withdrawal_info.settled, pending_withdrawal_uuids))
 }
 
-// /// Determine the
-// pub async fn determine_claim<S: StoreVaultClientInterface, V: ValidityProverClientInterface>(
-//     store_vault_server: &S,
-//     validity_prover: &V,
-//     liquidity_contract: &LiquidityContract,
-//     key: KeySet,
-//     deposit_timeout: u64,
-// ) -> Result<DepositData, StrategyError> {
-//     log::info!("determine_withdrawals");
-//     let user_data = store_vault_server
-//         .get_user_data(key)
-//         .await?
-//         .map(|encrypted| UserData::decrypt(&encrypted, key))
-//         .transpose()
-//         .map_err(|e| StrategyError::UserDataDecryptionError(e.to_string()))?
-//         .unwrap_or(UserData::new(key.pubkey));
+/// Determine the
+pub async fn determine_claim<S: StoreVaultClientInterface, V: ValidityProverClientInterface>(
+    store_vault_server: &S,
+    validity_prover: &V,
+    liquidity_contract: &LiquidityContract,
+    key: KeySet,
+    deposit_timeout: u64,
+) -> Result<Option<(MetaDataWithBlockNumber, DepositData)>, StrategyError> {
+    log::info!("determine_claims");
+    let user_data = get_user_data(store_vault_server, key).await?;
+    let current_block_number = validity_prover.get_block_number().await?;
 
-//     let current_block_number = validity_prover.get_block_number().await?;
+    // get last block number from validity prover
+    let update_witness = validity_prover
+        .get_update_witness(
+            key.pubkey,
+            current_block_number,
+            current_block_number,
+            false,
+        )
+        .await?;
+    let last_block_number = update_witness.account_membership_proof.get_value() as u32;
 
-//     // get last block number from validity prover
-//     let update_witness = validity_prover
-//         .get_update_witness(
-//             key.pubkey,
-//             current_block_number,
-//             current_block_number,
-//             false,
-//         )
-//         .await?;
-//     let last_block_number = update_witness.account_membership_proof.get_value() as u32;
+    // get all deposit info
+    let deposit_info = fetch_deposit_info(
+        store_vault_server,
+        validity_prover,
+        liquidity_contract,
+        key,
+        &ProcessStatus::default(),
+        deposit_timeout,
+    )
+    .await?;
 
-//     // get all deposit info
-//     let deposit_info = fetch_deposit_info(
-//         store_vault_server,
-//         validity_prover,
-//         liquidity_contract,
-//         key,
-//         &ProcessStatus::default(),
-//         deposit_timeout,
-//     )
-//     .await?;
+    let current_time = chrono::Utc::now().timestamp() as u64;
 
-//     let current_time = chrono::Utc::now().timestamp() as u64;
+    let mut claim_candidates = Vec::new();
+    // get only deposits that last block number < deposit block number
+    for (meta, deposit_data) in &deposit_info.settled {
+        if user_data
+            .claim_status
+            .processed_uuids
+            .contains(&meta.meta.uuid)
+        {
+            // already processed
+            continue;
+        }
+        if !validate_eligible_deposit_amount(deposit_data.amount) {
+            // amount is not eligible for claim
+            continue;
+        }
+        if meta.block_number <= last_block_number {
+            // there is a send tx after the deposit, so this is not eligible for claim
+            continue;
+        }
+        let validity_witness = validity_prover
+            .get_validity_witness(meta.block_number)
+            .await?;
+        let deposit_block_timestamp = validity_witness.block_witness.block.timestamp;
+        let block_hash = validity_witness.block_witness.block.hash();
+        let deposit_salt = deposit_data.deposit_salt;
+        let lock_time = get_lock_time(block_hash, deposit_salt);
+        if deposit_block_timestamp + lock_time < current_time {
+            claim_candidates.push((meta.clone(), deposit_data.clone()));
+        }
+    }
 
-//     // get only deposits that last block number < deposit block number
-//     let claim_candidates = deposit_info
-//         .settled
-//         .into_iter()
-//         .filter(|(meta, _)| last_block_number < meta.block_number)
-//         .filter(|(_, data)| get_lock_time(meta.meta.lock_time, current_time))
-//         .collect_vec();
+    // pickup the largest deposit
+    let claim_data = claim_candidates
+        .into_iter()
+        .max_by_key(|(_, deposit_data)| deposit_data.amount);
 
-//     todo!()
-// }
+    Ok(claim_data)
+}
+
+async fn get_user_data<S: StoreVaultClientInterface>(
+    store_vault_server: &S,
+    key: KeySet,
+) -> Result<UserData, StrategyError> {
+    let user_data = store_vault_server
+        .get_user_data(key)
+        .await?
+        .map(|encrypted| UserData::decrypt(&encrypted, key))
+        .transpose()
+        .map_err(|e| StrategyError::UserDataDecryptionError(e.to_string()))?
+        .unwrap_or(UserData::new(key.pubkey));
+    Ok(user_data)
+}
+
+fn validate_eligible_deposit_amount(amount: U256) -> bool {
+    let amount: BigUint = amount.into();
+    let base = BigUint::from(10u32).pow(17); // 0.1 ETH
+    if base.clone() % amount.clone() != BigUint::from(0u32) {
+        // amount must be a divisor of 0.1 ETH
+        return false;
+    }
+    let mut ratio = base / amount;
+    while ratio > BigUint::from(1u32) {
+        // If temp is not divisible by 10, ratio is not 10^n
+        if ratio.clone() % 10u32 != BigUint::ZERO {
+            return false;
+        }
+        ratio /= 10u32;
+    }
+    true
+}
