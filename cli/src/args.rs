@@ -53,7 +53,7 @@ pub enum Commands {
     },
     History {
         #[clap(long)]
-        private_key: H256,
+        private_key: Option<H256>,
     },
     WithdrawalStatus {
         #[clap(long)]

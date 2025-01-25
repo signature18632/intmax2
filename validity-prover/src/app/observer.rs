@@ -7,7 +7,8 @@ use intmax2_zkp::{
     common::witness::full_block::FullBlock,
     ethereum_types::{bytes32::Bytes32, u32limb_trait::U32LimbTrait},
 };
-use sqlx::{postgres::PgPoolOptions, PgPool};
+
+use server_common::db::{DbPool, DbPoolConfig};
 
 use super::error::ObserverError;
 
@@ -18,7 +19,7 @@ const SLEEP_TIME: u64 = 10;
 #[derive(Clone)]
 pub struct Observer {
     rollup_contract: RollupContract,
-    pool: PgPool,
+    pool: DbPool,
 }
 
 impl Observer {
@@ -28,11 +29,12 @@ impl Observer {
         database_max_connections: u32,
         database_timeout: u64,
     ) -> Result<Self, ObserverError> {
-        let pool = PgPoolOptions::new()
-            .max_connections(database_max_connections)
-            .idle_timeout(std::time::Duration::from_secs(database_timeout))
-            .connect(database_url)
-            .await?;
+        let pool = DbPool::from_config(&DbPoolConfig {
+            max_connections: database_max_connections,
+            idle_timeout: database_timeout,
+            url: database_url.to_string(),
+        })
+        .await?;
 
         // Initialize with genesis block if table is empty
         let count = sqlx::query!("SELECT COUNT(*) as count FROM full_blocks")
@@ -390,6 +392,15 @@ impl Observer {
                 return Err(ObserverError::FullBlockSyncError(format!(
                     "First block mismatch: {} != {}",
                     first.full_block.block.block_number, next_block_number
+                )));
+            }
+        } else {
+            // no new blocks
+            let rollup_block_number = self.rollup_contract.get_latest_block_number().await?;
+            if next_block_number <= rollup_block_number {
+                return Err(ObserverError::FullBlockSyncError(format!(
+                    "next_block_number is less than rollup_block_number: {} <= {}",
+                    next_block_number, rollup_block_number
                 )));
             }
         }

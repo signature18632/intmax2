@@ -5,6 +5,7 @@ use opentelemetry_sdk::{
     Resource,
 };
 use opentelemetry_semantic_conventions::resource::{SERVICE_NAME, SERVICE_VERSION};
+use tracing::Span;
 
 pub fn init_tracer(
     name: &str,
@@ -37,4 +38,8 @@ pub fn init_tracer(
             .with_batch_exporter(exporter, runtime::Tokio)
             .build(),
     )
+}
+
+pub fn current_span() -> Span {
+    Span::current()
 }
