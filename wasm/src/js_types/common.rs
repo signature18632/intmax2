@@ -1,10 +1,10 @@
 use intmax2_interfaces::{
-    api::withdrawal_server::interface::{ContractWithdrawal, WithdrawalInfo},
+    api::withdrawal_server::interface::{ClaimInfo, ContractWithdrawal, WithdrawalInfo},
     data::meta_data::MetaData,
 };
 use intmax2_zkp::{
     common::{
-        generic_address::GenericAddress, transfer::Transfer, tx::Tx,
+        claim::Claim, generic_address::GenericAddress, transfer::Transfer, tx::Tx,
         withdrawal::get_withdrawal_nullifier,
     },
     ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
@@ -210,6 +210,28 @@ impl JsContractWithdrawal {
 
 #[derive(Debug, Clone)]
 #[wasm_bindgen(getter_with_clone)]
+pub struct JsClaim {
+    pub recipient: String,
+    pub amount: String,
+    pub nullifier: String,
+    pub block_hash: String,
+    pub block_number: u32,
+}
+
+impl From<Claim> for JsClaim {
+    fn from(claim: Claim) -> Self {
+        Self {
+            recipient: claim.recipient.to_hex(),
+            amount: claim.amount.to_string(),
+            nullifier: claim.nullifier.to_hex(),
+            block_hash: claim.block_hash.to_hex(),
+            block_number: claim.block_number,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[wasm_bindgen(getter_with_clone)]
 pub struct JsMetaData {
     pub timestamp: u64,
     pub uuid: String,
@@ -236,6 +258,22 @@ impl From<WithdrawalInfo> for JsWithdrawalInfo {
         Self {
             status: withdrawal_info.status.to_string(),
             contract_withdrawal: withdrawal_info.contract_withdrawal.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[wasm_bindgen(getter_with_clone)]
+pub struct JsClaimInfo {
+    pub status: String,
+    pub claim: JsClaim,
+}
+
+impl From<ClaimInfo> for JsClaimInfo {
+    fn from(claim_info: ClaimInfo) -> Self {
+        Self {
+            status: claim_info.status.to_string(),
+            claim: claim_info.claim.into(),
         }
     }
 }
