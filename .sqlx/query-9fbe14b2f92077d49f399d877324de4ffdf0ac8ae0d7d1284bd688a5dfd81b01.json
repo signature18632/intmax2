@@ -6,7 +6,7 @@
       {
         "ordinal": 0,
         "name": "full_block",
-        "type_info": "Jsonb"
+        "type_info": "Bytea"
       }
     ],
     "parameters": {

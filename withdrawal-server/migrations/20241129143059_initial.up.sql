@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS claims (
     status claim_status NOT NULL DEFAULT 'requested',
     pubkey CHAR(66) NOT NULL,
     recipient CHAR(42) NOT NULL,
+    nullifier CHAR(66) NOT NULL,
+    claim jsonb NOT NULL,
     single_claim_proof bytea,
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (uuid)
