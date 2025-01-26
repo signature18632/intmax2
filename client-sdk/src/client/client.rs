@@ -174,7 +174,7 @@ where
         // sync balance proof
         self.sync(key).await?;
 
-        let (user_data, _) = self.get_user_data_and_digest(key).await?;
+        let user_data = self.get_user_data(key).await?;
 
         let balance_proof =
             get_balance_proof(&user_data)?.ok_or(ClientError::CannotSendTxByZeroBalanceAccount)?;

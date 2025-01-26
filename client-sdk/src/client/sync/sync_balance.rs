@@ -40,8 +40,13 @@ where
     B: BalanceProverClientInterface,
     W: WithdrawalServerClientInterface,
 {
+    pub async fn get_user_data(&self, key: KeySet) -> Result<UserData, SyncError> {
+        let (user_data, _) = self.get_user_data_and_digest(key).await?;
+        Ok(user_data)
+    }
+
     /// Get the latest user data from the data store server
-    pub async fn get_user_data_and_digest(
+    pub(super) async fn get_user_data_and_digest(
         &self,
         key: KeySet,
     ) -> Result<(UserData, Option<Bytes32>), SyncError> {
@@ -255,9 +260,13 @@ where
         Ok(())
     }
 
-    async fn update_no_send(&self, key: KeySet, to_block_number: u32) -> Result<(), SyncError> {
+    pub(super) async fn update_no_send(
+        &self,
+        key: KeySet,
+        to_block_number: u32,
+    ) -> Result<(), SyncError> {
         log::info!("update_no_send: {:?}", to_block_number);
-        let (mut user_data, digest) = self.get_user_data_and_digest(key).await?;
+        let (mut user_data, prev_digest) = self.get_user_data_and_digest(key).await?;
         log::info!(
             "update_no_send: user_data.block_number {},  to_block_number {}",
             user_data.block_number()?,
@@ -289,7 +298,7 @@ where
         let balance_proof = CompressedBalanceProof::new(&new_balance_proof)?;
         user_data.balance_proof = Some(balance_proof);
         self.store_vault_server
-            .save_user_data(key, digest, &user_data.encrypt(key.pubkey))
+            .save_user_data(key, prev_digest, &user_data.encrypt(key.pubkey))
             .await?;
 
         Ok(())
