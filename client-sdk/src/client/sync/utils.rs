@@ -2,7 +2,10 @@ use intmax2_interfaces::{
     api::validity_prover::interface::ValidityProverClientInterface, data::user_data::UserData,
 };
 use intmax2_zkp::{
-    common::{private_state::FullPrivateState, salt::Salt, transfer::Transfer, trees::transfer_tree::TransferTree, tx::Tx, witness::spent_witness::SpentWitness},
+    common::{
+        private_state::FullPrivateState, salt::Salt, transfer::Transfer,
+        trees::transfer_tree::TransferTree, tx::Tx, witness::spent_witness::SpentWitness,
+    },
     constants::{NUM_TRANSFERS_IN_TX, TRANSFER_TREE_HEIGHT},
 };
 use plonky2::{
