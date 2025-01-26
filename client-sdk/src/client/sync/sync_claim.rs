@@ -119,15 +119,15 @@ where
                 deposit_time_witness,
                 update_witness,
             };
-            let _single_claim_proof = self
+            let single_claim_proof = self
                 .balance_prover
                 .prove_single_claim(key, &claim_witness)
                 .await?;
 
             // send claim request
-            // self.withdrawal_server
-            //     .request_claim(key.pubkey, &_single_claim_proof)
-            //     .await?;
+            self.withdrawal_server
+                .request_claim(key, &single_claim_proof)
+                .await?;
 
             // update user data
             let (mut user_data, prev_digest) = self.get_user_data_and_digest(key).await?;

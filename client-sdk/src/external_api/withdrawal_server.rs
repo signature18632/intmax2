@@ -1,24 +1,25 @@
+use super::utils::query::{get_request, post_request};
 use async_trait::async_trait;
-use intmax2_interfaces::api::{
-    error::ServerError,
-    withdrawal_server::{
-        interface::{Fee, WithdrawalInfo, WithdrawalServerClientInterface},
-        types::{
-            GetFeeResponse, GetWithdrawalInfoByRecipientRequest, GetWithdrawalInfoRequest,
-            GetWithdrawalInfoResponse, RequestWithdrawalRequest,
+use intmax2_interfaces::{
+    api::{
+        error::ServerError,
+        withdrawal_server::{
+            interface::{Fee, WithdrawalInfo, WithdrawalServerClientInterface},
+            types::{
+                GetFeeResponse, GetWithdrawalInfoByRecipientQuery, GetWithdrawalInfoRequest,
+                GetWithdrawalInfoResponse, RequestClaimRequest, RequestWithdrawalRequest,
+            },
         },
     },
+    utils::signature::Signable,
 };
-use intmax2_zkp::{
-    common::signature::{flatten::FlatG2, key_set::KeySet},
-    ethereum_types::{address::Address, u256::U256},
-};
+use intmax2_zkp::{common::signature::key_set::KeySet, ethereum_types::address::Address};
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
 
-use super::utils::query::{get_request, post_request};
+const TIME_TO_EXPIRY: u64 = 60; // 1 minute
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -47,29 +48,45 @@ impl WithdrawalServerClientInterface for WithdrawalServerClient {
 
     async fn request_withdrawal(
         &self,
-        pubkey: U256,
+        key: KeySet,
         single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> Result<(), ServerError> {
         let request = RequestWithdrawalRequest {
-            pubkey,
             single_withdrawal_proof: single_withdrawal_proof.clone(),
         };
+        let request_with_auth = request.sign(key, TIME_TO_EXPIRY);
         post_request::<_, ()>(
             &self.base_url,
             "/withdrawal-server/request-withdrawal",
-            Some(&request),
+            Some(&request_with_auth),
+        )
+        .await
+    }
+
+    async fn request_claim(
+        &self,
+        key: KeySet,
+        single_claim_proof: &ProofWithPublicInputs<F, C, D>,
+    ) -> Result<(), ServerError> {
+        let request = RequestClaimRequest {
+            single_claim_proof: single_claim_proof.clone(),
+        };
+        let request_with_auth = request.sign(key, TIME_TO_EXPIRY);
+        post_request::<_, ()>(
+            &self.base_url,
+            "/withdrawal-server/request-claim",
+            Some(&request_with_auth),
         )
         .await
     }
 
     async fn get_withdrawal_info(&self, key: KeySet) -> Result<Vec<WithdrawalInfo>, ServerError> {
-        let pubkey = key.pubkey;
-        let signature = FlatG2::default(); // todo: get signature from key
-        let query = GetWithdrawalInfoRequest { pubkey, signature };
-        let response: GetWithdrawalInfoResponse = get_request(
+        let request = GetWithdrawalInfoRequest;
+        let request_with_auth = request.sign(key, TIME_TO_EXPIRY);
+        let response: GetWithdrawalInfoResponse = post_request(
             &self.base_url,
             "/withdrawal-server/get-withdrawal-info",
-            Some(query),
+            Some(&request_with_auth),
         )
         .await?;
         Ok(response.withdrawal_info)
@@ -79,7 +96,7 @@ impl WithdrawalServerClientInterface for WithdrawalServerClient {
         &self,
         recipient: Address,
     ) -> Result<Vec<WithdrawalInfo>, ServerError> {
-        let query = GetWithdrawalInfoByRecipientRequest { recipient };
+        let query = GetWithdrawalInfoByRecipientQuery { recipient };
         let response: GetWithdrawalInfoResponse = get_request(
             &self.base_url,
             "/withdrawal-server/get-withdrawal-info-by-recipient",

@@ -197,7 +197,6 @@ impl WithdrawalServer {
     pub async fn get_withdrawal_info(
         &self,
         pubkey: U256,
-        _signature: FlatG2,
     ) -> Result<Vec<WithdrawalInfo>, WithdrawalServerError> {
         let pubkey_str = pubkey.to_hex();
         let records = sqlx::query!(

@@ -93,7 +93,7 @@ where
 
         // send withdrawal request
         self.withdrawal_server
-            .request_withdrawal(key.pubkey, &single_withdrawal_proof)
+            .request_withdrawal(key, &single_withdrawal_proof)
             .await?;
 
         // update user data

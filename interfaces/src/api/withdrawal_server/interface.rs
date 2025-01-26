@@ -111,8 +111,14 @@ pub trait WithdrawalServerClientInterface {
 
     async fn request_withdrawal(
         &self,
-        pubkey: U256,
+        key: KeySet,
         single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
+    ) -> Result<(), ServerError>;
+
+    async fn request_claim(
+        &self,
+        key: KeySet,
+        single_claim_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> Result<(), ServerError>;
 
     async fn get_withdrawal_info(&self, key: KeySet) -> Result<Vec<WithdrawalInfo>, ServerError>;
