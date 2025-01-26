@@ -64,6 +64,10 @@ pub enum Commands {
         #[clap(long)]
         private_key: H256,
     },
+    ClaimStatus {
+        #[clap(long)]
+        private_key: H256,
+    },
     ClaimWithdrawals {
         #[clap(long)]
         private_key: H256,

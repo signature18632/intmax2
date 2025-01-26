@@ -9,8 +9,9 @@ use intmax2_interfaces::{
     api::withdrawal_server::{
         interface::Fee,
         types::{
-            GetFeeResponse, GetWithdrawalInfoByRecipientQuery, GetWithdrawalInfoRequest,
-            GetWithdrawalInfoResponse, RequestClaimRequest, RequestWithdrawalRequest,
+            GetClaimInfoRequest, GetClaimInfoResponse, GetFeeResponse,
+            GetWithdrawalInfoByRecipientQuery, GetWithdrawalInfoRequest, GetWithdrawalInfoResponse,
+            RequestClaimRequest, RequestWithdrawalRequest,
         },
     },
     utils::signature::{Signable as _, WithAuth},
@@ -83,6 +84,24 @@ pub async fn get_withdrawal_info(
     Ok(Json(GetWithdrawalInfoResponse { withdrawal_info }))
 }
 
+#[post("/get-claim-info")]
+pub async fn get_claim_info(
+    state: Data<State>,
+    request: Json<WithAuth<GetClaimInfoRequest>>,
+) -> Result<Json<GetClaimInfoResponse>, Error> {
+    request
+        .inner
+        .verify(&request.auth)
+        .map_err(ErrorUnauthorized)?;
+    let pubkey = request.auth.pubkey;
+    let claim_info = state
+        .withdrawal_server
+        .get_claim_info(pubkey)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+    Ok(Json(GetClaimInfoResponse { claim_info }))
+}
+
 #[get("/get-withdrawal-info-by-recipient")]
 pub async fn get_withdrawal_info_by_recipient(
     state: Data<State>,
@@ -103,4 +122,5 @@ pub fn withdrawal_server_scope() -> Scope {
         .service(get_fee)
         .service(get_withdrawal_info)
         .service(get_withdrawal_info_by_recipient)
+        .service(get_claim_info)
 }

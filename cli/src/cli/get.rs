@@ -62,6 +62,20 @@ pub async fn withdrawal_status(key: KeySet) -> Result<(), CliError> {
     Ok(())
 }
 
+pub async fn claim_status(key: KeySet) -> Result<(), CliError> {
+    let client = get_client()?;
+    let claim_info = client.get_claim_info(key).await?;
+    println!("Withdrawal status:");
+    for (i, claim_info) in claim_info.iter().enumerate() {
+        let claim = claim_info.claim.clone();
+        println!(
+            "#{}: recipient: {}, amount: {}, status: {}",
+            i, claim.recipient, claim.amount, claim_info.status
+        );
+    }
+    Ok(())
+}
+
 pub async fn history(key: KeySet) -> Result<(), CliError> {
     let client = get_client()?;
     let history = client.fetch_history(key).await?;

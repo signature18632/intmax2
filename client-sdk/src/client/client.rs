@@ -4,7 +4,9 @@ use intmax2_interfaces::{
         block_builder::interface::BlockBuilderClientInterface,
         store_vault_server::interface::{DataType, SaveDataEntry, StoreVaultClientInterface},
         validity_prover::interface::ValidityProverClientInterface,
-        withdrawal_server::interface::{WithdrawalInfo, WithdrawalServerClientInterface},
+        withdrawal_server::interface::{
+            ClaimInfo, WithdrawalInfo, WithdrawalServerClientInterface,
+        },
     },
     data::{
         deposit_data::{DepositData, TokenType},
@@ -406,6 +408,11 @@ where
     ) -> Result<Vec<WithdrawalInfo>, ClientError> {
         let withdrawal_info = self.withdrawal_server.get_withdrawal_info(key).await?;
         Ok(withdrawal_info)
+    }
+
+    pub async fn get_claim_info(&self, key: KeySet) -> Result<Vec<ClaimInfo>, ClientError> {
+        let claim_info = self.withdrawal_server.get_claim_info(key).await?;
+        Ok(claim_info)
     }
 
     pub async fn fetch_history(&self, key: KeySet) -> Result<Vec<HistoryEntry>, ClientError> {

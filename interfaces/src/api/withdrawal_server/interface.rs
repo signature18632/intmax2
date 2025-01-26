@@ -127,4 +127,6 @@ pub trait WithdrawalServerClientInterface {
         &self,
         recipient: Address,
     ) -> Result<Vec<WithdrawalInfo>, ServerError>;
+
+    async fn get_claim_info(&self, key: KeySet) -> Result<Vec<ClaimInfo>, ServerError>;
 }

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::utils::signature::Signable;
 
-use super::interface::{Fee, WithdrawalInfo};
+use super::interface::{ClaimInfo, Fee, WithdrawalInfo};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -55,12 +55,28 @@ impl Signable for GetWithdrawalInfoRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetWithdrawalInfoByRecipientQuery {
-    pub recipient: Address,
+pub struct GetWithdrawalInfoResponse {
+    pub withdrawal_info: Vec<WithdrawalInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetWithdrawalInfoResponse {
-    pub withdrawal_info: Vec<WithdrawalInfo>,
+pub struct GetClaimInfoRequest;
+
+impl Signable for GetClaimInfoRequest {
+    fn content(&self) -> Vec<u8> {
+        vec![]
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetClaimInfoResponse {
+    pub claim_info: Vec<ClaimInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GetWithdrawalInfoByRecipientQuery {
+    pub recipient: Address,
 }

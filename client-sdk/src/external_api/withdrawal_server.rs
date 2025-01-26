@@ -4,9 +4,10 @@ use intmax2_interfaces::{
     api::{
         error::ServerError,
         withdrawal_server::{
-            interface::{Fee, WithdrawalInfo, WithdrawalServerClientInterface},
+            interface::{ClaimInfo, Fee, WithdrawalInfo, WithdrawalServerClientInterface},
             types::{
-                GetFeeResponse, GetWithdrawalInfoByRecipientQuery, GetWithdrawalInfoRequest,
+                GetClaimInfoRequest, GetClaimInfoResponse, GetFeeResponse,
+                GetWithdrawalInfoByRecipientQuery, GetWithdrawalInfoRequest,
                 GetWithdrawalInfoResponse, RequestClaimRequest, RequestWithdrawalRequest,
             },
         },
@@ -104,5 +105,17 @@ impl WithdrawalServerClientInterface for WithdrawalServerClient {
         )
         .await?;
         Ok(response.withdrawal_info)
+    }
+
+    async fn get_claim_info(&self, key: KeySet) -> Result<Vec<ClaimInfo>, ServerError> {
+        let request = GetClaimInfoRequest;
+        let request_with_auth = request.sign(key, TIME_TO_EXPIRY);
+        let response: GetClaimInfoResponse = post_request(
+            &self.base_url,
+            "/withdrawal-server/get-claim-info",
+            Some(&request_with_auth),
+        )
+        .await?;
+        Ok(response.claim_info)
     }
 }

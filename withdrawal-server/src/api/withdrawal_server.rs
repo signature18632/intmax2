@@ -9,7 +9,7 @@ use intmax2_interfaces::{
 };
 use intmax2_zkp::{
     circuits::claim::single_claim_processor::SingleClaimProcessor,
-    common::{claim::Claim, signature::flatten::FlatG2, withdrawal::Withdrawal},
+    common::{claim::Claim, withdrawal::Withdrawal},
     ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
     utils::conversion::ToU64,
 };
@@ -228,7 +228,6 @@ impl WithdrawalServer {
     pub async fn get_claim_info(
         &self,
         pubkey: U256,
-        _signature: FlatG2,
     ) -> Result<Vec<ClaimInfo>, WithdrawalServerError> {
         let pubkey_str = pubkey.to_hex();
         let records = sqlx::query!(
