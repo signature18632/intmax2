@@ -335,9 +335,11 @@ pub async fn determine_claim<S: StoreVaultClientInterface, V: ValidityProverClie
         let block_hash = validity_witness.block_witness.block.hash();
         let deposit_salt = deposit_data.deposit_salt;
         let lock_time = get_lock_time(block_hash, deposit_salt);
-        if deposit_block_timestamp + lock_time < current_time {
-            claim_candidates.push((meta.clone(), deposit_data.clone()));
+        if current_time <= deposit_block_timestamp + lock_time {
+            // not yet claimable
+            continue;
         }
+        claim_candidates.push((meta.clone(), deposit_data.clone()));
     }
 
     // pickup the largest deposit
