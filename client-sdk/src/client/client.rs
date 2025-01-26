@@ -40,7 +40,7 @@ use super::{
     config::ClientConfig,
     error::ClientError,
     history::{fetch_history, HistoryEntry},
-    sync::{balance_logic::generate_spent_witness, utils::get_balance_proof},
+    sync::utils::{generate_spent_witness, get_balance_proof},
 };
 
 pub struct Client<
