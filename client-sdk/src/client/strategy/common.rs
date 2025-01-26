@@ -9,6 +9,7 @@ use intmax2_interfaces::{
     },
 };
 use intmax2_zkp::common::signature::key_set::KeySet;
+use itertools::Itertools;
 
 use super::error::StrategyError;
 
@@ -32,6 +33,7 @@ pub async fn fetch_decrypt_validate<S: StoreVaultClientInterface, T: Encryption 
     let data_with_meta = encrypted_pending_data_with_meta
         .into_iter()
         .chain(encrypted_unprocessed_data_with_meta.into_iter())
+        .unique_by(|data_with_meta| data_with_meta.meta.uuid.clone()) // remove duplicates
         .filter_map(|data_with_meta| {
             let DataWithMetaData { meta, data } = data_with_meta;
             if process_status.processed_uuids.contains(&meta.uuid) {
