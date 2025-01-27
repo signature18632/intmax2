@@ -1,17 +1,21 @@
+use intmax2_client_sdk::client::strategy::mining::Mining;
 use intmax2_interfaces::{
     api::withdrawal_server::interface::{ClaimInfo, ContractWithdrawal, WithdrawalInfo},
     data::meta_data::MetaData,
 };
 use intmax2_zkp::{
     common::{
-        claim::Claim, generic_address::GenericAddress, transfer::Transfer, tx::Tx,
+        block::Block, claim::Claim, generic_address::GenericAddress, transfer::Transfer, tx::Tx,
         withdrawal::get_withdrawal_nullifier,
     },
     ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
 };
 use wasm_bindgen::{prelude::wasm_bindgen, JsError};
 
-use super::utils::{parse_address, parse_bytes32, parse_salt, parse_u256};
+use super::{
+    data::JsDepositData,
+    utils::{parse_address, parse_bytes32, parse_salt, parse_u256},
+};
 
 #[derive(Debug, Clone)]
 #[wasm_bindgen(getter_with_clone)]
@@ -274,6 +278,59 @@ impl From<ClaimInfo> for JsClaimInfo {
         Self {
             status: claim_info.status.to_string(),
             claim: claim_info.claim.into(),
+        }
+    }
+}
+
+// #[derive(Debug, Clone)]
+// pub struct Mining {
+//     pub meta: MetaDataWithBlockNumber,
+//     pub deposit_data: DepositData,
+//     pub block: Block,  // the first block that contains the deposit
+//     pub maturity: u64, // maturity unix timestamp
+//     pub status: MiningStatus,
+// }
+
+#[derive(Debug, Clone)]
+#[wasm_bindgen(getter_with_clone)]
+pub struct JsBlock {
+    pub prev_block_hash: String,
+    pub deposit_tree_root: String,
+    pub signature_hash: String,
+    pub timestamp: u64,
+    pub block_number: u32,
+}
+
+impl From<Block> for JsBlock {
+    fn from(block: Block) -> Self {
+        Self {
+            prev_block_hash: block.prev_block_hash.to_hex(),
+            deposit_tree_root: block.deposit_tree_root.to_hex(),
+            signature_hash: block.signature_hash.to_hex(),
+            timestamp: block.timestamp,
+            block_number: block.block_number,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+#[wasm_bindgen(getter_with_clone)]
+pub struct JsMining {
+    pub meta: JsMetaData,
+    pub deposit_data: JsDepositData,
+    pub block: JsBlock,
+    pub maturity: u64,
+    pub status: String,
+}
+
+impl From<Mining> for JsMining {
+    fn from(mining: Mining) -> Self {
+        Self {
+            meta: mining.meta.meta.into(),
+            deposit_data: mining.deposit_data.into(),
+            block: mining.block.into(),
+            maturity: mining.maturity,
+            status: mining.status.to_string(),
         }
     }
 }

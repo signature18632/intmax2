@@ -66,6 +66,10 @@ pub enum Commands {
         #[clap(long)]
         private_key: H256,
     },
+    MiningList {
+        #[clap(long)]
+        private_key: H256,
+    },
     ClaimStatus {
         #[clap(long)]
         private_key: H256,

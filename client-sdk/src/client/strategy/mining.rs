@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use intmax2_interfaces::{
     api::{
         store_vault_server::interface::StoreVaultClientInterface,
@@ -37,6 +39,16 @@ pub enum MiningStatus {
     Disqualified, // Disqualified because there is a send tx after the deposit
     Locking,      // In locking period
     Claimable,    // Claimable
+}
+
+impl Display for MiningStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MiningStatus::Disqualified => write!(f, "Disqualified"),
+            MiningStatus::Locking => write!(f, "Locking"),
+            MiningStatus::Claimable => write!(f, "Claimable"),
+        }
+    }
 }
 
 pub async fn fetch_mining_info<S: StoreVaultClientInterface, V: ValidityProverClientInterface>(
