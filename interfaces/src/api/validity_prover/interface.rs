@@ -29,6 +29,7 @@ pub struct DepositInfo {
 pub struct AccountInfo {
     pub account_id: Option<u64>,
     pub block_number: u32,
+    pub last_block_number: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

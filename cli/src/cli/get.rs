@@ -62,6 +62,20 @@ pub async fn withdrawal_status(key: KeySet) -> Result<(), CliError> {
     Ok(())
 }
 
+pub async fn mining_list(key: KeySet) -> Result<(), CliError> {
+    let client = get_client()?;
+    let minings = client.get_mining_list(key).await?;
+    println!("Mining list:");
+    for (i, mining) in minings.iter().enumerate() {
+        let maturity = format_timestamp(mining.maturity);
+        println!(
+            "#{}: deposit block :{}, deposit amount: {}, maturity: {}",
+            i, mining.block.block_number, mining.deposit_data.amount, maturity
+        );
+    }
+    Ok(())
+}
+
 pub async fn claim_status(key: KeySet) -> Result<(), CliError> {
     let client = get_client()?;
     let claim_info = client.get_claim_info(key).await?;

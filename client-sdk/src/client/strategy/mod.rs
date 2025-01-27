@@ -1,6 +1,7 @@
 pub mod common;
 pub mod deposit;
 pub mod error;
+pub mod mining;
 #[allow(clippy::module_inception)]
 pub mod strategy;
 pub mod transfer;

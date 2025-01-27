@@ -31,7 +31,7 @@ use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    client::{strategy::strategy::validate_mining_deposit_criteria, sync::utils::generate_salt},
+    client::{strategy::mining::validate_mining_deposit_criteria, sync::utils::generate_salt},
     external_api::{
         contract::{liquidity_contract::LiquidityContract, rollup_contract::RollupContract},
         utils::time::sleep_for,
@@ -42,6 +42,7 @@ use super::{
     config::ClientConfig,
     error::ClientError,
     history::{fetch_history, HistoryEntry},
+    strategy::mining::{fetch_mining_info, Mining},
     sync::utils::{generate_spent_witness, get_balance_proof},
 };
 
@@ -415,6 +416,18 @@ where
     ) -> Result<Vec<WithdrawalInfo>, ClientError> {
         let withdrawal_info = self.withdrawal_server.get_withdrawal_info(key).await?;
         Ok(withdrawal_info)
+    }
+
+    pub async fn get_mining_list(&self, key: KeySet) -> Result<Vec<Mining>, ClientError> {
+        let minings = fetch_mining_info(
+            &self.store_vault_server,
+            &self.validity_prover,
+            &self.liquidity_contract,
+            key,
+            self.config.deposit_timeout,
+        )
+        .await?;
+        Ok(minings)
     }
 
     pub async fn get_claim_info(&self, key: KeySet) -> Result<Vec<ClaimInfo>, ClientError> {

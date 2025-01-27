@@ -33,7 +33,7 @@ where
 {
     /// Sync the client's withdrawals and relays to the withdrawal server
     pub async fn sync_claim(&self, key: KeySet, recipient: Address) -> Result<(), SyncError> {
-        if let Some((meta, deposit_data)) = determine_claim(
+        if let Some(mining) = determine_claim(
             &self.store_vault_server,
             &self.validity_prover,
             &self.liquidity_contract,
@@ -42,7 +42,7 @@ where
         )
         .await?
         {
-            log::info!("sync_transfer: {:?}", meta);
+            log::info!("sync_claim: {:?}", mining.meta);
 
             // update to current block number
             let current_block_number = self.validity_prover.get_block_number().await?;
@@ -58,7 +58,7 @@ where
             }
 
             // collect witnesses
-            let deposit_block_number = meta.block_number;
+            let deposit_block_number = mining.block.block_number;
             let update_witness = self
                 .validity_prover
                 .get_update_witness(
@@ -75,7 +75,7 @@ where
                     deposit_block_number, last_block_number
                 )));
             }
-            let deposit_hash = deposit_data.deposit_hash().unwrap(); // safe to unwrap because it's already settled
+            let deposit_hash = mining.deposit_data.deposit_hash().unwrap(); // safe to unwrap because it's already settled
             let deposit_info = self
                 .validity_prover
                 .get_deposit_info(deposit_hash)
@@ -84,12 +84,6 @@ where
             let prev_block = self
                 .validity_prover
                 .get_validity_witness(deposit_block_number - 1)
-                .await?
-                .block_witness
-                .block;
-            let block = self
-                .validity_prover
-                .get_validity_witness(deposit_block_number)
                 .await?
                 .block_witness
                 .block;
@@ -103,15 +97,15 @@ where
                 .await?;
             let public_witness = DepositTimePublicWitness {
                 prev_block,
-                block,
+                block: mining.block,
                 prev_deposit_merkle_proof,
                 deposit_merkle_proof,
             };
             let deposit_time_witness = DepositTimeWitness {
                 public_witness,
                 deposit_index: deposit_info.deposit_index,
-                deposit: deposit_data.deposit().unwrap(),
-                deposit_salt: deposit_data.deposit_salt,
+                deposit: mining.deposit_data.deposit().unwrap(),
+                deposit_salt: mining.deposit_data.deposit_salt,
                 pubkey: key.pubkey,
             };
             let claim_witness = ClaimWitness {
@@ -131,13 +125,12 @@ where
 
             // update user data
             let (mut user_data, prev_digest) = self.get_user_data_and_digest(key).await?;
-            user_data.claim_status.process(meta.meta);
+            user_data.claim_status.process(mining.meta.meta.clone());
 
             self.store_vault_server
                 .save_user_data(key, prev_digest, &user_data.encrypt(key.pubkey))
                 .await?;
-
-            todo!()
+            log::info!("Claimed {}", mining.meta.meta.uuid.clone());
         } else {
             log::info!("No claim to sync");
         }
