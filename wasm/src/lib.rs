@@ -15,7 +15,7 @@ use intmax2_zkp::{
     ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
 };
 use js_types::{
-    common::{JsTransfer, JsWithdrawalInfo},
+    common::{JsClaimInfo, JsTransfer, JsWithdrawalInfo},
     data::{JsDepositData, JsDepositResult, JsTransferData, JsTxData, JsTxResult, JsUserData},
     history::JsHistoryEntry,
     utils::{parse_address, parse_u256},
@@ -54,6 +54,7 @@ pub async fn generate_intmax_account_from_eth_key(
 /// Function to take a backup before calling the deposit function of the liquidity contract.
 /// You can also get the pubkey_salt_hash from the return value.
 #[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
 pub async fn prepare_deposit(
     config: &Config,
     depositor: &str,
@@ -62,6 +63,7 @@ pub async fn prepare_deposit(
     token_type: u8,
     token_address: &str,
     token_id: &str,
+    is_mining: bool,
 ) -> Result<JsDepositResult, JsError> {
     init_logger();
     let depositor = parse_address(depositor)?;
@@ -79,6 +81,7 @@ pub async fn prepare_deposit(
             token_type,
             token_address,
             token_id,
+            is_mining,
         )
         .await
         .map_err(|e| JsError::new(&format!("failed to prepare deposit call: {}", e)))?;
@@ -171,13 +174,29 @@ pub async fn sync_withdrawals(config: &Config, private_key: &str) -> Result<(), 
     Ok(())
 }
 
+/// Synchronize the user's claim of staking mining, and send request to the withdrawal aggregator.
+/// It may take a long time to generate ZKP.
+#[wasm_bindgen]
+pub async fn sync_claim(
+    config: &Config,
+    private_key: &str,
+    recipient: &str,
+) -> Result<(), JsError> {
+    init_logger();
+    let key = str_privkey_to_keyset(private_key)?;
+    let client = get_client(config);
+    let recipient = parse_address(recipient)?;
+    client.sync_claim(key, recipient).await?;
+    Ok(())
+}
+
 /// Get the user's data. It is recommended to sync before calling this function.
 #[wasm_bindgen]
 pub async fn get_user_data(config: &Config, private_key: &str) -> Result<JsUserData, JsError> {
     init_logger();
     let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
-    let (user_data, _) = client.get_user_data_and_digest(key).await?;
+    let user_data = client.get_user_data(key).await?;
     Ok(user_data.into())
 }
 
@@ -191,6 +210,19 @@ pub async fn get_withdrawal_info(
     let client = get_client(config);
     let info = client.get_withdrawal_info(key).await?;
     let js_info = info.into_iter().map(JsWithdrawalInfo::from).collect();
+    Ok(js_info)
+}
+
+#[wasm_bindgen]
+pub async fn get_claim_info(
+    config: &Config,
+    private_key: &str,
+) -> Result<Vec<JsClaimInfo>, JsError> {
+    init_logger();
+    let key = str_privkey_to_keyset(private_key)?;
+    let client = get_client(config);
+    let info = client.get_claim_info(key).await?;
+    let js_info = info.into_iter().map(JsClaimInfo::from).collect();
     Ok(js_info)
 }
 

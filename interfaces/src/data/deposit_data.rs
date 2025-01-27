@@ -27,6 +27,9 @@ pub struct DepositData {
     pub token_address: Address,
     pub token_id: U256,
 
+    // mining info
+    pub is_mining: bool, // Whether the depositor is for mining
+
     pub token_index: Option<u32>, // The index of the token in the contract
 }
 

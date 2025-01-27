@@ -2,7 +2,10 @@ use intmax2_interfaces::{
     api::validity_prover::interface::ValidityProverClientInterface, data::user_data::UserData,
 };
 use intmax2_zkp::{
-    common::{salt::Salt, transfer::Transfer, trees::transfer_tree::TransferTree},
+    common::{
+        private_state::FullPrivateState, salt::Salt, transfer::Transfer,
+        trees::transfer_tree::TransferTree, tx::Tx, witness::spent_witness::SpentWitness,
+    },
     constants::{NUM_TRANSFERS_IN_TX, TRANSFER_TREE_HEIGHT},
 };
 use plonky2::{
@@ -21,6 +24,30 @@ const D: usize = 2;
 pub fn generate_salt() -> Salt {
     let mut rng = rand::thread_rng();
     Salt::rand(&mut rng)
+}
+
+pub async fn generate_spent_witness(
+    full_private_state: &FullPrivateState,
+    tx_nonce: u32,
+    transfers: &[Transfer],
+) -> Result<SpentWitness, SyncError> {
+    let transfer_tree = generate_transfer_tree(transfers);
+    let tx = Tx {
+        nonce: tx_nonce,
+        transfer_tree_root: transfer_tree.get_root(),
+    };
+    let new_salt = generate_salt();
+    let spent_witness = SpentWitness::new(
+        &full_private_state.asset_tree,
+        &full_private_state.to_private_state(),
+        &transfer_tree.leaves(), // this is padded
+        tx,
+        new_salt,
+    )
+    .map_err(|e| {
+        SyncError::WitnessGenerationError(format!("failed to generate spent witness: {}", e))
+    })?;
+    Ok(spent_witness)
 }
 
 pub fn generate_transfer_tree(transfers: &[Transfer]) -> TransferTree {
@@ -44,8 +71,8 @@ pub fn get_balance_proof(
     Ok(balance_proof)
 }
 
-const MAX_VALIDITY_PROVER_SYNC_TRIES: u32 = 5;
-const VALIDITY_PROVER_SYNC_SLEEP_TIME: u64 = 10;
+const MAX_VALIDITY_PROVER_SYNC_TRIES: u32 = 20;
+const VALIDITY_PROVER_SYNC_SLEEP_TIME: u64 = 5;
 
 pub async fn wait_till_validity_prover_synced<V: ValidityProverClientInterface>(
     validity_prover: &V,

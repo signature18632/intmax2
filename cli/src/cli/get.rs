@@ -15,7 +15,7 @@ pub async fn balance(key: KeySet) -> Result<(), CliError> {
     let client = get_client()?;
     client.sync(key).await?;
 
-    let (user_data, _) = client.get_user_data_and_digest(key).await?;
+    let user_data = client.get_user_data(key).await?;
     let mut balances: Vec<(u32, AssetLeaf)> = user_data.balances().0.into_iter().collect();
     balances.sort_by_key(|(i, _leaf)| *i);
 
@@ -57,6 +57,20 @@ pub async fn withdrawal_status(key: KeySet) -> Result<(), CliError> {
             withdrawal.token_index,
             withdrawal.amount,
             withdrawal_info.status
+        );
+    }
+    Ok(())
+}
+
+pub async fn claim_status(key: KeySet) -> Result<(), CliError> {
+    let client = get_client()?;
+    let claim_info = client.get_claim_info(key).await?;
+    println!("Withdrawal status:");
+    for (i, claim_info) in claim_info.iter().enumerate() {
+        let claim = claim_info.claim.clone();
+        println!(
+            "#{}: recipient: {}, amount: {}, status: {}",
+            i, claim.recipient, claim.amount, claim_info.status
         );
     }
     Ok(())

@@ -7,10 +7,9 @@ use intmax2_cli::{
         claim::claim_withdrawals,
         deposit::deposit,
         error::CliError,
-        get::{balance, history, withdrawal_status},
+        get::{balance, claim_status, history, withdrawal_status},
         send::{transfer, TransferInput},
-        sync::sync_withdrawals,
-        utils::post_empty_block,
+        sync::{sync_claim, sync_withdrawals},
     },
     format::{format_token_info, privkey_to_keyset},
 };
@@ -87,12 +86,14 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
             token_type,
             token_address,
             token_id,
+            is_mining,
         } => {
             let key = privkey_to_keyset(private_key);
             let amount = amount.map(|x| x.into());
             let token_id = token_id.map(|x| x.into());
             let (amount, token_address, token_id) =
                 format_token_info(token_type, amount, token_address, token_id)?;
+            let is_mining = is_mining.unwrap_or(false);
             deposit(
                 key,
                 eth_private_key,
@@ -100,6 +101,7 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
                 amount,
                 token_address,
                 token_id,
+                is_mining,
             )
             .await?;
         }
@@ -107,8 +109,12 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
             let key = privkey_to_keyset(private_key);
             sync_withdrawals(key).await?;
         }
-        Commands::PostEmptyBlock => {
-            post_empty_block().await?;
+        Commands::SyncClaim {
+            private_key,
+            recipient,
+        } => {
+            let key = privkey_to_keyset(private_key);
+            sync_claim(key, recipient).await?;
         }
         Commands::Balance { private_key } => {
             let key = generate_key(private_key);
@@ -121,6 +127,10 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
         Commands::WithdrawalStatus { private_key } => {
             let key = privkey_to_keyset(private_key);
             withdrawal_status(key).await?;
+        }
+        Commands::ClaimStatus { private_key } => {
+            let key = privkey_to_keyset(private_key);
+            claim_status(key).await?;
         }
         Commands::ClaimWithdrawals {
             private_key,

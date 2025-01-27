@@ -6,6 +6,9 @@ pub enum WithdrawalServerError {
     #[error("Single withdrawal proof verification error")]
     SingleWithdrawalVerificationError,
 
+    #[error("Single claim proof verification error")]
+    SingleClaimVerificationError,
+
     #[error("Serialization error {0}")]
     SerializationError(String),
 }

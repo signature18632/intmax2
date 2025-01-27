@@ -67,7 +67,7 @@ cd validity-prover && sqlx database setup && cargo run -r
 cd validity-prover-worker && cargo run -r
 ```
 
-5. Start withdrawal-serve
+5. Start withdrawal-server
 Example port: 9003
 ```bash
 cd withdrawal-server && sqlx database setup && cargo run -r

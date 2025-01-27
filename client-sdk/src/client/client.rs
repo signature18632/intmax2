@@ -4,7 +4,9 @@ use intmax2_interfaces::{
         block_builder::interface::BlockBuilderClientInterface,
         store_vault_server::interface::{DataType, SaveDataEntry, StoreVaultClientInterface},
         validity_prover::interface::ValidityProverClientInterface,
-        withdrawal_server::interface::{WithdrawalInfo, WithdrawalServerClientInterface},
+        withdrawal_server::interface::{
+            ClaimInfo, WithdrawalInfo, WithdrawalServerClientInterface,
+        },
     },
     data::{
         deposit_data::{DepositData, TokenType},
@@ -29,7 +31,7 @@ use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    client::sync::utils::generate_salt,
+    client::{strategy::strategy::validate_mining_deposit_criteria, sync::utils::generate_salt},
     external_api::{
         contract::{liquidity_contract::LiquidityContract, rollup_contract::RollupContract},
         utils::time::sleep_for,
@@ -40,7 +42,7 @@ use super::{
     config::ClientConfig,
     error::ClientError,
     history::{fetch_history, HistoryEntry},
-    sync::{balance_logic::generate_spent_witness, utils::get_balance_proof},
+    sync::utils::{generate_spent_witness, get_balance_proof},
 };
 
 pub struct Client<
@@ -96,6 +98,7 @@ where
     W: WithdrawalServerClientInterface,
 {
     /// Back up deposit information before calling the contract's deposit function
+    #[allow(clippy::too_many_arguments)]
     pub async fn prepare_deposit(
         &self,
         depositor: Address,
@@ -104,6 +107,7 @@ where
         token_type: TokenType,
         token_address: Address,
         token_id: U256,
+        is_mining: bool,
     ) -> Result<DepositResult, ClientError> {
         log::info!(
             "prepare_deposit: pubkey {}, amount {}, token_type {:?}, token_address {}, token_id {}",
@@ -113,6 +117,10 @@ where
             token_address,
             token_id
         );
+        if is_mining && !validate_mining_deposit_criteria(token_type, amount) {
+            return Err(ClientError::InvalidMiningDepositCriteria);
+        }
+
         let deposit_salt = generate_salt();
 
         // backup before contract call
@@ -126,6 +134,7 @@ where
             token_type,
             token_address,
             token_id,
+            is_mining,
             token_index: None,
         };
         let save_entry = SaveDataEntry {
@@ -174,7 +183,7 @@ where
         // sync balance proof
         self.sync(key).await?;
 
-        let (user_data, _) = self.get_user_data_and_digest(key).await?;
+        let user_data = self.get_user_data(key).await?;
 
         let balance_proof =
             get_balance_proof(&user_data)?.ok_or(ClientError::CannotSendTxByZeroBalanceAccount)?;
@@ -406,6 +415,11 @@ where
     ) -> Result<Vec<WithdrawalInfo>, ClientError> {
         let withdrawal_info = self.withdrawal_server.get_withdrawal_info(key).await?;
         Ok(withdrawal_info)
+    }
+
+    pub async fn get_claim_info(&self, key: KeySet) -> Result<Vec<ClaimInfo>, ClientError> {
+        let claim_info = self.withdrawal_server.get_claim_info(key).await?;
+        Ok(claim_info)
     }
 
     pub async fn fetch_history(&self, key: KeySet) -> Result<Vec<HistoryEntry>, ClientError> {

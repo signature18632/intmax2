@@ -28,6 +28,7 @@ pub struct UserData {
     pub transfer_status: ProcessStatus,
     pub tx_status: ProcessStatus,
     pub withdrawal_status: ProcessStatus,
+    pub claim_status: ProcessStatus,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
@@ -59,6 +60,7 @@ impl UserData {
             transfer_status: ProcessStatus::default(),
             tx_status: ProcessStatus::default(),
             withdrawal_status: ProcessStatus::default(),
+            claim_status: ProcessStatus::default(),
         }
     }
 

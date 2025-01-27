@@ -1,13 +1,9 @@
 use super::interface::{DepositInfo, TransitionProofTask};
 use crate::api::validity_prover::interface::AccountInfo;
 use intmax2_zkp::{
-    circuits::validity::validity_pis::ValidityPublicInputs,
     common::{
-        trees::{
-            block_hash_tree::BlockHashMerkleProof, deposit_tree::DepositMerkleProof,
-            sender_tree::SenderLeaf,
-        },
-        witness::update_witness::UpdateWitness,
+        trees::{block_hash_tree::BlockHashMerkleProof, deposit_tree::DepositMerkleProof},
+        witness::{update_witness::UpdateWitness, validity_witness::ValidityWitness},
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
 };
@@ -73,26 +69,14 @@ pub struct GetBlockNumberByTxTreeRootResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetValidityPisQuery {
+pub struct GetValidityWitnessQuery {
     pub block_number: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GetValidityPisResponse {
-    pub validity_pis: Option<ValidityPublicInputs>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetSenderLeavesQuery {
-    pub block_number: u32,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GetSenderLeavesResponse {
-    pub sender_leaves: Option<Vec<SenderLeaf>>,
+pub struct GetValidityWitnessResponse {
+    pub validity_witness: ValidityWitness,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

@@ -14,13 +14,11 @@ use intmax2_zkp::{
         private_state::FullPrivateState,
         salt::Salt,
         signature::key_set::KeySet,
-        transfer::Transfer,
-        tx::Tx,
         witness::{
             deposit_witness::DepositWitness, private_transition_witness::PrivateTransitionWitness,
             receive_deposit_witness::ReceiveDepositWitness,
-            receive_transfer_witness::ReceiveTransferWitness, spent_witness::SpentWitness,
-            transfer_witness::TransferWitness, tx_witness::TxWitness,
+            receive_transfer_witness::ReceiveTransferWitness, transfer_witness::TransferWitness,
+            tx_witness::TxWitness,
         },
     },
     ethereum_types::{bytes32::Bytes32, u256::U256},
@@ -31,10 +29,9 @@ use plonky2::{
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
 
-use super::{
-    error::SyncError,
-    utils::{generate_salt, generate_transfer_tree, wait_till_validity_prover_synced},
-};
+use crate::client::sync::utils::generate_spent_witness;
+
+use super::{error::SyncError, utils::wait_till_validity_prover_synced};
 
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
@@ -207,21 +204,16 @@ pub async fn update_send_by_sender<
     }
 
     // get witness
-    let validity_pis = validity_prover
-        .get_validity_pis(tx_block_number)
-        .await?
-        .ok_or(SyncError::InternalError(format!(
-            "validity public inputs not found for block number {}",
-            tx_block_number
-        )))?;
-
-    let sender_leaves = validity_prover
-        .get_sender_leaves(tx_block_number)
-        .await?
-        .ok_or(SyncError::InternalError(format!(
-            "sender leaves not found for block number {}",
-            tx_block_number
-        )))?;
+    let validity_witness = validity_prover
+        .get_validity_witness(tx_block_number)
+        .await?;
+    let validity_pis = validity_witness.to_validity_pis().map_err(|e| {
+        SyncError::InternalError(format!(
+            "failed to convert validity witness to validity public inputs: {}",
+            e
+        ))
+    })?;
+    let sender_leaves = validity_witness.block_witness.get_sender_tree().leaves();
     let tx_witness = TxWitness {
         validity_pis: validity_pis.clone(),
         sender_leaves: sender_leaves.clone(),
@@ -323,20 +315,16 @@ pub async fn update_send_by_receiver<
         ));
     }
     // get witness
-    let validity_pis = validity_prover
-        .get_validity_pis(tx_block_number)
-        .await?
-        .ok_or(SyncError::InternalError(format!(
-            "validity public inputs not found for block number {}",
-            tx_block_number
-        )))?;
-    let sender_leaves = validity_prover
-        .get_sender_leaves(tx_block_number)
-        .await?
-        .ok_or(SyncError::InternalError(format!(
-            "sender leaves not found for block number {}",
-            tx_block_number
-        )))?;
+    let validity_witness = validity_prover
+        .get_validity_witness(tx_block_number)
+        .await?;
+    let validity_pis = validity_witness.to_validity_pis().map_err(|e| {
+        SyncError::InternalError(format!(
+            "failed to convert validity witness to validity public inputs: {}",
+            e
+        ))
+    })?;
+    let sender_leaves = validity_witness.block_witness.get_sender_tree().leaves();
     // validation
     if !validity_pis.is_valid_block {
         return Err(SyncError::InvalidTransferError(
@@ -429,28 +417,4 @@ pub async fn update_no_send<V: ValidityProverClientInterface, B: BalanceProverCl
         .prove_update(key, key.pubkey, &update_witness, prev_balance_proof)
         .await?;
     Ok(balance_proof)
-}
-
-pub async fn generate_spent_witness(
-    full_private_state: &FullPrivateState,
-    tx_nonce: u32,
-    transfers: &[Transfer],
-) -> Result<SpentWitness, SyncError> {
-    let transfer_tree = generate_transfer_tree(transfers);
-    let tx = Tx {
-        nonce: tx_nonce,
-        transfer_tree_root: transfer_tree.get_root(),
-    };
-    let new_salt = generate_salt();
-    let spent_witness = SpentWitness::new(
-        &full_private_state.asset_tree,
-        &full_private_state.to_private_state(),
-        &transfer_tree.leaves(), // this is padded
-        tx,
-        new_salt,
-    )
-    .map_err(|e| {
-        SyncError::WitnessGenerationError(format!("failed to generate spent witness: {}", e))
-    })?;
-    Ok(spent_witness)
 }

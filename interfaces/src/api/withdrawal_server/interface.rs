@@ -2,7 +2,7 @@ use std::fmt::{self, Display, Formatter};
 
 use async_trait::async_trait;
 use intmax2_zkp::{
-    common::signature::key_set::KeySet,
+    common::{claim::Claim, signature::key_set::KeySet},
     ethereum_types::{address::Address, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
 };
 use plonky2::{
@@ -32,6 +32,13 @@ pub struct Fee {
 pub struct WithdrawalInfo {
     pub status: WithdrawalStatus,
     pub contract_withdrawal: ContractWithdrawal,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaimInfo {
+    pub status: ClaimStatus,
+    pub claim: Claim,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,14 +83,42 @@ impl Display for WithdrawalStatus {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub enum ClaimStatus {
+    Requested = 0,
+    Verified = 1,
+    Relayed = 2,
+    Success = 3,
+    Failed = 4, // Should be never used but just in case
+}
+
+impl Display for ClaimStatus {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            ClaimStatus::Requested => write!(f, "requested"),
+            ClaimStatus::Verified => write!(f, "verified"),
+            ClaimStatus::Relayed => write!(f, "relayed"),
+            ClaimStatus::Success => write!(f, "success"),
+            ClaimStatus::Failed => write!(f, "failed"),
+        }
+    }
+}
+
 #[async_trait(?Send)]
 pub trait WithdrawalServerClientInterface {
     async fn fee(&self) -> Result<Vec<Fee>, ServerError>;
 
     async fn request_withdrawal(
         &self,
-        pubkey: U256,
+        key: KeySet,
         single_withdrawal_proof: &ProofWithPublicInputs<F, C, D>,
+    ) -> Result<(), ServerError>;
+
+    async fn request_claim(
+        &self,
+        key: KeySet,
+        single_claim_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> Result<(), ServerError>;
 
     async fn get_withdrawal_info(&self, key: KeySet) -> Result<Vec<WithdrawalInfo>, ServerError>;
@@ -92,4 +127,6 @@ pub trait WithdrawalServerClientInterface {
         &self,
         recipient: Address,
     ) -> Result<Vec<WithdrawalInfo>, ServerError>;
+
+    async fn get_claim_info(&self, key: KeySet) -> Result<Vec<ClaimInfo>, ServerError>;
 }

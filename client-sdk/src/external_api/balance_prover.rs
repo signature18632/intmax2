@@ -4,7 +4,8 @@ use intmax2_interfaces::api::{
         interface::BalanceProverClientInterface,
         types::{
             ProveReceiveDepositRequest, ProveReceiveTransferRequest, ProveResponse,
-            ProveSendRequest, ProveSingleWithdrawalRequest, ProveSpentRequest, ProveUpdateRequest,
+            ProveSendRequest, ProveSingleClaimRequest, ProveSingleWithdrawalRequest,
+            ProveSpentRequest, ProveUpdateRequest,
         },
     },
     error::ServerError,
@@ -13,7 +14,7 @@ use intmax2_zkp::{
     common::{
         signature::key_set::KeySet,
         witness::{
-            receive_deposit_witness::ReceiveDepositWitness,
+            claim_witness::ClaimWitness, receive_deposit_witness::ReceiveDepositWitness,
             receive_transfer_witness::ReceiveTransferWitness, spent_witness::SpentWitness,
             tx_witness::TxWitness, update_witness::UpdateWitness,
             withdrawal_witness::WithdrawalWitness,
@@ -159,6 +160,23 @@ impl BalanceProverClientInterface for BalanceProverClient {
         let response: ProveResponse = post_request(
             &self.base_url,
             "/balance-prover/prove-single-withdrawal",
+            Some(&request),
+        )
+        .await?;
+        Ok(response.proof)
+    }
+
+    async fn prove_single_claim(
+        &self,
+        _key: KeySet,
+        claim_witness: &ClaimWitness<F, C, D>,
+    ) -> Result<ProofWithPublicInputs<F, C, D>, ServerError> {
+        let request = ProveSingleClaimRequest {
+            claim_witness: claim_witness.clone(),
+        };
+        let response: ProveResponse = post_request(
+            &self.base_url,
+            "/balance-prover/prove-single-claim",
             Some(&request),
         )
         .await?;

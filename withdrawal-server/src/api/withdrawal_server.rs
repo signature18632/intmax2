@@ -1,17 +1,24 @@
 use super::error::WithdrawalServerError;
-use crate::api::{encode::encode_plonky2_proof, status::SqlWithdrawalStatus};
+use crate::api::{
+    encode::encode_plonky2_proof,
+    status::{SqlClaimStatus, SqlWithdrawalStatus},
+};
 use intmax2_interfaces::{
-    api::withdrawal_server::interface::{ContractWithdrawal, WithdrawalInfo},
+    api::withdrawal_server::interface::{ClaimInfo, ContractWithdrawal, WithdrawalInfo},
     utils::circuit_verifiers::CircuitVerifiers,
 };
 use intmax2_zkp::{
-    common::{signature::flatten::FlatG2, withdrawal::Withdrawal},
+    circuits::claim::single_claim_processor::SingleClaimProcessor,
+    common::{claim::Claim, withdrawal::Withdrawal},
     ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
     utils::conversion::ToU64,
 };
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
-    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
+    plonk::{
+        circuit_data::VerifierCircuitData, config::PoseidonGoldilocksConfig,
+        proof::ProofWithPublicInputs,
+    },
 };
 use uuid::Uuid;
 
@@ -23,6 +30,7 @@ const D: usize = 2;
 
 pub struct WithdrawalServer {
     pub pool: DbPool,
+    pub single_claim_vd: VerifierCircuitData<F, C, D>,
 }
 
 impl WithdrawalServer {
@@ -37,7 +45,14 @@ impl WithdrawalServer {
             url: database_url.to_string(),
         })
         .await?;
-        Ok(Self { pool })
+
+        let validity_vd = CircuitVerifiers::load().get_validity_vd();
+        let single_claim_processor = SingleClaimProcessor::new(&validity_vd);
+        let single_claim_vd = single_claim_processor.get_verifier_data();
+        Ok(Self {
+            pool,
+            single_claim_vd,
+        })
     }
 
     pub async fn request_withdrawal(
@@ -115,10 +130,73 @@ impl WithdrawalServer {
         Ok(())
     }
 
+    pub async fn request_claim(
+        &self,
+        pubkey: U256,
+        single_claim_proof: &ProofWithPublicInputs<F, C, D>,
+    ) -> Result<(), WithdrawalServerError> {
+        // Verify the single claim proof
+        self.single_claim_vd
+            .verify(single_claim_proof.clone())
+            .map_err(|_| WithdrawalServerError::SingleClaimVerificationError)?;
+
+        let claim = Claim::from_u64_slice(&single_claim_proof.public_inputs.to_u64_vec());
+        let nullifier = claim.nullifier;
+        let nullifier_str = nullifier.to_hex();
+
+        // If there is already a request with the same withdrawal_hash, return early
+        let existing_request = sqlx::query!(
+            r#"
+            SELECT COUNT(*) as count
+            FROM claims
+            WHERE nullifier = $1
+            "#,
+            nullifier_str
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        let count = existing_request.count.unwrap_or(0);
+        if count > 0 {
+            return Ok(());
+        }
+
+        // Serialize the proof and public inputs
+        let proof_bytes = encode_plonky2_proof(single_claim_proof.clone(), &self.single_claim_vd)
+            .map_err(|e| WithdrawalServerError::SerializationError(e.to_string()))?;
+        let uuid_str = Uuid::new_v4().to_string();
+
+        let pubkey_str = pubkey.to_hex();
+        let recipient_str = claim.recipient.to_hex();
+        let claim_value = serde_json::to_value(claim)
+            .map_err(|e| WithdrawalServerError::SerializationError(e.to_string()))?;
+        sqlx::query!(
+            r#"
+            INSERT INTO claims (
+                uuid,
+                pubkey,
+                recipient,
+                single_claim_proof,
+                claim,
+                status
+            )
+            VALUES ($1, $2, $3, $4, $5, $6::claim_status)
+            "#,
+            uuid_str,
+            pubkey_str,
+            recipient_str,
+            proof_bytes,
+            claim_value,
+            SqlClaimStatus::Requested as SqlClaimStatus
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
     pub async fn get_withdrawal_info(
         &self,
         pubkey: U256,
-        _signature: FlatG2,
     ) -> Result<Vec<WithdrawalInfo>, WithdrawalServerError> {
         let pubkey_str = pubkey.to_hex();
         let records = sqlx::query!(
@@ -145,6 +223,36 @@ impl WithdrawalServer {
             });
         }
         Ok(withdrawal_infos)
+    }
+
+    pub async fn get_claim_info(
+        &self,
+        pubkey: U256,
+    ) -> Result<Vec<ClaimInfo>, WithdrawalServerError> {
+        let pubkey_str = pubkey.to_hex();
+        let records = sqlx::query!(
+            r#"
+            SELECT 
+                status as "status: SqlClaimStatus",
+                claim
+            FROM claims
+            WHERE pubkey = $1
+            "#,
+            pubkey_str
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut claim_infos = Vec::new();
+        for record in records {
+            let claim: Claim = serde_json::from_value(record.claim)
+                .map_err(|e| WithdrawalServerError::SerializationError(e.to_string()))?;
+            claim_infos.push(ClaimInfo {
+                status: record.status.into(),
+                claim,
+            });
+        }
+        Ok(claim_infos)
     }
 
     pub async fn get_withdrawal_info_by_recipient(

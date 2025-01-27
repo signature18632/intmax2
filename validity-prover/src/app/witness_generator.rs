@@ -9,12 +9,11 @@ use std::{
 use intmax2_client_sdk::external_api::contract::rollup_contract::RollupContract;
 use intmax2_interfaces::api::validity_prover::interface::{AccountInfo, DepositInfo};
 use intmax2_zkp::{
-    circuits::validity::validity_pis::ValidityPublicInputs,
     common::{
         block::Block,
         trees::{
             account_tree::AccountMembershipProof, block_hash_tree::BlockHashMerkleProof,
-            deposit_tree::DepositMerkleProof, sender_tree::SenderLeaf,
+            deposit_tree::DepositMerkleProof,
         },
         witness::{update_witness::UpdateWitness, validity_witness::ValidityWitness},
     },
@@ -158,7 +157,7 @@ impl WitnessGenerator {
         .await?;
         match record {
             Some(r) => {
-                let proof: ProofWithPublicInputs<F, C, D> = serde_json::from_value(r.proof)?;
+                let proof: ProofWithPublicInputs<F, C, D> = bincode::deserialize(&r.proof)?;
                 Ok(Some(proof))
             }
             None => Ok(None),
@@ -166,7 +165,12 @@ impl WitnessGenerator {
     }
 
     pub async fn sync(&self) -> Result<(), ValidityProverError> {
-        log::info!("Start sync validity prover");
+        log::info!(
+            "Start sync validity prover: current block number {}, observer block number {}, validity proof block number: {}",
+            self.get_last_block_number().await?,
+            self.observer.get_next_block_number().await? - 1,
+            self.get_latest_validity_proof_block_number().await?,
+        );
         self.sync_observer().await?;
 
         let last_block_number = self.get_last_block_number().await?;
@@ -228,10 +232,9 @@ impl WitnessGenerator {
             // Update database state
             let mut tx = self.pool.begin().await?;
             sqlx::query!(
-                "INSERT INTO validity_state (block_number, validity_witness, sender_leaves) VALUES ($1, $2, $3)",
+                "INSERT INTO validity_state (block_number, validity_witness) VALUES ($1, $2)",
                 block_number as i32,
-                serde_json::to_value(&validity_witness)?,
-                serde_json::to_value(&block_witness.get_sender_tree().leaves())?,
+                bincode::serialize(&validity_witness)?,
             )
             .execute(tx.as_mut())
             .await?;
@@ -336,12 +339,12 @@ impl WitnessGenerator {
         Ok(record.map(|r| r.block_number as u32))
     }
 
-    pub async fn get_validity_pis(
+    pub async fn get_validity_witness(
         &self,
         block_number: u32,
-    ) -> Result<Option<ValidityPublicInputs>, ValidityProverError> {
+    ) -> Result<ValidityWitness, ValidityProverError> {
         if block_number == 0 {
-            return Ok(Some(ValidityPublicInputs::genesis()));
+            return Ok(ValidityWitness::genesis());
         }
         let record = sqlx::query!(
             r#"
@@ -352,37 +355,10 @@ impl WitnessGenerator {
             block_number as i32,
         )
         .fetch_optional(&self.pool)
-        .await?;
-        let validity_pis = match record {
-            Some(record) => {
-                let validity_witness: ValidityWitness =
-                    serde_json::from_value(record.validity_witness.clone())?;
-                let validity_pis = validity_witness.to_validity_pis()?;
-                Some(validity_pis)
-            }
-            None => None,
-        };
-        Ok(validity_pis)
-    }
-
-    pub async fn get_sender_leaves(
-        &self,
-        block_number: u32,
-    ) -> Result<Option<Vec<SenderLeaf>>, ValidityProverError> {
-        let record = sqlx::query!(
-            "SELECT sender_leaves FROM validity_state WHERE block_number = $1",
-            block_number as i32
-        )
-        .fetch_optional(&self.pool)
-        .await?;
-
-        match record {
-            Some(r) => {
-                let leaves: Vec<SenderLeaf> = serde_json::from_value(r.sender_leaves)?;
-                Ok(Some(leaves))
-            }
-            None => Ok(None),
-        }
+        .await?
+        .ok_or(ValidityProverError::ValidityWitnessNotFound(block_number))?;
+        let validity_witness: ValidityWitness = bincode::deserialize(&record.validity_witness)?;
+        Ok(validity_witness)
     }
 
     pub async fn get_block_merkle_proof(

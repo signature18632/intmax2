@@ -6,7 +6,7 @@
       {
         "ordinal": 0,
         "name": "validity_witness",
-        "type_info": "Jsonb"
+        "type_info": "Bytea"
       }
     ],
     "parameters": {

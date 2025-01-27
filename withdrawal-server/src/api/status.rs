@@ -1,4 +1,4 @@
-use intmax2_interfaces::api::withdrawal_server::interface::WithdrawalStatus;
+use intmax2_interfaces::api::withdrawal_server::interface::{ClaimStatus, WithdrawalStatus};
 
 #[derive(Debug, sqlx::Type)]
 #[sqlx(type_name = "withdrawal_status")]
@@ -31,6 +31,41 @@ impl From<SqlWithdrawalStatus> for WithdrawalStatus {
             SqlWithdrawalStatus::Success => WithdrawalStatus::Success,
             SqlWithdrawalStatus::NeedClaim => WithdrawalStatus::NeedClaim,
             SqlWithdrawalStatus::Failed => WithdrawalStatus::Failed,
+        }
+    }
+}
+
+#[derive(Debug, sqlx::Type)]
+#[sqlx(type_name = "claim_status")]
+#[sqlx(rename_all = "snake_case")]
+pub enum SqlClaimStatus {
+    Requested,
+    Verified,
+    Relayed,
+    Success,
+    Failed,
+}
+
+impl From<ClaimStatus> for SqlClaimStatus {
+    fn from(status: ClaimStatus) -> Self {
+        match status {
+            ClaimStatus::Requested => SqlClaimStatus::Requested,
+            ClaimStatus::Verified => SqlClaimStatus::Relayed,
+            ClaimStatus::Relayed => SqlClaimStatus::Relayed,
+            ClaimStatus::Success => SqlClaimStatus::Success,
+            ClaimStatus::Failed => SqlClaimStatus::Failed,
+        }
+    }
+}
+
+impl From<SqlClaimStatus> for ClaimStatus {
+    fn from(val: SqlClaimStatus) -> Self {
+        match val {
+            SqlClaimStatus::Requested => ClaimStatus::Requested,
+            SqlClaimStatus::Verified => ClaimStatus::Verified,
+            SqlClaimStatus::Relayed => ClaimStatus::Relayed,
+            SqlClaimStatus::Success => ClaimStatus::Success,
+            SqlClaimStatus::Failed => ClaimStatus::Failed,
         }
     }
 }

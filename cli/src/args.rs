@@ -41,11 +41,18 @@ pub enum Commands {
         token_address: Option<EthAddress>,
         #[clap(long)]
         token_id: Option<u128>,
+        #[clap(long)]
+        is_mining: Option<bool>,
     },
-    PostEmptyBlock,
     SyncWithdrawals {
         #[clap(long)]
         private_key: H256,
+    },
+    SyncClaim {
+        #[clap(long)]
+        private_key: H256,
+        #[clap(long)]
+        recipient: EthAddress,
     },
     Balance {
         #[clap(long)]
@@ -56,6 +63,10 @@ pub enum Commands {
         private_key: Option<H256>,
     },
     WithdrawalStatus {
+        #[clap(long)]
+        private_key: H256,
+    },
+    ClaimStatus {
         #[clap(long)]
         private_key: H256,
     },

@@ -22,6 +22,7 @@ pub async fn deposit(
     amount: U256,
     token_address: Address,
     token_id: U256,
+    is_mining: bool,
 ) -> Result<(), CliError> {
     let client = get_client()?;
     let liquidity_contract = client.liquidity_contract.clone();
@@ -50,6 +51,7 @@ pub async fn deposit(
             token_type,
             token_address,
             token_id,
+            is_mining,
         )
         .await?;
 

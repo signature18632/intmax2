@@ -1,15 +1,20 @@
 use crate::api::state::State;
 use actix_web::{
+    error::ErrorUnauthorized,
     get, post,
     web::{Data, Json},
     Error, Scope,
 };
-use intmax2_interfaces::api::withdrawal_server::{
-    interface::Fee,
-    types::{
-        GetFeeResponse, GetWithdrawalInfoByRecipientRequest, GetWithdrawalInfoRequest,
-        GetWithdrawalInfoResponse, RequestWithdrawalRequest,
+use intmax2_interfaces::{
+    api::withdrawal_server::{
+        interface::Fee,
+        types::{
+            GetClaimInfoRequest, GetClaimInfoResponse, GetFeeResponse,
+            GetWithdrawalInfoByRecipientQuery, GetWithdrawalInfoRequest, GetWithdrawalInfoResponse,
+            RequestClaimRequest, RequestWithdrawalRequest,
+        },
     },
+    utils::signature::{Signable as _, WithAuth},
 };
 use serde_qs::actix::QsQuery;
 
@@ -26,34 +31,81 @@ pub async fn get_fee() -> Result<Json<GetFeeResponse>, Error> {
 #[post("/request-withdrawal")]
 pub async fn request_withdrawal(
     state: Data<State>,
-    request: Json<RequestWithdrawalRequest>,
+    request: Json<WithAuth<RequestWithdrawalRequest>>,
 ) -> Result<Json<()>, Error> {
+    request
+        .inner
+        .verify(&request.auth)
+        .map_err(ErrorUnauthorized)?;
+    let pubkey = request.auth.pubkey;
+    let single_withdrawal_proof = &request.inner.single_withdrawal_proof;
     state
         .withdrawal_server
-        .request_withdrawal(request.pubkey, &request.single_withdrawal_proof)
+        .request_withdrawal(pubkey, single_withdrawal_proof)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(()))
 }
 
-#[get("/get-withdrawal-info")]
-pub async fn get_withdrawal_info(
+#[post("/request-claim")]
+pub async fn request_claim(
     state: Data<State>,
-    query: QsQuery<GetWithdrawalInfoRequest>,
-) -> Result<Json<GetWithdrawalInfoResponse>, Error> {
-    let withdrawal_info = state
+    request: Json<WithAuth<RequestClaimRequest>>,
+) -> Result<Json<()>, Error> {
+    request
+        .inner
+        .verify(&request.auth)
+        .map_err(ErrorUnauthorized)?;
+    let pubkey = request.auth.pubkey;
+    let single_claim_proof = &request.inner.single_claim_proof;
+    state
         .withdrawal_server
-        .get_withdrawal_info(query.pubkey, query.signature.clone())
+        .request_claim(pubkey, single_claim_proof)
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
+    Ok(Json(()))
+}
 
+#[post("/get-withdrawal-info")]
+pub async fn get_withdrawal_info(
+    state: Data<State>,
+    request: Json<WithAuth<GetWithdrawalInfoRequest>>,
+) -> Result<Json<GetWithdrawalInfoResponse>, Error> {
+    request
+        .inner
+        .verify(&request.auth)
+        .map_err(ErrorUnauthorized)?;
+    let pubkey = request.auth.pubkey;
+    let withdrawal_info = state
+        .withdrawal_server
+        .get_withdrawal_info(pubkey)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetWithdrawalInfoResponse { withdrawal_info }))
+}
+
+#[post("/get-claim-info")]
+pub async fn get_claim_info(
+    state: Data<State>,
+    request: Json<WithAuth<GetClaimInfoRequest>>,
+) -> Result<Json<GetClaimInfoResponse>, Error> {
+    request
+        .inner
+        .verify(&request.auth)
+        .map_err(ErrorUnauthorized)?;
+    let pubkey = request.auth.pubkey;
+    let claim_info = state
+        .withdrawal_server
+        .get_claim_info(pubkey)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+    Ok(Json(GetClaimInfoResponse { claim_info }))
 }
 
 #[get("/get-withdrawal-info-by-recipient")]
 pub async fn get_withdrawal_info_by_recipient(
     state: Data<State>,
-    query: QsQuery<GetWithdrawalInfoByRecipientRequest>,
+    query: QsQuery<GetWithdrawalInfoByRecipientQuery>,
 ) -> Result<Json<GetWithdrawalInfoResponse>, Error> {
     let withdrawal_info = state
         .withdrawal_server
@@ -66,7 +118,9 @@ pub async fn get_withdrawal_info_by_recipient(
 pub fn withdrawal_server_scope() -> Scope {
     actix_web::web::scope("/withdrawal-server")
         .service(request_withdrawal)
+        .service(request_claim)
         .service(get_fee)
         .service(get_withdrawal_info)
         .service(get_withdrawal_info_by_recipient)
+        .service(get_claim_info)
 }

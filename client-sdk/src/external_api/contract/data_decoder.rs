@@ -207,7 +207,7 @@ fn parse_block(
         prev_block_hash,
         deposit_tree_root,
         signature_hash: signature.hash(),
-        timestamp: timestamp.into(),
+        timestamp,
         block_number,
     };
 

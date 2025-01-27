@@ -9,8 +9,8 @@ use intmax2_interfaces::api::validity_prover::types::{
     GetBlockMerkleProofResponse, GetBlockNumberByTxTreeRootQuery,
     GetBlockNumberByTxTreeRootResponse, GetBlockNumberResponse, GetDepositInfoQuery,
     GetDepositInfoResponse, GetDepositMerkleProofQuery, GetDepositMerkleProofResponse,
-    GetNextDepositIndexResponse, GetSenderLeavesQuery, GetSenderLeavesResponse,
-    GetUpdateWitnessQuery, GetUpdateWitnessResponse, GetValidityPisQuery, GetValidityPisResponse,
+    GetNextDepositIndexResponse, GetUpdateWitnessQuery, GetUpdateWitnessResponse,
+    GetValidityWitnessQuery, GetValidityWitnessResponse,
 };
 use serde_qs::actix::QsQuery;
 
@@ -81,6 +81,20 @@ pub async fn get_update_witness(
     Ok(Json(GetUpdateWitnessResponse { update_witness }))
 }
 
+#[get("/get-validity-witness")]
+pub async fn get_validity_witness(
+    state: Data<State>,
+    query: QsQuery<GetValidityWitnessQuery>,
+) -> Result<Json<GetValidityWitnessResponse>, Error> {
+    let query = query.into_inner();
+    let validity_witness = state
+        .witness_generator
+        .get_validity_witness(query.block_number)
+        .await
+        .map_err(actix_web::error::ErrorInternalServerError)?;
+    Ok(Json(GetValidityWitnessResponse { validity_witness }))
+}
+
 #[get("/get-deposit-info")]
 pub async fn get_deposit_info(
     state: Data<State>,
@@ -107,34 +121,6 @@ pub async fn get_block_number_by_tx_tree_root(
         .await
         .map_err(actix_web::error::ErrorInternalServerError)?;
     Ok(Json(GetBlockNumberByTxTreeRootResponse { block_number }))
-}
-
-#[get("/get-validity-pis")]
-pub async fn get_validity_pis(
-    state: Data<State>,
-    query: QsQuery<GetValidityPisQuery>,
-) -> Result<Json<GetValidityPisResponse>, Error> {
-    let query = query.into_inner();
-    let validity_pis = state
-        .witness_generator
-        .get_validity_pis(query.block_number)
-        .await
-        .map_err(actix_web::error::ErrorInternalServerError)?;
-    Ok(Json(GetValidityPisResponse { validity_pis }))
-}
-
-#[get("/get-sender-leaves")]
-pub async fn get_sender_leaves(
-    state: Data<State>,
-    query: QsQuery<GetSenderLeavesQuery>,
-) -> Result<Json<GetSenderLeavesResponse>, Error> {
-    let query = query.into_inner();
-    let sender_leaves = state
-        .witness_generator
-        .get_sender_leaves(query.block_number)
-        .await
-        .map_err(actix_web::error::ErrorInternalServerError)?;
-    Ok(Json(GetSenderLeavesResponse { sender_leaves }))
 }
 
 #[get("/get-block-merkle-proof")]
@@ -174,10 +160,9 @@ pub fn validity_prover_scope() -> actix_web::Scope {
         .service(get_next_deposit_index)
         .service(get_account_info)
         .service(get_update_witness)
+        .service(get_validity_witness)
         .service(get_deposit_info)
         .service(get_block_number_by_tx_tree_root)
-        .service(get_validity_pis)
-        .service(get_sender_leaves)
         .service(get_block_merkle_proof)
         .service(get_deposit_merkle_proof)
 }

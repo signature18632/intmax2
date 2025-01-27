@@ -72,7 +72,7 @@ pub async fn fetch_history<
     client: &Client<BB, S, V, B, W>,
     key: KeySet,
 ) -> Result<Vec<HistoryEntry>, ClientError> {
-    let (user_data, _) = client.get_user_data_and_digest(key).await?;
+    let user_data = client.get_user_data(key).await?;
 
     let mut history = Vec::new();
 
