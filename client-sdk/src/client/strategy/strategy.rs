@@ -4,7 +4,7 @@ use intmax2_interfaces::{
         validity_prover::interface::ValidityProverClientInterface,
     },
     data::{
-        deposit_data::DepositData,
+        deposit_data::{DepositData, TokenType},
         encryption::Encryption as _,
         meta_data::MetaDataWithBlockNumber,
         transfer_data::TransferData,
@@ -320,7 +320,7 @@ pub async fn determine_claim<S: StoreVaultClientInterface, V: ValidityProverClie
             // already processed
             continue;
         }
-        if !validate_eligible_deposit_amount(deposit_data.amount) {
+        if !validate_mining_deposit_criteria(deposit_data.token_type, deposit_data.amount) {
             // amount is not eligible for claim
             continue;
         }
@@ -364,7 +364,10 @@ async fn get_user_data<S: StoreVaultClientInterface>(
     Ok(user_data)
 }
 
-fn validate_eligible_deposit_amount(amount: U256) -> bool {
+pub fn validate_mining_deposit_criteria(token_type: TokenType, amount: U256) -> bool {
+    if token_type != TokenType::NATIVE {
+        return false;
+    }
     let amount: BigUint = amount.into();
     let base = BigUint::from(10u32).pow(17); // 0.1 ETH
     if base.clone() % amount.clone() != BigUint::from(0u32) {

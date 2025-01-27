@@ -31,7 +31,7 @@ use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    client::sync::utils::generate_salt,
+    client::{strategy::strategy::validate_mining_deposit_criteria, sync::utils::generate_salt},
     external_api::{
         contract::{liquidity_contract::LiquidityContract, rollup_contract::RollupContract},
         utils::time::sleep_for,
@@ -98,6 +98,7 @@ where
     W: WithdrawalServerClientInterface,
 {
     /// Back up deposit information before calling the contract's deposit function
+    #[allow(clippy::too_many_arguments)]
     pub async fn prepare_deposit(
         &self,
         depositor: Address,
@@ -106,6 +107,7 @@ where
         token_type: TokenType,
         token_address: Address,
         token_id: U256,
+        is_mining: bool,
     ) -> Result<DepositResult, ClientError> {
         log::info!(
             "prepare_deposit: pubkey {}, amount {}, token_type {:?}, token_address {}, token_id {}",
@@ -115,6 +117,10 @@ where
             token_address,
             token_id
         );
+        if is_mining && !validate_mining_deposit_criteria(token_type, amount) {
+            return Err(ClientError::InvalidMiningDepositCriteria);
+        }
+
         let deposit_salt = generate_salt();
 
         // backup before contract call
@@ -128,6 +134,7 @@ where
             token_type,
             token_address,
             token_id,
+            is_mining,
             token_index: None,
         };
         let save_entry = SaveDataEntry {

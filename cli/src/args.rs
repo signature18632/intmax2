@@ -41,6 +41,8 @@ pub enum Commands {
         token_address: Option<EthAddress>,
         #[clap(long)]
         token_id: Option<u128>,
+        #[clap(long)]
+        is_mining: Option<bool>,
     },
     SyncWithdrawals {
         #[clap(long)]

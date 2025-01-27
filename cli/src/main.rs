@@ -86,12 +86,14 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
             token_type,
             token_address,
             token_id,
+            is_mining,
         } => {
             let key = privkey_to_keyset(private_key);
             let amount = amount.map(|x| x.into());
             let token_id = token_id.map(|x| x.into());
             let (amount, token_address, token_id) =
                 format_token_info(token_type, amount, token_address, token_id)?;
+            let is_mining = is_mining.unwrap_or(false);
             deposit(
                 key,
                 eth_private_key,
@@ -99,6 +101,7 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
                 amount,
                 token_address,
                 token_id,
+                is_mining,
             )
             .await?;
         }

@@ -54,6 +54,7 @@ pub async fn generate_intmax_account_from_eth_key(
 /// Function to take a backup before calling the deposit function of the liquidity contract.
 /// You can also get the pubkey_salt_hash from the return value.
 #[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
 pub async fn prepare_deposit(
     config: &Config,
     depositor: &str,
@@ -62,6 +63,7 @@ pub async fn prepare_deposit(
     token_type: u8,
     token_address: &str,
     token_id: &str,
+    is_mining: bool,
 ) -> Result<JsDepositResult, JsError> {
     init_logger();
     let depositor = parse_address(depositor)?;
@@ -79,6 +81,7 @@ pub async fn prepare_deposit(
             token_type,
             token_address,
             token_id,
+            is_mining,
         )
         .await
         .map_err(|e| JsError::new(&format!("failed to prepare deposit call: {}", e)))?;

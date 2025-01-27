@@ -36,6 +36,9 @@ pub enum ClientError {
     #[error("Invalid block proposal: {0}")]
     InvalidBlockProposal(String),
 
+    #[error("Invalid mining deposit criteria")]
+    InvalidMiningDepositCriteria,
+
     #[error("Unexpected error: {0}")]
     UnexpectedError(String),
 }
