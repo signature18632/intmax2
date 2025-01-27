@@ -133,6 +133,10 @@ pub fn validate_mining_deposit_criteria(token_type: TokenType, amount: U256) -> 
     }
     let amount: BigUint = amount.into();
     let base = BigUint::from(10u32).pow(17); // 0.1 ETH
+    if amount < base {
+        // amount must be at least 0.1 ETH
+        return false;
+    }
     if base.clone() % amount.clone() != BigUint::from(0u32) {
         // amount must be a divisor of 0.1 ETH
         return false;

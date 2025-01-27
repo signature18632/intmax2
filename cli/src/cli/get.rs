@@ -69,8 +69,8 @@ pub async fn mining_list(key: KeySet) -> Result<(), CliError> {
     for (i, mining) in minings.iter().enumerate() {
         let maturity = format_timestamp(mining.maturity);
         println!(
-            "#{}: deposit block :{}, deposit amount: {}, maturity: {}",
-            i, mining.block.block_number, mining.deposit_data.amount, maturity
+            "#{}: deposit block :{}, deposit amount: {}, maturity: {}, status: {}",
+            i, mining.block.block_number, mining.deposit_data.amount, maturity, mining.status
         );
     }
     Ok(())
