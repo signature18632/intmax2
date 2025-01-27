@@ -82,7 +82,7 @@ async function main() {
   const balance = await getEthBalance(ethKey, env.L1_RPC_URL);
   console.log("balance: ", balance);
 
-  const depositResult = await prepare_deposit(config, ethAddress, publicKey, amount, tokenType, tokenAddress, tokenId);
+  const depositResult = await prepare_deposit(config, ethAddress, publicKey, amount, tokenType, tokenAddress, tokenId, false);
   const pubkeySaltHash = depositResult.deposit_data.pubkey_salt_hash;
   console.log("pubkeySaltHash: ", pubkeySaltHash);
 
