@@ -137,7 +137,7 @@ pub fn validate_mining_deposit_criteria(token_type: TokenType, amount: U256) -> 
         // amount must be a divisor of 0.1 ETH
         return false;
     }
-    let mut ratio = base / amount;
+    let mut ratio = amount / base;
     while ratio > BigUint::from(1u32) {
         // If temp is not divisible by 10, ratio is not 10^n
         if ratio.clone() % 10u32 != BigUint::ZERO {
