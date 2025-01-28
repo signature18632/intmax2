@@ -311,9 +311,19 @@ impl WitnessGenerator {
     pub async fn get_account_info(&self, pubkey: U256) -> Result<AccountInfo, ValidityProverError> {
         let block_number = self.get_last_block_number().await?;
         let account_id = self.account_tree.index(block_number as u64, pubkey).await?;
+        let last_block_number = if let Some(index) = account_id {
+            let account_leaf = self
+                .account_tree
+                .get_leaf(block_number as u64, index)
+                .await?;
+            account_leaf.value as u32
+        } else {
+            0
+        };
         Ok(AccountInfo {
             block_number,
             account_id,
+            last_block_number,
         })
     }
 

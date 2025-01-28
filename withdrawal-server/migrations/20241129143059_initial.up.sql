@@ -35,6 +35,8 @@ CREATE TABLE IF NOT EXISTS claims (
     nullifier CHAR(66) NOT NULL,
     claim jsonb NOT NULL,
     single_claim_proof bytea,
+    withdrawal_hash CHAR(66),
+    contract_withdrawal jsonb,
     created_at timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (uuid)
 );

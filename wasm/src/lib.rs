@@ -15,7 +15,7 @@ use intmax2_zkp::{
     ethereum_types::{u256::U256, u32limb_trait::U32LimbTrait},
 };
 use js_types::{
-    common::{JsClaimInfo, JsTransfer, JsWithdrawalInfo},
+    common::{JsClaimInfo, JsMining, JsTransfer, JsWithdrawalInfo},
     data::{JsDepositData, JsDepositResult, JsTransferData, JsTxData, JsTxResult, JsUserData},
     history::JsHistoryEntry,
     utils::{parse_address, parse_u256},
@@ -211,6 +211,16 @@ pub async fn get_withdrawal_info(
     let info = client.get_withdrawal_info(key).await?;
     let js_info = info.into_iter().map(JsWithdrawalInfo::from).collect();
     Ok(js_info)
+}
+
+#[wasm_bindgen]
+pub async fn get_mining_list(config: &Config, private_key: &str) -> Result<Vec<JsMining>, JsError> {
+    init_logger();
+    let key = str_privkey_to_keyset(private_key)?;
+    let client = get_client(config);
+    let minings = client.get_mining_list(key).await?;
+    let js_minings = minings.into_iter().map(JsMining::from).collect();
+    Ok(js_minings)
 }
 
 #[wasm_bindgen]

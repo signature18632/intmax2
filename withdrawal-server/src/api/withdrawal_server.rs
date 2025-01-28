@@ -167,6 +167,7 @@ impl WithdrawalServer {
 
         let pubkey_str = pubkey.to_hex();
         let recipient_str = claim.recipient.to_hex();
+        let nullifier_str = claim.nullifier.to_hex();
         let claim_value = serde_json::to_value(claim)
             .map_err(|e| WithdrawalServerError::SerializationError(e.to_string()))?;
         sqlx::query!(
@@ -175,15 +176,17 @@ impl WithdrawalServer {
                 uuid,
                 pubkey,
                 recipient,
+                nullifier,
                 single_claim_proof,
                 claim,
                 status
             )
-            VALUES ($1, $2, $3, $4, $5, $6::claim_status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7::claim_status)
             "#,
             uuid_str,
             pubkey_str,
             recipient_str,
+            nullifier_str,
             proof_bytes,
             claim_value,
             SqlClaimStatus::Requested as SqlClaimStatus
