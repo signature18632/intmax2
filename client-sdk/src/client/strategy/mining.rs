@@ -131,19 +131,8 @@ pub fn validate_mining_deposit_criteria(token_type: TokenType, amount: U256) -> 
     if token_type != TokenType::NATIVE {
         return false;
     }
+    // O.1 ETH, 1 ETH, 10 ETH, 100 ETH
+    let candidates: Vec<BigUint> = (0..4).map(|i| BigUint::from(10u32).pow(i + 17)).collect();
     let amount: BigUint = amount.into();
-    let base = BigUint::from(10u32).pow(17); // 0.1 ETH
-    if amount.clone() % base.clone() != BigUint::ZERO {
-        // amount must be a divisor of 0.1 ETH
-        return false;
-    }
-    let mut ratio = amount / base;
-    while ratio > BigUint::from(1u32) {
-        // If temp is not divisible by 10, ratio is not 10^n
-        if ratio.clone() % 10u32 != BigUint::ZERO {
-            return false;
-        }
-        ratio /= 10u32;
-    }
-    true
+    candidates.contains(&amount)
 }
