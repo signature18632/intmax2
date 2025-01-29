@@ -6,17 +6,13 @@ use intmax2_interfaces::{
     utils::circuit_verifiers::CircuitVerifiers,
 };
 use intmax2_zkp::{
-    circuits::claim::single_claim_processor::SingleClaimProcessor,
     common::{claim::Claim, withdrawal::Withdrawal},
     ethereum_types::{address::Address, u256::U256, u32limb_trait::U32LimbTrait},
     utils::conversion::ToU64,
 };
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
-    plonk::{
-        circuit_data::VerifierCircuitData, config::PoseidonGoldilocksConfig,
-        proof::ProofWithPublicInputs,
-    },
+    plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
 use uuid::Uuid;
 
@@ -28,7 +24,6 @@ const D: usize = 2;
 
 pub struct WithdrawalServer {
     pub pool: DbPool,
-    pub single_claim_vd: VerifierCircuitData<F, C, D>,
 }
 
 impl WithdrawalServer {
@@ -43,14 +38,7 @@ impl WithdrawalServer {
             url: database_url.to_string(),
         })
         .await?;
-
-        let validity_vd = CircuitVerifiers::load().get_validity_vd();
-        let single_claim_processor = SingleClaimProcessor::new(&validity_vd);
-        let single_claim_vd = single_claim_processor.get_verifier_data();
-        Ok(Self {
-            pool,
-            single_claim_vd,
-        })
+        Ok(Self { pool })
     }
 
     pub async fn request_withdrawal(
@@ -133,11 +121,6 @@ impl WithdrawalServer {
         pubkey: U256,
         single_claim_proof: &ProofWithPublicInputs<F, C, D>,
     ) -> Result<(), WithdrawalServerError> {
-        // Verify the single claim proof
-        self.single_claim_vd
-            .verify(single_claim_proof.clone())
-            .map_err(|_| WithdrawalServerError::SingleClaimVerificationError)?;
-
         let claim = Claim::from_u64_slice(&single_claim_proof.public_inputs.to_u64_vec());
         let nullifier = claim.nullifier;
         let nullifier_str = nullifier.to_hex();
