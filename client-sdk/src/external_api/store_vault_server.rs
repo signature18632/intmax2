@@ -5,7 +5,7 @@ use intmax2_interfaces::{
         store_vault_server::{
             interface::{DataType, SaveDataEntry, StoreVaultClientInterface},
             types::{
-                DataWithMetaData, GetDataBatchRequest, GetDataBatchResponse,
+                CursorOrder, DataWithMetaData, GetDataBatchRequest, GetDataBatchResponse,
                 GetDataSequenceRequest, GetDataSequenceResponse, GetSenderProofSetRequest,
                 GetSenderProofSetResponse, GetUserDataRequest, GetUserDataResponse, MetaDataCursor,
                 MetaDataCursorResponse, SaveDataBatchRequest, SaveDataBatchResponse,
@@ -14,13 +14,14 @@ use intmax2_interfaces::{
         },
     },
     data::meta_data::MetaData,
-    utils::signature::Signable,
+    utils::signature::{Auth, Signable, WithAuth},
 };
 use intmax2_zkp::{common::signature::key_set::KeySet, ethereum_types::bytes32::Bytes32};
 
 use super::utils::query::post_request;
 
-const TIME_TO_EXPIRY: u64 = 60; // 1 minute
+const TIME_TO_EXPIRY: u64 = 60; // 1 minute for normal requests
+const TIME_TO_EXPIRY_READONLY: u64 = 60 * 60 * 24; // 24 hours for readonly
 
 #[derive(Debug, Clone)]
 pub struct StoreVaultServerClient {
@@ -147,9 +148,16 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
 
         let mut has_more = true;
         let mut metadata_cursor = metadata_cursor.clone();
+        let auth = generate_auth_for_get_data_sequence(key);
         while has_more {
             let (data, cursor) = self
-                .get_data_sequence_inner(key, data_type, &metadata_cursor)
+                .get_data_sequence_native(
+                    data_type,
+                    &metadata_cursor,
+                    &None,
+                    &CursorOrder::Asc,
+                    &auth,
+                )
                 .await?;
             has_more = cursor.has_more;
             metadata_cursor = cursor.next_cursor;
@@ -160,20 +168,39 @@ impl StoreVaultClientInterface for StoreVaultServerClient {
 }
 
 impl StoreVaultServerClient {
-    async fn get_data_sequence_inner(
-        &self,
-        key: KeySet,
-        data_type: DataType,
-        metadata_cursor: &Option<MetaData>,
-    ) -> Result<(Vec<DataWithMetaData>, MetaDataCursorResponse), ServerError> {
-        let request = GetDataSequenceRequest {
-            data_type,
+    fn verify_auth_for_get_data_sequence(&self, auth: &Auth) -> anyhow::Result<()> {
+        let dummy_request = GetDataSequenceRequest {
+            data_type: DataType::Deposit,
             cursor: MetaDataCursor {
-                cursor: metadata_cursor.clone(),
+                cursor: None,
+                order: CursorOrder::Asc,
                 limit: None,
             },
         };
-        let request_with_auth = request.sign(key, TIME_TO_EXPIRY);
+        dummy_request.verify(auth)
+    }
+
+    pub async fn get_data_sequence_native(
+        &self,
+        data_type: DataType,
+        metadata_cursor: &Option<MetaData>,
+        limit: &Option<u32>,
+        order: &CursorOrder,
+        auth: &Auth,
+    ) -> Result<(Vec<DataWithMetaData>, MetaDataCursorResponse), ServerError> {
+        self.verify_auth_for_get_data_sequence(auth)
+            .map_err(|e| ServerError::InvalidAuth(e.to_string()))?;
+        let request_with_auth = WithAuth {
+            inner: GetDataSequenceRequest {
+                data_type,
+                cursor: MetaDataCursor {
+                    cursor: metadata_cursor.clone(),
+                    order: order.clone(),
+                    limit: *limit,
+                },
+            },
+            auth: auth.clone(),
+        };
         let response: GetDataSequenceResponse = post_request(
             &self.base_url,
             "/store-vault-server/get-data-sequence",
@@ -182,4 +209,18 @@ impl StoreVaultServerClient {
         .await?;
         Ok((response.data, response.cursor_response))
     }
+}
+
+pub fn generate_auth_for_get_data_sequence(key: KeySet) -> Auth {
+    // because auth is not dependent on the datatype and cursor, we can use a dummy request
+    let dummy_request = GetDataSequenceRequest {
+        data_type: DataType::Deposit,
+        cursor: MetaDataCursor {
+            cursor: None,
+            order: CursorOrder::Asc,
+            limit: None,
+        },
+    };
+    let dummy_request_with_auth = dummy_request.sign(key, TIME_TO_EXPIRY_READONLY);
+    dummy_request_with_auth.auth
 }

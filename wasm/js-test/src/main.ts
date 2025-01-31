@@ -195,9 +195,6 @@ async function sleep(sec: number) {
   return new Promise((resolve) => setTimeout(resolve, sec * 1000));
 }
 
-
-
-
 main().then(() => {
   process.exit(0);
 }).catch((err) => {
