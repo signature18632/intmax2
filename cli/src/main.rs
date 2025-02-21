@@ -1,13 +1,13 @@
 use clap::Parser;
 use colored::Colorize as _;
-use ethers::types::H256;
 use intmax2_cli::{
     args::{Args, Commands},
     cli::{
         claim::claim_withdrawals,
         deposit::deposit,
         error::CliError,
-        get::{balance, claim_status, history, mining_list, withdrawal_status},
+        get::{balance, claim_status, mining_list, withdrawal_status},
+        history::history,
         send::send_transfers,
         sync::{sync_claims, sync_withdrawals},
         withdrawal::send_withdrawal,
@@ -157,7 +157,7 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
             sync_claims(key, recipient, fee_token_index).await?;
         }
         Commands::Balance { private_key } => {
-            let key = generate_key(private_key);
+            let key = privkey_to_keyset(private_key);
             balance(key).await?;
         }
         Commands::History {
@@ -165,7 +165,7 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
             order,
             from,
         } => {
-            let key = generate_key(private_key);
+            let key = privkey_to_keyset(private_key);
             let order = order.unwrap_or_default();
             history(key, order, from).await?;
         }
@@ -206,21 +206,6 @@ async fn main_process(command: Commands) -> Result<(), CliError> {
         }
     }
     Ok(())
-}
-
-fn generate_key(private_key: Option<H256>) -> KeySet {
-    match private_key {
-        Some(private_key) => privkey_to_keyset(private_key),
-        None => {
-            let pubkey: H256 = std::env::var("PUBKEY").unwrap().parse().unwrap();
-            let mut rng = rand::thread_rng();
-            let mut key = KeySet::rand(&mut rng);
-            key.pubkey = BigUint::from_bytes_be(pubkey.as_bytes())
-                .try_into()
-                .unwrap();
-            key
-        }
-    }
 }
 
 #[derive(Debug, Deserialize)]
