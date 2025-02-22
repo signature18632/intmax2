@@ -26,6 +26,8 @@ pub enum Commands {
         token_index: u32,
         #[clap(long)]
         fee_token_index: Option<u32>,
+        #[clap(long, default_value = "false")]
+        wait: bool,
     },
     Withdrawal {
         #[clap(long)]
@@ -40,6 +42,8 @@ pub enum Commands {
         fee_token_index: Option<u32>,
         #[clap(long, default_value = "false")]
         with_claim_fee: bool,
+        #[clap(long, default_value = "false")]
+        wait: bool,
     },
     BatchTransfer {
         #[clap(long)]
@@ -48,6 +52,8 @@ pub enum Commands {
         csv_path: String,
         #[clap(long)]
         fee_token_index: Option<u32>,
+        #[clap(long, default_value = "false")]
+        wait: bool,
     },
     Deposit {
         #[clap(long)]
@@ -108,6 +114,12 @@ pub enum Commands {
         private_key: H256,
         #[clap(long)]
         eth_private_key: H256,
+    },
+    Resync {
+        #[clap(long)]
+        private_key: H256,
+        #[clap(long, default_value = "false")]
+        deep: bool,
     },
     GenerateKey,
     GenerateFromEthKey {

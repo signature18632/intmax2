@@ -13,7 +13,7 @@ use js_types::{
     data::{JsDepositResult, JsTxResult, JsUserData},
     fee::{JsFee, JsFeeQuote},
     payment_memo::JsPaymentMemoEntry,
-    utils::{parse_address, parse_u256},
+    utils::{parse_address, parse_bytes32, parse_u256},
     wrapper::JsTxRequestMemo,
 };
 use num_bigint::BigUint;
@@ -155,6 +155,23 @@ pub async fn query_and_finalize(
     Ok(tx_result.into())
 }
 
+#[wasm_bindgen]
+pub async fn get_tx_status(
+    config: &Config,
+    pubkey: &str,
+    tx_tree_root: &str,
+) -> Result<String, JsError> {
+    init_logger();
+    let client = get_client(config);
+    let pubkey = parse_h256_as_u256(pubkey)?;
+    let tx_tree_root = parse_bytes32(tx_tree_root)?;
+    let status = client
+        .get_tx_status(pubkey, tx_tree_root)
+        .await
+        .map_err(|e| JsError::new(&format!("failed to get tx status: {}", e)))?;
+    Ok(status.to_string())
+}
+
 /// Synchronize the user's balance proof. It may take a long time to generate ZKP.
 #[wasm_bindgen]
 pub async fn sync(config: &Config, private_key: &str) -> Result<(), JsError> {
@@ -162,6 +179,16 @@ pub async fn sync(config: &Config, private_key: &str) -> Result<(), JsError> {
     let key = str_privkey_to_keyset(private_key)?;
     let client = get_client(config);
     client.sync(key).await?;
+    Ok(())
+}
+
+/// Resynchronize the user's balance proof.
+#[wasm_bindgen]
+pub async fn resync(config: &Config, private_key: &str, is_deep: bool) -> Result<(), JsError> {
+    init_logger();
+    let key = str_privkey_to_keyset(private_key)?;
+    let client = get_client(config);
+    client.resync(key, is_deep).await?;
     Ok(())
 }
 
