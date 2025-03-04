@@ -11,6 +11,7 @@ use intmax2_zkp::{
     common::block_builder::{BlockProposal, UserSignature},
     constants::NUM_SENDERS_IN_BLOCK,
 };
+
 use redis::{aio::ConnectionManager, AsyncCommands, Client, RedisResult, Script};
 use serde::{Deserialize, Serialize};
 use tokio::{sync::Mutex, time::sleep};
@@ -139,7 +140,7 @@ impl RedisStorage {
         if result {
             // Set expiration separately if we got the lock
             // This prevents lock leakage if the instance crashes
-            let _: () = conn.expire(&lock_key, LOCK_TIMEOUT_SECONDS).await?;
+            let _: () = conn.expire(&lock_key, LOCK_TIMEOUT_SECONDS as i64).await?;
         }
 
         Ok(result)
@@ -270,6 +271,8 @@ impl RedisStorage {
         let conn_manager = ConnectionManager::new(client)
             .await
             .expect("Failed to create Redis connection manager");
+
+        log::info!("Redis storage initialized");
 
         Self {
             config: config.clone(),
@@ -506,7 +509,7 @@ impl Storage for RedisStorage {
                 pipe.set(last_processed_key, current_time.to_string());
 
                 // Execute the transaction
-                pipe.query_async(&mut conn).await?;
+                let _: () = pipe.query_async(&mut conn).await?;
 
                 Ok(())
             })
@@ -697,7 +700,7 @@ impl Storage for RedisStorage {
                     pipe.del(&signatures_key);
 
                     // Execute the transaction
-                    if let Err(e) = pipe.query_async::<_, ()>(&mut conn).await {
+                    if let Err(e) = pipe.query_async::<()>(&mut conn).await {
                         log::error!(
                             "Failed to execute transaction for block_id {}: {}",
                             block_id,
@@ -742,7 +745,7 @@ impl Storage for RedisStorage {
 
                 // Use BLPOP with a short timeout to avoid race conditions between multiple instances
                 let serialized_fee_collection: Option<(String, String)> =
-                    conn.blpop(&self.fee_collection_tasks_key, 1).await?;
+                    conn.blpop(&self.fee_collection_tasks_key, 1.0).await?;
 
                 // Return if there's no task
                 let serialized_fee_collection = match serialized_fee_collection {
@@ -774,7 +777,7 @@ impl Storage for RedisStorage {
                     }
 
                     // Execute the transaction
-                    pipe.query_async::<_, ()>(&mut conn).await?;
+                    let _: () = pipe.query_async(&mut conn).await?;
                 }
 
                 Ok(())
@@ -805,7 +808,7 @@ impl Storage for RedisStorage {
 
             // Try to get a task from high priority queue first using BLPOP with a short timeout
             let serialized_task: Option<(String, String)> =
-                conn.blpop(&self.block_post_tasks_hi_key, 1).await?;
+                conn.blpop(&self.block_post_tasks_hi_key, 1.0).await?;
 
             // If no high priority task, try low priority queue
             let serialized_task = match serialized_task {
@@ -813,7 +816,7 @@ impl Storage for RedisStorage {
                 None => {
                     // Try low priority queue
                     let serialized_task: Option<(String, String)> =
-                        conn.blpop(&self.block_post_tasks_lo_key, 1).await?;
+                        conn.blpop(&self.block_post_tasks_lo_key, 1.0).await?;
 
                     match serialized_task {
                         Some((_, value)) => value,
@@ -893,7 +896,7 @@ impl Storage for RedisStorage {
                 pipe.set(&empty_block_posted_at_key, current_time.to_string());
 
                 // Execute the transaction
-                pipe.query_async::<_, ()>(&mut conn).await?;
+                let _: () = pipe.query_async(&mut conn).await?;
 
                 Ok(())
             })
