@@ -6,6 +6,7 @@ members = [
     "wasm",
     "balance-prover",
     "store-vault-server",
+    "s3-store-vault",
     "validity-prover",
     "block-builder",
     "withdrawal-server",
@@ -18,7 +19,7 @@ exclude = ["job-servers/aggregator-prover"]
 resolver = "2"
 
 [workspace.package]
-version = "0.1.15"
+version = "0.1.16"
 edition = "2021"
 
 [workspace.dependencies]
