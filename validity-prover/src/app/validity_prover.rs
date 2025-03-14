@@ -643,8 +643,10 @@ impl ValidityProver {
                 .get_result(last_validity_proof_block_number)
                 .await?;
             if result.is_none() {
+                log::info!("result not found for {}", last_validity_proof_block_number);
                 break;
             }
+            log::info!("result found for {}", last_validity_proof_block_number);
 
             let result = result.unwrap();
             if let Some(error) = result.error {
@@ -664,6 +666,10 @@ impl ValidityProver {
                 .validity_circuit()
                 .prove(&transition_proof, &prev_proof)
                 .map_err(|e| ValidityProverError::FailedToGenerateValidityProof(e.to_string()))?;
+            log::info!(
+                "validity proof generated: {}",
+                last_validity_proof_block_number
+            );
             // Add a new validity proof to the validity_proofs table
             sqlx::query!(
                 r#"
@@ -689,7 +695,7 @@ impl ValidityProver {
     }
 
     // This function is used to setup all tasks in the task manager
-    pub async fn setup_tasks(&self) -> Result<(), ValidityProverError> {
+    async fn setup_tasks(&self) -> Result<(), ValidityProverError> {
         // clear all tasks
         self.manager.clear_all().await?;
 
@@ -711,20 +717,31 @@ impl ValidityProver {
                 validity_witness: validity_witness.clone(),
             };
             self.manager.add_task(block_number, &task).await?;
-
+            if block_number % 100 == 0 {
+                log::info!("Task setup for block number {}", block_number);
+            }
             prev_validity_pis = validity_witness.to_validity_pis().unwrap();
         }
 
         Ok(())
     }
 
-    pub async fn job(&self) -> Result<(), ValidityProverError> {
+    pub(crate) async fn job(&self) -> Result<(), ValidityProverError> {
         if self.config.sync_interval.is_none() {
             // If sync_interval is not set, we don't run the sync task
             return Ok(());
         }
         let sync_interval = self.config.sync_interval.unwrap();
 
+        let s = self.clone();
+        let _validity_prove_handler = tokio::spawn(async move {
+            loop {
+                s.generate_validity_proof().await.unwrap();
+                tokio::time::sleep(Duration::from_secs(2)).await;
+            }
+        });
+
+        // setup tasks after register generating validity proofs
         self.setup_tasks().await?;
 
         let is_syncing = Arc::new(AtomicBool::new(false));
@@ -761,14 +778,6 @@ impl ValidityProver {
             loop {
                 manager.cleanup_inactive_workers().await.unwrap();
                 tokio::time::sleep(Duration::from_secs(CLEANUP_INTERVAL)).await;
-            }
-        });
-
-        let s = self.clone();
-        let _validity_prove_handler = tokio::spawn(async move {
-            loop {
-                s.generate_validity_proof().await.unwrap();
-                tokio::time::sleep(Duration::from_secs(2)).await;
             }
         });
 
