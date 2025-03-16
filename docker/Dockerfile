@@ -36,12 +36,14 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/src/app/target/release/store-vault-server /app/
+COPY --from=builder /usr/src/app/target/release/s3-store-vault /app/
 COPY --from=builder /usr/src/app/target/release/withdrawal-server /app/
 COPY --from=builder /usr/src/app/target/release/block-builder /app/
 COPY --from=builder /usr/src/app/target/release/validity-prover /app/
 COPY --from=builder /usr/src/app/target/release/validity-prover-worker /app/
 
 RUN chmod +x /app/store-vault-server \
+    && chmod +x /app/s3-store-vault \
     && chmod +x /app/withdrawal-server \
     && chmod +x /app/block-builder \
     && chmod +x /app/validity-prover \
