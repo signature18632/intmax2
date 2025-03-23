@@ -1,4 +1,7 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    env,
+    sync::{Arc, RwLock},
+};
 
 use async_trait::async_trait;
 use base64::{prelude::BASE64_STANDARD, Engine};
@@ -42,9 +45,6 @@ use crate::external_api::utils::time::sleep_for;
 
 use super::utils::query::{get_request, post_request};
 
-const MAX_RETRIES: usize = 10;
-const RETRY_INTERVAL: usize = 5; // seconds
-
 type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
@@ -53,6 +53,9 @@ const D: usize = 2;
 pub struct PrivateZKPServerClient {
     base_url: String,
 
+    max_retries: usize,
+    retry_interval: u64,
+
     // rsa public key is used to encrypt the prove request
     // because async OnceLock is not stable, we use RwLock + Option instead
     pubkey: Arc<RwLock<Option<RsaPublicKey>>>,
@@ -60,8 +63,18 @@ pub struct PrivateZKPServerClient {
 
 impl PrivateZKPServerClient {
     pub fn new(base_url: &str) -> Self {
+        let max_retries = env::var("PRIVATE_ZKP_SERVER_MAX_RETRIES")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(25);
+        let retry_interval = env::var("PRIVATE_ZKP_SERVER_RETRY_INTERVAL")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(5);
         PrivateZKPServerClient {
             base_url: base_url.to_string(),
+            max_retries,
+            retry_interval,
             pubkey: Arc::new(RwLock::new(None)),
         }
     }
@@ -322,14 +335,14 @@ impl PrivateZKPServerClient {
                 )));
             }
 
-            if retries >= MAX_RETRIES {
+            if retries >= self.max_retries {
                 return Err(ServerError::UnknownError(format!(
                     "Failed to get proof after {} retries",
-                    MAX_RETRIES
+                    self.max_retries
                 )));
             }
             retries += 1;
-            sleep_for(RETRY_INTERVAL as u64).await;
+            sleep_for(self.retry_interval).await;
         }
     }
 
