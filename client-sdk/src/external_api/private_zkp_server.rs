@@ -1,7 +1,4 @@
-use std::{
-    env,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use async_trait::async_trait;
 use base64::{prelude::BASE64_STANDARD, Engine};
@@ -40,6 +37,7 @@ use plonky2::{
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
 };
 use rsa::{pkcs8::DecodePublicKey, RsaPublicKey};
+use serde::{Deserialize, Serialize};
 
 use crate::external_api::utils::time::sleep_for;
 
@@ -49,12 +47,17 @@ type F = GoldilocksField;
 type C = PoseidonGoldilocksConfig;
 const D: usize = 2;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrivateZKPServerConfig {
+    pub max_retries: usize,
+    pub retry_interval: u64,
+}
+
 #[derive(Debug, Clone)]
 pub struct PrivateZKPServerClient {
     base_url: String,
 
-    max_retries: usize,
-    retry_interval: u64,
+    config: PrivateZKPServerConfig,
 
     // rsa public key is used to encrypt the prove request
     // because async OnceLock is not stable, we use RwLock + Option instead
@@ -62,19 +65,10 @@ pub struct PrivateZKPServerClient {
 }
 
 impl PrivateZKPServerClient {
-    pub fn new(base_url: &str) -> Self {
-        let max_retries = env::var("PRIVATE_ZKP_SERVER_MAX_RETRIES")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(25);
-        let retry_interval = env::var("PRIVATE_ZKP_SERVER_RETRY_INTERVAL")
-            .ok()
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(5);
+    pub fn new(base_url: &str, config: &PrivateZKPServerConfig) -> Self {
         PrivateZKPServerClient {
             base_url: base_url.to_string(),
-            max_retries,
-            retry_interval,
+            config: config.clone(),
             pubkey: Arc::new(RwLock::new(None)),
         }
     }
@@ -335,14 +329,14 @@ impl PrivateZKPServerClient {
                 )));
             }
 
-            if retries >= self.max_retries {
+            if retries >= self.config.max_retries {
                 return Err(ServerError::UnknownError(format!(
                     "Failed to get proof after {} retries",
-                    self.max_retries
+                    self.config.max_retries
                 )));
             }
             retries += 1;
-            sleep_for(self.retry_interval).await;
+            sleep_for(self.config.retry_interval).await;
         }
     }
 
