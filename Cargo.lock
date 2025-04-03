@@ -1249,7 +1249,7 @@ dependencies = [
 
 [[package]]
 name = "balance-prover"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -1396,7 +1396,7 @@ dependencies = [
 
 [[package]]
 name = "block-builder"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -1732,7 +1732,7 @@ dependencies = [
 
 [[package]]
 name = "common"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "dotenv",
  "envy",
@@ -3805,7 +3805,7 @@ dependencies = [
 
 [[package]]
 name = "intmax2-cli"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3838,7 +3838,7 @@ dependencies = [
 
 [[package]]
 name = "intmax2-client-sdk"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3889,7 +3889,7 @@ dependencies = [
 
 [[package]]
 name = "intmax2-interfaces"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -3927,7 +3927,7 @@ dependencies = [
 
 [[package]]
 name = "intmax2-wasm-lib"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "anyhow",
  "bincode",
@@ -3956,13 +3956,14 @@ dependencies = [
 [[package]]
 name = "intmax2-zkp"
 version = "0.1.0"
-source = "git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli#58c26982dd15c53ac47b561e00bc1afd3441bd02"
+source = "git+https://github.com/InternetMaximalism/intmax2-zkp?branch=cli#3a80dbb1b3639945c1fca9553ee719b1d8393b07"
 dependencies = [
  "anyhow",
  "ark-bn254",
  "ark-ec",
  "ark-ff 0.4.2",
  "ark-std 0.4.0",
+ "base64 0.22.1",
  "bincode",
  "chrono",
  "env_logger",
@@ -4183,7 +4184,7 @@ dependencies = [
 
 [[package]]
 name = "legacy-store-vault-server"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -6217,7 +6218,7 @@ dependencies = [
 
 [[package]]
 name = "server-common"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -6673,7 +6674,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "store-vault-server"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -6935,7 +6936,7 @@ dependencies = [
 
 [[package]]
 name = "tests"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "actix",
  "actix-cors",
@@ -7620,7 +7621,7 @@ dependencies = [
 
 [[package]]
 name = "validity-prover"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -7656,7 +7657,7 @@ dependencies = [
 
 [[package]]
 name = "validity-prover-worker"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "actix-cors",
  "actix-web",
@@ -8169,7 +8170,7 @@ dependencies = [
 
 [[package]]
 name = "withdrawal-server"
-version = "0.1.18"
+version = "0.1.19"
 dependencies = [
  "actix-cors",
  "actix-web",
