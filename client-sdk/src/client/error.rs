@@ -63,6 +63,9 @@ pub enum ClientError {
     #[error("Unexpected error: {0}")]
     UnexpectedError(String),
 
+    #[error("Backup error: {0}")]
+    BackupError(String),
+
     #[error("Deserialization error: {0}")]
     DeserializeError(String),
 }

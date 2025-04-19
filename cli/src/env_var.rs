@@ -1,4 +1,5 @@
 use ethers::types::Address;
+use intmax2_interfaces::api::store_vault_server::types::StoreVaultType;
 use serde::Deserialize;
 
 use common::env::EnvType;
@@ -9,8 +10,9 @@ pub struct EnvVar {
 
     // client settings
     pub indexer_base_url: String,
-    pub store_vault_server_base_url: String,
-    pub use_s3: Option<bool>,
+    pub store_vault_type: StoreVaultType,
+    pub local_backup_path: Option<String>,
+    pub store_vault_server_base_url: Option<String>,
     pub validity_prover_base_url: String,
     pub balance_prover_base_url: String,
     pub use_private_zkp_server: Option<bool>,
