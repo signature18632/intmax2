@@ -9,19 +9,14 @@ use ethers::{
     types::{Address as EthAddress, H256},
 };
 use intmax2_interfaces::{
-    api::{
-        validity_prover::interface::Deposited, withdrawal_server::interface::ContractWithdrawal,
-    },
-    data::deposit_data::TokenType,
+    api::withdrawal_server::interface::ContractWithdrawal, data::deposit_data::TokenType,
 };
 use intmax2_zkp::ethereum_types::{
     address::Address, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait as _,
 };
+use serde::{Deserialize, Serialize};
 
-use crate::external_api::{
-    contract::{utils::get_latest_block_number, EVENT_BLOCK_RANGE},
-    utils::retry::with_retry,
-};
+use crate::external_api::utils::retry::with_retry;
 
 use super::{
     error::BlockchainError,
@@ -30,6 +25,35 @@ use super::{
     utils::{get_client, get_client_with_signer},
 };
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Deposited {
+    pub deposit_id: u64,
+    pub depositor: Address,
+    pub pubkey_salt_hash: Bytes32,
+    pub token_index: u32,
+    pub amount: U256,
+    pub is_eligible: bool,
+    pub deposited_at: u64,
+
+    // meta data
+    pub tx_hash: Bytes32,
+    pub eth_block_number: u64,
+    pub eth_tx_index: u64,
+}
+
+impl Deposited {
+    pub fn to_deposit(&self) -> intmax2_zkp::common::deposit::Deposit {
+        intmax2_zkp::common::deposit::Deposit {
+            depositor: self.depositor,
+            pubkey_salt_hash: self.pubkey_salt_hash,
+            amount: self.amount,
+            token_index: self.token_index,
+            is_eligible: self.is_eligible,
+        }
+    }
+}
+
 abigen!(Liquidity, "abi/Liquidity.json",);
 
 #[derive(Debug, Clone)]
@@ -37,21 +61,14 @@ pub struct LiquidityContract {
     pub rpc_url: String,
     pub chain_id: u64,
     pub address: EthAddress,
-    pub deployed_block_number: u64,
 }
 
 impl LiquidityContract {
-    pub fn new(
-        rpc_url: &str,
-        chain_id: u64,
-        address: EthAddress,
-        deployed_block_number: u64,
-    ) -> Self {
+    pub fn new(rpc_url: &str, chain_id: u64, address: EthAddress) -> Self {
         Self {
             rpc_url: rpc_url.to_string(),
             chain_id,
             address,
-            deployed_block_number,
         }
     }
 
@@ -64,8 +81,7 @@ impl LiquidityContract {
         let proxy =
             ProxyContract::deploy(rpc_url, chain_id, private_key, impl_address, &[]).await?;
         let address = proxy.address();
-        let deployed_block_number = proxy.deployed_block_number();
-        Ok(Self::new(rpc_url, chain_id, address, deployed_block_number))
+        Ok(Self::new(rpc_url, chain_id, address))
     }
 
     pub fn address(&self) -> EthAddress {
@@ -345,45 +361,27 @@ impl LiquidityContract {
 
     pub async fn get_deposited_events(
         &self,
-        from_block: u64,
-    ) -> Result<(Vec<Deposited>, u64), BlockchainError> {
-        log::info!("get_deposited_event: from_block={:?}", from_block);
-        let mut events = Vec::new();
-        let mut from_block = from_block;
-        let mut is_final = false;
-        let final_to_block = loop {
-            let mut to_block = from_block + EVENT_BLOCK_RANGE - 1;
-            let latest_block_number = get_latest_block_number(&self.rpc_url).await?;
-            if to_block > latest_block_number {
-                to_block = latest_block_number;
-                is_final = true;
-            }
-            if from_block > to_block {
-                break to_block;
-            }
-            log::info!(
-                "get_deposited_event: from_block={}, to_block={}",
-                from_block,
-                to_block
-            );
-            let contract = self.get_contract().await?;
-            let new_events = with_retry(|| async {
-                contract
-                    .deposited_filter()
-                    .address(self.address.into())
-                    .from_block(from_block)
-                    .to_block(to_block)
-                    .query_with_meta()
-                    .await
-            })
-            .await
-            .map_err(|_| BlockchainError::RPCError("failed to get deposited event".to_string()))?;
-            events.extend(new_events);
-            if is_final {
-                break to_block;
-            }
-            from_block += EVENT_BLOCK_RANGE;
-        };
+        from_eth_block: u64,
+        to_eth_block: u64,
+    ) -> Result<Vec<Deposited>, BlockchainError> {
+        log::info!(
+            "get_deposited_event: from_eth_block={}, to_eth_block={}",
+            from_eth_block,
+            to_eth_block
+        );
+        let contract = self.get_contract().await?;
+        let events = with_retry(|| async {
+            contract
+                .deposited_filter()
+                .address(self.address.into())
+                .from_block(from_eth_block)
+                .to_block(to_eth_block)
+                .query_with_meta()
+                .await
+        })
+        .await
+        .map_err(|e| BlockchainError::RPCError(format!("failed to get deposited event: {}", e)))?;
+
         let mut deposited_events = Vec::new();
         for (event, meta) in events {
             deposited_events.push(Deposited {
@@ -399,9 +397,11 @@ impl LiquidityContract {
                 is_eligible: event.is_eligible,
                 deposited_at: event.deposited_at.as_u64(),
                 tx_hash: Bytes32::from_bytes_be(&meta.transaction_hash.to_fixed_bytes()).unwrap(),
+                eth_block_number: meta.block_number.as_u64(),
+                eth_tx_index: meta.transaction_index.as_u64(),
             });
         }
         deposited_events.sort_by_key(|event| event.deposit_id);
-        Ok((deposited_events, final_to_block))
+        Ok(deposited_events)
     }
 }

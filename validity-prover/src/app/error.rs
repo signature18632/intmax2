@@ -1,19 +1,37 @@
 use intmax2_client_sdk::external_api::contract::error::BlockchainError;
 use intmax2_zkp::ethereum_types::{bytes32::Bytes32, EthereumTypeError};
+use redis::RedisError;
 use server_common::redis::task_manager::TaskManagerError;
 
 use crate::trees::merkle_tree::error::MerkleTreeError;
+
+use super::check_point_store::EventType;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ObserverError {
     #[error("Blockchain error: {0}")]
     BlockchainError(#[from] BlockchainError),
 
+    #[error("Leader election error: {0}")]
+    LeaderError(#[from] LeaderError),
+
     #[error("Database error: {0}")]
     DBError(#[from] sqlx::Error),
 
     #[error("Deserialization error: {0}")]
     DeserializationError(#[from] bincode::Error),
+
+    #[error("Event fetch error: {0}")]
+    EventFetchError(String),
+
+    #[error(
+        "Event gap detected: {event_type} expected: {expected_next_event_id} < got: {got_event_id}"
+    )]
+    EventGapDetected {
+        event_type: EventType,
+        expected_next_event_id: u64,
+        got_event_id: u64,
+    },
 
     #[error("Ethereum type error: {0}")]
     EthereumTypeError(#[from] EthereumTypeError),
@@ -35,9 +53,31 @@ pub enum ObserverError {
 }
 
 #[derive(Debug, thiserror::Error)]
+pub enum SettingConsistencyError {
+    #[error("Database error: {0}")]
+    DBError(#[from] sqlx::Error),
+
+    #[error("Mismatched setting: {0}")]
+    MismatchedSetting(String),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum LeaderError {
+    #[error("Redis error: {0}")]
+    RedisError(#[from] RedisError),
+    #[error("Failed to acquire leader lock")]
+    LockAcquisitionError,
+    #[error("Failed to extend leader lock")]
+    LockExtensionError,
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum ValidityProverError {
     #[error("Observer error: {0}")]
     ObserverError(#[from] ObserverError),
+
+    #[error("Leader election error: {0}")]
+    LeaderError(#[from] LeaderError),
 
     #[error("Block witness generation error: {0}")]
     BlockWitnessGenerationError(String),
@@ -47,6 +87,9 @@ pub enum ValidityProverError {
 
     #[error("Task manager error: {0}")]
     TaskManagerError(#[from] TaskManagerError),
+
+    #[error("Setting consistency error: {0}")]
+    SettingConsistencyError(#[from] SettingConsistencyError),
 
     #[error("Task error: {0}")]
     TaskError(String),
