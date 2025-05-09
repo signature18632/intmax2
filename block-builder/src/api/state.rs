@@ -1,10 +1,7 @@
-use std::sync::Arc;
+use intmax2_client_sdk::external_api::contract::utils::get_provider_with_fallback;
 
 use crate::{
-    app::{
-        block_builder::{BlockBuilder, RealEthBalanceProvider},
-        error::BlockBuilderError,
-    },
+    app::{block_builder::BlockBuilder, error::BlockBuilderError},
     EnvVar,
 };
 
@@ -15,7 +12,8 @@ pub struct State {
 
 impl State {
     pub async fn new(env: &EnvVar) -> Result<Self, BlockBuilderError> {
-        let block_builder = BlockBuilder::new(env, Arc::new(RealEthBalanceProvider)).await?;
+        let provider = get_provider_with_fallback(&[env.l2_rpc_url.clone()])?;
+        let block_builder = BlockBuilder::new(env, provider).await?;
         Ok(State { block_builder })
     }
 
@@ -28,8 +26,9 @@ impl State {
 mod tests {
     use std::panic::AssertUnwindSafe;
 
+    use alloy::primitives::Address;
+
     use super::*;
-    use ethers::types::Address;
 
     use crate::app::storage::redis_storage::test_redis_helper::{
         assert_and_stop, find_free_port, run_redis_docker, stop_redis_docker,
@@ -48,9 +47,8 @@ mod tests {
             redis_url: Some(format!("redis://localhost:{}", port).to_string()),
             cluster_id: Some("1".to_string()),
             l2_rpc_url: "http://localhost:8545".to_string(),
-            l2_chain_id: 1337,
-            rollup_contract_address: Address::zero(),
-            block_builder_registry_contract_address: Address::zero(),
+            rollup_contract_address: Address::default(),
+            block_builder_registry_contract_address: Address::default(),
             store_vault_server_base_url: "http://localhost:9000".to_string(),
             use_s3: Some(false),
             validity_prover_base_url: "http://localhost:9100".to_string(),
@@ -115,9 +113,8 @@ mod tests {
             redis_url: None,
             cluster_id: Some("1".to_string()),
             l2_rpc_url: "http://localhost:8545".to_string(),
-            l2_chain_id: 1337,
-            rollup_contract_address: Address::zero(),
-            block_builder_registry_contract_address: Address::zero(),
+            rollup_contract_address: Address::default(),
+            block_builder_registry_contract_address: Address::default(),
             store_vault_server_base_url: "http://localhost:9000".to_string(),
             use_s3: Some(false),
             validity_prover_base_url: "http://localhost:9100".to_string(),

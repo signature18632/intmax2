@@ -1,4 +1,5 @@
-use ethers::types::{Address, H256};
+use alloy::primitives::{Address, B256};
+use intmax2_zkp::ethereum_types::bytes32::Bytes32;
 use serde::Deserialize;
 
 pub mod api;
@@ -11,7 +12,6 @@ pub struct EnvVar {
     pub redis_url: Option<String>,
     pub cluster_id: Option<String>,
     pub l2_rpc_url: String,
-    pub l2_chain_id: u64,
     pub rollup_contract_address: Address,
     pub block_builder_registry_contract_address: Address,
 
@@ -19,7 +19,7 @@ pub struct EnvVar {
     pub use_s3: Option<bool>,
     pub validity_prover_base_url: String,
 
-    pub block_builder_private_key: H256,
+    pub block_builder_private_key: B256,
     pub eth_allowance_for_block: String,
 
     pub tx_timeout: u64,
@@ -30,7 +30,7 @@ pub struct EnvVar {
     pub gas_limit_for_block_post: Option<u64>,
     pub heart_beat_interval: u64,
 
-    pub beneficiary_pubkey: Option<H256>,
+    pub beneficiary_pubkey: Option<Bytes32>,
     pub registration_fee: Option<String>,
     pub non_registration_fee: Option<String>,
     pub registration_collateral_fee: Option<String>,

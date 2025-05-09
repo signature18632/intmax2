@@ -2,6 +2,7 @@ use crate::{
     app::status::{SqlClaimStatus, SqlWithdrawalStatus},
     Env,
 };
+use alloy::primitives::B256;
 use intmax2_interfaces::{
     api::{
         store_vault_server::interface::StoreVaultClientInterface,
@@ -15,7 +16,6 @@ use intmax2_interfaces::{
 };
 
 use super::{error::WithdrawalServerError, fee::parse_optional_fee_str};
-use ethers::types::H256;
 use intmax2_client_sdk::{
     client::{
         fee_payment::FeeType,
@@ -23,7 +23,10 @@ use intmax2_client_sdk::{
         sync::utils::quote_withdrawal_claim_fee,
     },
     external_api::{
-        contract::{rollup_contract::RollupContract, withdrawal_contract::WithdrawalContract},
+        contract::{
+            convert::convert_b256_to_bytes32, rollup_contract::RollupContract,
+            utils::NormalProvider, withdrawal_contract::WithdrawalContract,
+        },
         s3_store_vault::S3StoreVaultClient,
         store_vault_server::StoreVaultServerClient,
         validity_prover::ValidityProverClient,
@@ -47,7 +50,6 @@ use intmax2_zkp::{
     ethereum_types::{address::Address, bytes32::Bytes32, u256::U256, u32limb_trait::U32LimbTrait},
     utils::conversion::ToU64,
 };
-use num_bigint::BigUint;
 use plonky2::{
     field::goldilocks_field::GoldilocksField,
     plonk::{config::PoseidonGoldilocksConfig, proof::ProofWithPublicInputs},
@@ -127,7 +129,7 @@ impl WithdrawalServer {
     ///
     /// # Returns
     /// * `Result(Self)` - The instance itself or the error
-    pub async fn new(env: &Env) -> anyhow::Result<Self> {
+    pub async fn new(env: &Env, provider: NormalProvider) -> anyhow::Result<Self> {
         let pool = DbPool::from_config(&DbPoolConfig {
             max_connections: env.database_max_connections,
             idle_timeout: env.database_timeout,
@@ -147,16 +149,9 @@ impl WithdrawalServer {
             ))
         };
         let validity_prover = ValidityProverClient::new(&env.validity_prover_base_url);
-        let rollup_contract = RollupContract::new(
-            &env.l2_rpc_url,
-            env.l2_chain_id,
-            env.rollup_contract_address,
-        );
-        let withdrawal_contract = WithdrawalContract::new(
-            &env.l2_rpc_url,
-            env.l2_chain_id,
-            env.withdrawal_contract_address,
-        );
+        let rollup_contract = RollupContract::new(provider.clone(), env.rollup_contract_address);
+        let withdrawal_contract =
+            WithdrawalContract::new(provider, env.withdrawal_contract_address);
 
         Ok(Self {
             config,
@@ -636,11 +631,9 @@ impl WithdrawalServer {
     }
 }
 
-pub fn privkey_to_keyset(privkey: H256) -> KeySet {
-    let privkey: U256 = BigUint::from_bytes_be(privkey.as_bytes())
-        .try_into()
-        .unwrap();
-    KeySet::new(privkey)
+pub fn privkey_to_keyset(privkey: B256) -> KeySet {
+    let privkey: Bytes32 = convert_b256_to_bytes32(privkey);
+    KeySet::new(privkey.into())
 }
 
 #[cfg(test)]
@@ -760,10 +753,13 @@ pub mod test_withdrawal_server_helper {
 
 #[cfg(test)]
 mod tests {
-    use ethers::types::{H160, H256};
+    use alloy::{
+        primitives::Address,
+        providers::{mock::Asserter, ProviderBuilder},
+    };
     use intmax2_zkp::ethereum_types::u256::U256;
     use serde_json::json;
-    use std::{str::FromStr, thread::sleep, time::Duration};
+    use std::{str::FromStr as _, thread::sleep, time::Duration};
 
     use crate::{
         app::{
@@ -778,6 +774,15 @@ mod tests {
 
     use super::*;
 
+    fn get_provider() -> NormalProvider {
+        let provider_asserter = Asserter::new();
+        ProviderBuilder::default()
+            .with_gas_estimation()
+            .with_simple_nonce_management()
+            .fetch_chain_id()
+            .connect_mocked_client(provider_asserter)
+    }
+
     fn get_example_env() -> Env {
         Env {
             port: 9003,
@@ -790,23 +795,24 @@ mod tests {
             validity_prover_base_url: "http://localhost:9002".to_string(),
 
             l2_rpc_url: "http://127.0.0.1:8545".to_string(),
-            l2_chain_id: 31337,
-            rollup_contract_address: H160::from_str("0xe7f1725e7734ce288f8367e1bb143e90bb3f0512")
-                .unwrap(),
-            withdrawal_contract_address: H160::from_str(
+            rollup_contract_address: Address::from_str(
+                "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+            )
+            .unwrap(),
+            withdrawal_contract_address: Address::from_str(
                 "0x8a791620dd6260079bf849dc5567adc3f2fdc318",
             )
             .unwrap(),
 
             is_faster_mining: true,
             withdrawal_beneficiary_private_key: Some(
-                H256::from_str(
+                B256::from_str(
                     "0x1a1ef1bc29051c687773b8751961827400215d295e4ee2ef8754c7f831a3b447",
                 )
                 .unwrap(),
             ),
             claim_beneficiary_private_key: Some(
-                H256::from_str(
+                B256::from_str(
                     "0x1a1ef1bc29051c687773b8751961827400215d295e4ee2ef8754c7f831a3b447",
                 )
                 .unwrap(),
@@ -839,7 +845,7 @@ mod tests {
         let mut env = get_example_env();
         env.database_url =
             format!("postgres://postgres:password@localhost:{}/withdrawal", port).to_string();
-        let server = WithdrawalServer::new(&env).await;
+        let server = WithdrawalServer::new(&env, get_provider()).await;
 
         if let Err(err) = &server {
             stop_withdrawal_docker(cont_name);
@@ -1037,7 +1043,7 @@ mod keyset_tests {
     use num_bigint::BigUint;
     use plonky2_bn254::fields::recover::RecoverFromX as _;
 
-    fn assert_keyset_valid(h: H256) {
+    fn assert_keyset_valid(h: B256) {
         let keyset = privkey_to_keyset(h);
 
         // Get expected pubkey from privkey
@@ -1071,7 +1077,7 @@ mod keyset_tests {
     #[test]
     #[should_panic]
     fn test_zero_privkey() {
-        let h = H256::zero();
+        let h = B256::ZERO;
         assert_keyset_valid(h);
     }
 
@@ -1081,13 +1087,13 @@ mod keyset_tests {
     fn test_one_privkey() {
         let mut bytes = [0u8; 32];
         bytes[31] = 0x01;
-        let h = H256::from(bytes);
+        let h = B256::from(bytes);
         assert_keyset_valid(h);
     }
 
     #[test]
     fn test_max_privkey() {
-        let h = H256::from([0xFF; 32]);
+        let h = B256::from([0xFF; 32]);
         assert_keyset_valid(h);
     }
 
@@ -1095,7 +1101,7 @@ mod keyset_tests {
     fn test_near_max_privkey() {
         let mut bytes = [0xFF; 32];
         bytes[31] = 0xFE;
-        let h = H256::from(bytes);
+        let h = B256::from(bytes);
         assert_keyset_valid(h);
     }
 
@@ -1103,7 +1109,7 @@ mod keyset_tests {
     fn test_mid_privkey() {
         let mut bytes = [0u8; 32];
         bytes[0] = 0x80; // MSB = 1, rest = 0
-        let h = H256::from(bytes);
+        let h = B256::from(bytes);
         assert_keyset_valid(h);
     }
 
@@ -1111,7 +1117,7 @@ mod keyset_tests {
     fn test_leading_zeros_privkey() {
         let mut bytes = [0u8; 32];
         bytes[30] = 0x01;
-        let h = H256::from(bytes);
+        let h = B256::from(bytes);
         assert_keyset_valid(h);
     }
 }

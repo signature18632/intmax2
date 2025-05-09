@@ -1,7 +1,13 @@
-use ethers::types::H256;
+use alloy::{
+    primitives::B256,
+    transports::{RpcError, TransportErrorKind},
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum BlockchainError {
+    #[error("Contract error: {0}")]
+    ContractError(#[from] alloy::contract::Error),
+
     #[error("Insufficient funds: {0}")]
     InsufficientFunds(String),
 
@@ -9,7 +15,7 @@ pub enum BlockchainError {
     TransactionFailed(String),
 
     #[error("RPC error: {0}")]
-    RPCError(String),
+    RPCError(#[from] RpcError<TransportErrorKind>),
 
     #[error("Join error: {0}")]
     JoinError(String),
@@ -20,11 +26,8 @@ pub enum BlockchainError {
     #[error("Token not found")]
     TokenNotFound,
 
-    #[error("Block base fee not found")]
-    BlockBaseFeeNotFound,
-
     #[error("Transaction not found: {0:?}")]
-    TxNotFound(H256),
+    TxNotFound(B256),
 
     #[error("Transaction not found in batch")]
     TxNotFoundBatch,

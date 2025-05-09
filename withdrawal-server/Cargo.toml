@@ -12,7 +12,6 @@ chrono = { workspace = true }
 dotenv = { workspace = true }
 envy = { workspace = true }
 env_logger = { workspace = true }
-ethers = { workspace = true }
 hashbrown = { workspace = true }
 intmax2-zkp = { workspace = true }
 intmax2-client-sdk = { path = "../client-sdk" }
@@ -21,6 +20,7 @@ log = { workspace = true }
 plonky2 = { workspace = true }
 plonky2_bn254 = { git = "https://github.com/InternetMaximalism/plonky2_bn254" }
 reqwest = { workspace = true }
+alloy = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_qs = { workspace = true }

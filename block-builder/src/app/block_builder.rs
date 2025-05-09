@@ -1,12 +1,17 @@
-use ethers::types::H256;
+use alloy::{
+    primitives::{utils::parse_ether, B256},
+    providers::Provider,
+};
 use intmax2_client_sdk::{
     client::key_from_eth::generate_intmax_account_from_eth_key,
     external_api::{
         contract::{
             block_builder_registry::BlockBuilderRegistryContract,
-            error::BlockchainError,
+            convert::{
+                convert_address_to_alloy, convert_address_to_intmax, convert_u256_to_intmax,
+            },
             rollup_contract::RollupContract,
-            utils::{get_address, get_eth_balance},
+            utils::{get_address_from_private_key, NormalProvider},
         },
         s3_store_vault::S3StoreVaultClient,
         store_vault_server::StoreVaultServerClient,
@@ -46,7 +51,7 @@ pub const DEFAULT_POST_BLOCK_CHANNEL: u64 = 100;
 #[derive(Debug, Clone)]
 pub struct Config {
     pub block_builder_url: String,
-    pub block_builder_private_key: H256,
+    pub block_builder_private_key: B256,
     pub block_builder_address: Address,
     pub gas_limit_for_block_post: Option<u64>,
     pub eth_allowance_for_block: U256,
@@ -64,28 +69,6 @@ pub struct Config {
     pub non_registration_collateral_fee: Option<HashMap<u32, U256>>,
 }
 
-#[async_trait::async_trait]
-pub trait EthBalanceProvider: Send + Sync {
-    async fn get_eth_balance(
-        &self,
-        rpc_url: &str,
-        address: ethers::types::Address,
-    ) -> Result<ethers::types::U256, BlockchainError>;
-}
-
-pub struct RealEthBalanceProvider;
-
-#[async_trait::async_trait]
-impl EthBalanceProvider for RealEthBalanceProvider {
-    async fn get_eth_balance(
-        &self,
-        rpc_url: &str,
-        address: ethers::types::Address,
-    ) -> Result<ethers::types::U256, BlockchainError> {
-        get_eth_balance(rpc_url, address).await
-    }
-}
-
 #[derive(Clone)]
 pub struct BlockBuilder {
     pub config: Config,
@@ -95,15 +78,11 @@ pub struct BlockBuilder {
     pub registry_contract: BlockBuilderRegistryContract,
 
     pub storage: Arc<Box<dyn Storage>>,
-    pub balance_provider: Arc<dyn EthBalanceProvider>,
 }
 
 impl BlockBuilder {
     /// Create a new BlockBuilder instance
-    pub async fn new(
-        env: &EnvVar,
-        balance_provider: Arc<dyn EthBalanceProvider>,
-    ) -> Result<Self, BlockBuilderError> {
+    pub async fn new(env: &EnvVar, provider: NormalProvider) -> Result<Self, BlockBuilderError> {
         // Initialize clients
         let store_vault_server_client: Arc<Box<dyn StoreVaultClientInterface>> =
             if env.use_s3.unwrap_or(true) {
@@ -118,14 +97,9 @@ impl BlockBuilder {
                 )))
             };
         let validity_prover_client = ValidityProverClient::new(&env.validity_prover_base_url);
-        let rollup_contract = RollupContract::new(
-            &env.l2_rpc_url,
-            env.l2_chain_id,
-            env.rollup_contract_address,
-        );
+        let rollup_contract = RollupContract::new(provider.clone(), env.rollup_contract_address);
         let registry_contract = BlockBuilderRegistryContract::new(
-            &env.l2_rpc_url,
-            env.l2_chain_id,
+            provider,
             env.block_builder_registry_contract_address,
         );
         let config = Self::create_config(env)?;
@@ -138,15 +112,14 @@ impl BlockBuilder {
             rollup_contract,
             registry_contract,
             storage,
-            balance_provider,
         })
     }
 
     /// Create configuration from environment variables
     fn create_config(env: &EnvVar) -> Result<Config, BlockBuilderError> {
         let eth_allowance_for_block = {
-            let u = ethers::utils::parse_ether(env.eth_allowance_for_block.clone()).unwrap();
-            convert_u256_from_ether_to_intmax(u)
+            let u = parse_ether(&env.eth_allowance_for_block).unwrap();
+            convert_u256_to_intmax(u)
         };
         let registration_fee = env
             .registration_fee
@@ -178,7 +151,7 @@ impl BlockBuilder {
         }
         let beneficiary_pubkey = if use_fee {
             if let Some(beneficiary_pubkey) = env.beneficiary_pubkey.as_ref() {
-                Some(U256::from_bytes_be(beneficiary_pubkey.as_bytes()).unwrap())
+                Some((*beneficiary_pubkey).into())
             } else {
                 // generate from eth private key
                 let key = generate_intmax_account_from_eth_key(env.block_builder_private_key);
@@ -187,12 +160,11 @@ impl BlockBuilder {
         } else {
             None
         };
-        let block_builder_address = Address::from_bytes_be(
-            get_address(env.l2_chain_id, env.block_builder_private_key).as_bytes(),
-        )
-        .unwrap();
-
+        let block_builder_address =
+            convert_address_to_intmax(get_address_from_private_key(env.block_builder_private_key));
         // log configuration
+        log::info!("block_builder_address: {}", block_builder_address);
+        log::info!("block_builder_url: {}", env.block_builder_url);
         log::info!(
             "gas limit for block post: {:?}",
             env.gas_limit_for_block_post.clone()
@@ -262,20 +234,14 @@ impl BlockBuilder {
     /// Check RPC connection and block builder's balance
     pub async fn blockchain_health_check(&self) -> Result<(), BlockBuilderError> {
         log::info!("check_balance");
-        let rpc_url = self.registry_contract.rpc_url.clone();
-        let block_builder_address =
-            ethers::types::Address::from_slice(&self.config.block_builder_address.to_bytes_be());
+        let block_builder_address = convert_address_to_alloy(self.config.block_builder_address);
         let balance = self
-            .balance_provider
-            .get_eth_balance(&rpc_url, block_builder_address)
+            .registry_contract
+            .provider
+            .get_balance(block_builder_address)
             .await
-            .map_err(|e| {
-                BlockBuilderError::BlockChainHealthError(format!(
-                    "Failed to get block builder's balance: {}",
-                    e
-                ))
-            })?;
-        let balance = convert_u256_from_ether_to_intmax(balance);
+            .map_err(|e| BlockBuilderError::BlockChainHealthError(e.to_string()))?;
+        let balance = convert_u256_to_intmax(balance);
         log::info!("block builder balance: {}", balance);
         if balance < self.config.eth_allowance_for_block {
             return Err(BlockBuilderError::BlockChainHealthError(format!(
@@ -397,38 +363,26 @@ impl BlockBuilder {
     }
 }
 
-fn convert_u256_from_ether_to_intmax(
-    u: ethers::types::U256,
-) -> intmax2_zkp::ethereum_types::u256::U256 {
-    let mut buf = [0u8; 32];
-    u.to_big_endian(&mut buf);
-    intmax2_zkp::ethereum_types::u256::U256::from_bytes_be(&buf).unwrap()
-}
-
 #[cfg(test)]
 mod tests {
+    use alloy::{
+        primitives::Address as AlloyAddress,
+        providers::{mock::Asserter, ProviderBuilder},
+    };
+
     use crate::app::storage::redis_storage::test_redis_helper::{
         find_free_port, run_redis_docker, stop_redis_docker,
     };
 
     use super::*;
-    use ethers::types::{Address, U256};
 
-    use intmax2_client_sdk::external_api::contract::error::BlockchainError;
-
-    struct MockBalanceProvider {
-        value: U256,
-    }
-
-    #[async_trait::async_trait]
-    impl EthBalanceProvider for MockBalanceProvider {
-        async fn get_eth_balance(
-            &self,
-            _rpc_url: &str,
-            _address: Address,
-        ) -> Result<U256, BlockchainError> {
-            Ok(self.value)
-        }
+    fn get_provider() -> NormalProvider {
+        let provider_asserter = Asserter::new();
+        ProviderBuilder::default()
+            .with_gas_estimation()
+            .with_simple_nonce_management()
+            .fetch_chain_id()
+            .connect_mocked_client(provider_asserter)
     }
 
     #[tokio::test]
@@ -440,9 +394,8 @@ mod tests {
             redis_url: None,
             cluster_id: Some("1".to_string()),
             l2_rpc_url: "http://localhost:8545".to_string(),
-            l2_chain_id: 1337,
-            rollup_contract_address: Address::zero(),
-            block_builder_registry_contract_address: Address::zero(),
+            rollup_contract_address: AlloyAddress::default(),
+            block_builder_registry_contract_address: AlloyAddress::default(),
             store_vault_server_base_url: "http://localhost:9000".to_string(),
             use_s3: Some(false),
             validity_prover_base_url: "http://localhost:9100".to_string(),
@@ -465,14 +418,7 @@ mod tests {
             non_registration_collateral_fee: None,
         };
 
-        let block_builder = BlockBuilder::new(
-            &env,
-            Arc::new(MockBalanceProvider {
-                value: U256::from(42u64),
-            }),
-        )
-        .await
-        .unwrap();
+        let block_builder = BlockBuilder::new(&env, get_provider()).await.unwrap();
         let info = block_builder.get_fee_info();
 
         assert_eq!(
@@ -499,9 +445,8 @@ mod tests {
             redis_url: None,
             cluster_id: Some("1".to_string()),
             l2_rpc_url: "http://localhost:8545".to_string(),
-            l2_chain_id: 1337,
-            rollup_contract_address: Address::zero(),
-            block_builder_registry_contract_address: Address::zero(),
+            rollup_contract_address: AlloyAddress::default(),
+            block_builder_registry_contract_address: AlloyAddress::default(),
             store_vault_server_base_url: "http://localhost:9000".to_string(),
             use_s3: Some(false),
             validity_prover_base_url: "http://localhost:9100".to_string(),
@@ -524,14 +469,7 @@ mod tests {
             non_registration_collateral_fee: None,
         };
 
-        let block_builder = BlockBuilder::new(
-            &env,
-            Arc::new(MockBalanceProvider {
-                value: U256::from(42u64),
-            }),
-        )
-        .await
-        .unwrap();
+        let block_builder = BlockBuilder::new(&env, get_provider()).await.unwrap();
         let result = block_builder.blockchain_health_check().await;
 
         assert!(matches!(
@@ -549,9 +487,8 @@ mod tests {
             redis_url: None,
             cluster_id: Some("1".to_string()),
             l2_rpc_url: "http://localhost:8545".to_string(),
-            l2_chain_id: 1337,
-            rollup_contract_address: Address::zero(),
-            block_builder_registry_contract_address: Address::zero(),
+            rollup_contract_address: AlloyAddress::default(),
+            block_builder_registry_contract_address: AlloyAddress::default(),
             store_vault_server_base_url: "http://localhost:9000".to_string(),
             use_s3: Some(false),
             validity_prover_base_url: "http://localhost:9100".to_string(),
@@ -574,14 +511,7 @@ mod tests {
             non_registration_collateral_fee: None,
         };
 
-        let block_builder = BlockBuilder::new(
-            &env,
-            Arc::new(MockBalanceProvider {
-                value: U256::from(42u64),
-            }),
-        )
-        .await
-        .unwrap();
+        let block_builder = BlockBuilder::new(&env, get_provider()).await.unwrap();
         let result = block_builder.blockchain_health_check().await;
 
         assert!(matches!(
@@ -602,9 +532,8 @@ mod tests {
             redis_url: Some(format!("redis://localhost:{}", port).to_string()),
             cluster_id: Some("1".to_string()),
             l2_rpc_url: "http://localhost:8545".to_string(),
-            l2_chain_id: 1337,
-            rollup_contract_address: Address::zero(),
-            block_builder_registry_contract_address: Address::zero(),
+            rollup_contract_address: AlloyAddress::default(),
+            block_builder_registry_contract_address: AlloyAddress::default(),
             store_vault_server_base_url: "http://localhost:9000".to_string(),
             use_s3: Some(false),
             validity_prover_base_url: "http://localhost:9100".to_string(),
@@ -637,14 +566,7 @@ mod tests {
             String::from_utf8_lossy(&output.stderr)
         );
 
-        let _ = BlockBuilder::new(
-            &env,
-            Arc::new(MockBalanceProvider {
-                value: U256::from(42u64),
-            }),
-        )
-        .await
-        .unwrap();
+        let _ = BlockBuilder::new(&env, get_provider()).await.unwrap();
 
         // Stop docker image
         let output = stop_redis_docker(cont_name);

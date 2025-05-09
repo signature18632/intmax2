@@ -5,7 +5,7 @@ use intmax2_client_sdk::{
         block_builder::BlockBuilderClient,
         contract::{
             liquidity_contract::LiquidityContract, rollup_contract::RollupContract,
-            withdrawal_contract::WithdrawalContract,
+            utils::get_provider, withdrawal_contract::WithdrawalContract,
         },
         private_zkp_server::{PrivateZKPServerClient, PrivateZKPServerConfig},
         s3_store_vault::S3StoreVaultClient,
@@ -65,17 +65,11 @@ pub struct Config {
     /// URL of the Ethereum RPC
     pub l1_rpc_url: String,
 
-    /// Chain ID of the Ethereum network
-    pub l1_chain_id: u64,
-
     /// Address of the liquidity contract
     pub liquidity_contract_address: String,
 
     /// URL of the Scroll RPC
     pub l2_rpc_url: String,
-
-    /// Chain ID of the Scroll network
-    pub l2_chain_id: u64,
 
     /// Address of the rollup contract
     pub rollup_contract_address: String,
@@ -112,10 +106,8 @@ impl Config {
         block_builder_query_limit: u64,
 
         l1_rpc_url: String,
-        l1_chain_id: u64,
         liquidity_contract_address: String,
         l2_rpc_url: String,
-        l2_chain_id: u64,
         rollup_contract_address: String,
         withdrawal_contract_address: String,
         use_private_zkp_server: bool,
@@ -138,10 +130,8 @@ impl Config {
             block_builder_query_interval,
             block_builder_query_limit,
             l1_rpc_url,
-            l1_chain_id,
             liquidity_contract_address,
             l2_rpc_url,
-            l2_chain_id,
             rollup_contract_address,
             withdrawal_contract_address,
             use_private_zkp_server,
@@ -185,20 +175,20 @@ pub fn get_client(config: &Config) -> Client {
         block_builder_query_limit: config.block_builder_query_limit,
     };
 
+    let l1_provider = get_provider(&config.l1_rpc_url).unwrap();
+    let l2_provider = get_provider(&config.l2_rpc_url).unwrap();
+
     let liquidity_contract = LiquidityContract::new(
-        &config.l1_rpc_url,
-        config.l1_chain_id,
+        l1_provider,
         config.liquidity_contract_address.parse().unwrap(),
     );
 
     let rollup_contract = RollupContract::new(
-        &config.l2_rpc_url,
-        config.l2_chain_id,
+        l2_provider.clone(),
         config.rollup_contract_address.parse().unwrap(),
     );
     let withdrawal_contract = WithdrawalContract::new(
-        &config.l2_rpc_url,
-        config.l2_chain_id,
+        l2_provider,
         config.withdrawal_contract_address.parse().unwrap(),
     );
 

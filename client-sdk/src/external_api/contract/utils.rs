@@ -1,116 +1,102 @@
-use std::sync::Arc;
-
-#[cfg(not(target_arch = "wasm32"))]
-use std::collections::HashMap;
-
-use ethers::{
-    core::k256::{ecdsa::SigningKey, SecretKey},
-    middleware::SignerMiddleware,
-    providers::{Http, Middleware as _, Provider},
-    signers::{Signer as _, Wallet},
-    types::{Address, BlockNumber, H256, U256},
-};
-
-use crate::external_api::utils::retry::with_retry;
-
 use super::error::BlockchainError;
+use crate::external_api::utils::time::sleep_for;
+use alloy::{
+    network::EthereumWallet,
+    primitives::{Address, TxHash, B256},
+    providers::{
+        fillers::{
+            ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, SimpleNonceManager,
+            WalletFiller,
+        },
+        Identity, Provider, ProviderBuilder,
+    },
+    rpc::{client::RpcClient, types::Transaction},
+    signers::local::PrivateKeySigner,
+    transports::{
+        http::Http,
+        layers::{FallbackLayer, RetryBackoffLayer},
+    },
+};
+use futures::{stream, StreamExt as _};
+use reqwest::Url;
+use std::{collections::HashMap, env};
+use tower::ServiceBuilder;
 
-async fn get_provider(rpc_url: &str) -> Result<Provider<Http>, BlockchainError> {
-    let provider = Provider::<Http>::try_from(rpc_url)
-        .map_err(|_| BlockchainError::ParseError("Failed to parse RPC_URL".to_string()))?;
+// Use simple nonce manager for the nonce filler because it's easier to handle nonce errors.
+pub type JoinedRecommendedFillersWithSimpleNonce = JoinFill<
+    JoinFill<JoinFill<Identity, GasFiller>, NonceFiller<SimpleNonceManager>>,
+    ChainIdFiller,
+>;
+
+pub type NormalProvider =
+    FillProvider<JoinedRecommendedFillersWithSimpleNonce, alloy::providers::RootProvider>;
+
+pub type ProviderWithSigner = FillProvider<
+    JoinFill<JoinedRecommendedFillersWithSimpleNonce, WalletFiller<EthereumWallet>>,
+    alloy::providers::RootProvider,
+>;
+
+// alloy does not support fallback transport in WASM, so we use a provider without fallback transport in WASM.
+pub fn get_provider(rpc_urls: &str) -> Result<NormalProvider, BlockchainError> {
+    let retry_layer = RetryBackoffLayer::new(5, 1000, 100);
+    let url: Url = rpc_urls.parse().map_err(|e| {
+        BlockchainError::ParseError(format!("Failed to parse URL {}: {}", rpc_urls, e))
+    })?;
+    let client = RpcClient::builder().layer(retry_layer).http(url);
+    let provider = ProviderBuilder::default()
+        .with_gas_estimation()
+        .with_simple_nonce_management()
+        .fetch_chain_id()
+        .connect_client(client);
     Ok(provider)
 }
 
-pub async fn get_client(rpc_url: &str) -> Result<Arc<Provider<Http>>, BlockchainError> {
-    Ok(Arc::new(get_provider(rpc_url).await?))
-}
-
-pub fn get_wallet(chain_id: u64, private_key: H256) -> Wallet<SigningKey> {
-    let key = SecretKey::from_bytes(private_key.as_bytes().into()).unwrap();
-    Wallet::from(key).with_chain_id(chain_id)
-}
-
-pub fn get_address(chain_id: u64, private_key: H256) -> Address {
-    get_wallet(chain_id, private_key).address()
-}
-
-pub async fn get_gas_price(rpc_url: &str) -> Result<U256, BlockchainError> {
-    let client = get_client(rpc_url).await?;
-    let gas_price = with_retry(|| async { client.get_gas_price().await })
-        .await
-        .map_err(|_| BlockchainError::RPCError("failed to get gas price".to_string()))?;
-    Ok(gas_price)
-}
-
-pub async fn get_client_with_signer(
-    rpc_url: &str,
-    chain_id: u64,
-    private_key: H256,
-) -> Result<SignerMiddleware<Provider<Http>, Wallet<SigningKey>>, BlockchainError> {
-    let provider = get_provider(rpc_url).await?;
-    let wallet = get_wallet(chain_id, private_key);
-    let client = SignerMiddleware::new(provider, wallet);
-    Ok(client)
-}
-
-pub async fn get_base_fee(rpc_url: &str) -> Result<U256, BlockchainError> {
-    let client = get_client(rpc_url).await?;
-    let latest_block = with_retry(|| async { client.get_block(BlockNumber::Latest).await })
-        .await
-        .map_err(|_| BlockchainError::RPCError("failed to get latest block".to_string()))?
-        .expect("latest block not found");
-    let base_fee = latest_block
-        .base_fee_per_gas
-        .ok_or(BlockchainError::BlockBaseFeeNotFound)?;
-    Ok(base_fee)
-}
-
-pub async fn estimate_eip1559_fees(rpc_url: &str) -> Result<(U256, U256), BlockchainError> {
-    let client = get_client(rpc_url).await?;
-    let (max_fee_per_gas, max_priority_fee_per_gas) =
-        with_retry(|| async { client.estimate_eip1559_fees(None).await })
-            .await
-            .map_err(|_| {
-                BlockchainError::RPCError("failed to get max priority fee per gas".to_string())
+pub fn get_provider_with_fallback(rpc_urls: &[String]) -> Result<NormalProvider, BlockchainError> {
+    let retry_layer = RetryBackoffLayer::new(5, 1000, 100);
+    let transports = rpc_urls
+        .iter()
+        .map(|url| {
+            let url: Url = url.parse().map_err(|e| {
+                BlockchainError::ParseError(format!("Failed to parse URL {}: {}", url, e))
             })?;
-    Ok((max_fee_per_gas, max_priority_fee_per_gas))
+            Ok(Http::new(url))
+        })
+        .collect::<Result<Vec<_>, BlockchainError>>()?;
+    let fallback_layer =
+        FallbackLayer::default().with_active_transport_count(transports.len().try_into().unwrap());
+    let transport = ServiceBuilder::new()
+        .layer(fallback_layer)
+        .service(transports);
+    let client = RpcClient::builder()
+        .layer(retry_layer)
+        .transport(transport, false);
+    let provider = ProviderBuilder::default()
+        .with_gas_estimation()
+        .with_simple_nonce_management()
+        .fetch_chain_id()
+        .connect_client(client);
+    Ok(provider)
 }
 
-pub async fn get_latest_block_number(rpc_url: &str) -> Result<u64, BlockchainError> {
-    let client = get_client(rpc_url).await?;
-    let block_number = with_retry(|| async { client.get_block_number().await })
-        .await
-        .map_err(|_| BlockchainError::RPCError("failed to get block number".to_string()))?;
-    Ok(block_number.as_u64())
+pub fn get_provider_with_signer(
+    provider: &NormalProvider,
+    private_key: B256,
+) -> ProviderWithSigner {
+    let signer = PrivateKeySigner::from_bytes(&private_key).unwrap();
+    let wallet = EthereumWallet::new(signer);
+    let wallet_filler = WalletFiller::new(wallet);
+    provider.clone().join_with(wallet_filler)
 }
 
-pub async fn get_eth_balance(rpc_url: &str, address: Address) -> Result<U256, BlockchainError> {
-    let client = get_client(rpc_url).await?;
-    let balance = with_retry(|| async { client.get_balance(address, None).await })
-        .await
-        .map_err(|_| BlockchainError::RPCError("failed to get block number".to_string()))?;
-    Ok(balance)
+pub fn get_address_from_private_key(private_key: B256) -> Address {
+    let signer = PrivateKeySigner::from_bytes(&private_key).unwrap();
+    signer.address()
 }
 
-pub async fn get_transaction(
-    rpc_url: &str,
-    tx_hash: H256,
-) -> Result<Option<ethers::types::Transaction>, BlockchainError> {
-    let client = get_client(rpc_url).await?;
-    let tx = with_retry(|| async { client.get_transaction(tx_hash).await })
-        .await
-        .map_err(|_| BlockchainError::RPCError("failed to get transaction".to_string()))?;
-    Ok(tx)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
 pub async fn get_batch_transaction(
-    rpc_url: &str,
-    tx_hashes: &[H256],
-) -> Result<Vec<ethers::types::Transaction>, BlockchainError> {
-    use crate::external_api::utils::time::sleep_for;
-    use std::collections::HashMap;
-
+    provider: &NormalProvider,
+    tx_hashes: &[TxHash],
+) -> Result<Vec<Transaction>, BlockchainError> {
     let mut target_tx_hashes = tx_hashes.to_vec();
     let mut fetched_txs = HashMap::new();
     let mut retry_count = 0;
@@ -120,7 +106,7 @@ pub async fn get_batch_transaction(
         .unwrap_or(10);
     while !target_tx_hashes.is_empty() {
         let (partial_fetched_txs, failed_tx_hashes) =
-            get_batch_transaction_inner(rpc_url, &target_tx_hashes).await?;
+            get_batch_transaction_inner(provider, &target_tx_hashes).await?;
         fetched_txs.extend(partial_fetched_txs);
         if failed_tx_hashes.is_empty() {
             break;
@@ -144,48 +130,45 @@ pub async fn get_batch_transaction(
     Ok(txs)
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 async fn get_batch_transaction_inner(
-    rpc_url: &str,
-    tx_hashes: &[H256],
-) -> Result<(HashMap<H256, ethers::types::Transaction>, Vec<H256>), BlockchainError> {
-    use crate::external_api::contract::utils::get_transaction;
-    use std::env;
-    use tokio::task::JoinSet;
-    let mut join_set = JoinSet::new();
+    provider: &NormalProvider,
+    tx_hashes: &[TxHash],
+) -> Result<(HashMap<TxHash, Transaction>, Vec<TxHash>), BlockchainError> {
     let max_parallel_requests = env::var("MAX_PARALLEL_REQUESTS")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(20);
-    let semaphore = Arc::new(tokio::sync::Semaphore::new(max_parallel_requests));
-    for &tx_hash in tx_hashes {
-        let permit = Arc::clone(&semaphore);
-        let rpc_url = rpc_url.to_string();
-        join_set.spawn(async move {
-            let _permit = permit.acquire().await.expect("Semaphore is never closed");
-            let tx = get_transaction(&rpc_url, tx_hash)
-                .await?
-                .ok_or(BlockchainError::TxNotFound(tx_hash))?;
-            Ok::<_, BlockchainError>((tx_hash, tx))
-        });
-    }
+
+    let results = stream::iter(tx_hashes)
+        .map(|&tx_hash| {
+            let provider = provider.clone();
+            async move {
+                match provider.get_transaction_by_hash(tx_hash).await {
+                    Ok(Some(tx)) => Ok((tx_hash, Ok(tx))),
+                    Ok(None) => Ok((tx_hash, Err(BlockchainError::TxNotFound(tx_hash)))),
+                    Err(e) => Err(e),
+                }
+            }
+        })
+        .buffer_unordered(max_parallel_requests)
+        .collect::<Vec<_>>()
+        .await;
 
     let mut fetched_txs = HashMap::new();
     let mut failed_tx_hashes = Vec::new();
-    while let Some(result) = join_set.join_next().await {
+
+    for result in results {
         match result {
-            Ok(Ok((tx_hash, tx))) => {
+            Ok((tx_hash, Ok(tx))) => {
                 fetched_txs.insert(tx_hash, tx);
             }
-            Ok(Err(e)) => {
-                if let BlockchainError::TxNotFound(tx_hash) = e {
-                    failed_tx_hashes.push(tx_hash);
-                } else {
-                    return Err(e);
-                }
+            Ok((tx_hash, Err(BlockchainError::TxNotFound(_)))) => {
+                failed_tx_hashes.push(tx_hash);
             }
+            Ok((_, Err(e))) => return Err(e),
             Err(e) => return Err(BlockchainError::JoinError(e.to_string())),
         }
     }
+
     Ok((fetched_txs, failed_tx_hashes))
 }

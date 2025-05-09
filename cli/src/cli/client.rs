@@ -6,8 +6,9 @@ use intmax2_client_sdk::{
         balance_prover::BalanceProverClient,
         block_builder::BlockBuilderClient,
         contract::{
-            convert::convert_address_to_ethers, liquidity_contract::LiquidityContract,
-            rollup_contract::RollupContract, withdrawal_contract::WithdrawalContract,
+            convert::convert_address_to_alloy, liquidity_contract::LiquidityContract,
+            rollup_contract::RollupContract, utils::get_provider_with_fallback,
+            withdrawal_contract::WithdrawalContract,
         },
         local_backup_store_vault::{
             local_store_vault::LocalStoreVaultClient, LocalBackupStoreVaultClient,
@@ -81,20 +82,20 @@ pub fn get_client() -> Result<Client, CliError> {
         };
     let withdrawal_server = Box::new(WithdrawalServerClient::new(&env.withdrawal_server_base_url));
 
+    let l1_provider = get_provider_with_fallback(&[env.l1_rpc_url.clone()])?;
+    let l2_provider = get_provider_with_fallback(&[env.l2_rpc_url.clone()])?;
+
     let liquidity_contract = LiquidityContract::new(
-        &env.l1_rpc_url,
-        env.l1_chain_id,
-        convert_address_to_ethers(env.liquidity_contract_address),
+        l1_provider,
+        convert_address_to_alloy(env.liquidity_contract_address),
     );
     let rollup_contract = RollupContract::new(
-        &env.l2_rpc_url,
-        env.l2_chain_id,
-        convert_address_to_ethers(env.rollup_contract_address),
+        l2_provider.clone(),
+        convert_address_to_alloy(env.rollup_contract_address),
     );
     let withdrawal_contract = WithdrawalContract::new(
-        &env.l2_rpc_url,
-        env.l2_chain_id,
-        convert_address_to_ethers(env.withdrawal_contract_address),
+        l2_provider,
+        convert_address_to_alloy(env.withdrawal_contract_address),
     );
 
     let config = ClientConfig {
