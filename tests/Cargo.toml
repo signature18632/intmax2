@@ -10,11 +10,14 @@ plonky2 = { workspace = true }
 intmax2-zkp = { workspace = true }
 intmax2-client-sdk = { path = "../client-sdk" }
 intmax2-interfaces = { path = "../interfaces" }
+intmax2-cli = { path = "../cli" }
 tokio = { workspace = true }
 reqwest = { workspace = true }
 alloy = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
+chrono = { workspace = true }
+env_logger = { workspace = true }
 thiserror = "2.0.12"
 hashbrown = "0.15.2"
 log = "0.4.27"
@@ -22,5 +25,5 @@ rand = "0.8.5"
 envy = "0.4.2"
 dotenv = "0.15.0"
 num-bigint = "0.4.6"
-env_logger.workspace = true
 futures = "0.3.31"
+clap = { version = "4.5.38", features = ["derive"] }
