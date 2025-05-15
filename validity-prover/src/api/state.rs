@@ -36,6 +36,10 @@ use crate::{
     EnvVar,
 };
 
+pub struct HealthCheckConfig {
+    pub thread_heartbeat_timeout: Duration,
+}
+
 pub struct CacheConfig {
     pub dynamic_ttl: Duration,
     pub static_ttl: Duration,
@@ -45,8 +49,10 @@ pub struct CacheConfig {
 /// Added cache layer to the state.
 pub struct State {
     pub validity_prover: ValidityProver,
+    pub rate_manager: RateManager,
     pub cache: RedisCache,
-    pub config: CacheConfig,
+    pub cache_config: CacheConfig,
+    pub health_check_config: HealthCheckConfig,
 }
 
 impl State {
@@ -67,12 +73,20 @@ impl State {
             Duration::from_secs(env.rate_manager_timeout),
         );
 
-        let validity_prover =
-            ValidityProver::new(env, observer_api.clone(), leader_election.clone()).await?;
+        let validity_prover = ValidityProver::new(
+            env,
+            observer_api.clone(),
+            leader_election.clone(),
+            rate_manager.clone(),
+        )
+        .await?;
         let cache = RedisCache::new(&env.redis_url, "validity_prover:cache")?;
-        let config = CacheConfig {
+        let cache_config = CacheConfig {
             dynamic_ttl: Duration::from_secs(env.dynamic_cache_ttl),
             static_ttl: Duration::from_secs(env.static_cache_ttl),
+        };
+        let health_check_config = HealthCheckConfig {
+            thread_heartbeat_timeout: Duration::from_secs(env.thread_heartbeat_timeout),
         };
 
         let rpc_observer = RPCObserver::new(
@@ -85,8 +99,13 @@ impl State {
         let graph_observer = if env.the_graph_l1_url.is_some() && env.the_graph_l2_url.is_some() {
             log::info!("The Graph observer is enabled");
             Some(Arc::new(
-                TheGraphObserver::new(env, observer_api, leader_election.clone(), rate_manager)
-                    .await?,
+                TheGraphObserver::new(
+                    env,
+                    observer_api,
+                    leader_election.clone(),
+                    rate_manager.clone(),
+                )
+                .await?,
             ))
         } else {
             None
@@ -99,8 +118,10 @@ impl State {
 
         Ok(Self {
             validity_prover,
+            rate_manager,
             cache,
-            config,
+            cache_config,
+            health_check_config,
         })
     }
 
@@ -112,7 +133,7 @@ impl State {
         } else {
             let block_number = self.validity_prover.get_last_block_number().await?;
             self.cache
-                .set_with_ttl::<V>(key, &block_number, self.config.dynamic_ttl)
+                .set_with_ttl::<V>(key, &block_number, self.cache_config.dynamic_ttl)
                 .await?;
             Ok(block_number)
         }
@@ -129,7 +150,7 @@ impl State {
                 .get_latest_validity_proof_block_number()
                 .await?;
             self.cache
-                .set_with_ttl::<V>(key, &block_number, self.config.dynamic_ttl)
+                .set_with_ttl::<V>(key, &block_number, self.cache_config.dynamic_ttl)
                 .await?;
             Ok(block_number)
         }
@@ -147,7 +168,7 @@ impl State {
                 .get_next_deposit_index()
                 .await?;
             self.cache
-                .set_with_ttl::<V>(key, &deposit_index, self.config.dynamic_ttl)
+                .set_with_ttl::<V>(key, &deposit_index, self.cache_config.dynamic_ttl)
                 .await?;
             Ok(deposit_index)
         }
@@ -165,7 +186,7 @@ impl State {
                 .get_local_last_deposit_id()
                 .await?;
             self.cache
-                .set_with_ttl::<V>(key, &deposit_id, self.config.dynamic_ttl)
+                .set_with_ttl::<V>(key, &deposit_id, self.cache_config.dynamic_ttl)
                 .await?;
             Ok(deposit_id)
         }
@@ -183,7 +204,7 @@ impl State {
                 .get_latest_included_deposit_index()
                 .await?;
             self.cache
-                .set_with_ttl::<V>(key, &deposit_index, self.config.dynamic_ttl)
+                .set_with_ttl::<V>(key, &deposit_index, self.cache_config.dynamic_ttl)
                 .await?;
             Ok(deposit_index)
         }
@@ -234,7 +255,7 @@ impl State {
                 )
                 .await?;
             self.cache
-                .set_with_ttl(&key, &update_witness, self.config.static_ttl)
+                .set_with_ttl(&key, &update_witness, self.cache_config.static_ttl)
                 .await?;
             Ok(GetUpdateWitnessResponse { update_witness })
         }
@@ -254,7 +275,7 @@ impl State {
                 .get_validity_witness(request.block_number)
                 .await?;
             self.cache
-                .set_with_ttl::<V>(&key, &validity_witness, self.config.static_ttl)
+                .set_with_ttl::<V>(&key, &validity_witness, self.cache_config.static_ttl)
                 .await?;
             Ok(GetValidityWitnessResponse { validity_witness })
         }
@@ -279,7 +300,7 @@ impl State {
                 ))?;
             let validity_proof = CompressedValidityProof::new(&validity_proof_raw)?;
             self.cache
-                .set_with_ttl::<V>(&key, &validity_proof, self.config.static_ttl)
+                .set_with_ttl::<V>(&key, &validity_proof, self.cache_config.static_ttl)
                 .await?;
             Ok(GetValidityProofResponse { validity_proof })
         }
@@ -301,7 +322,7 @@ impl State {
                 .await?;
             // the result is mutable
             self.cache
-                .set_with_ttl::<V>(&key, &deposit_info, self.config.dynamic_ttl)
+                .set_with_ttl::<V>(&key, &deposit_info, self.cache_config.dynamic_ttl)
                 .await?;
             Ok(GetDepositInfoResponse { deposit_info })
         }
@@ -344,7 +365,7 @@ impl State {
                 .await?;
             // the result is mutable
             self.cache
-                .set_with_ttl::<V>(&key, &block_number, self.config.dynamic_ttl)
+                .set_with_ttl::<V>(&key, &block_number, self.cache_config.dynamic_ttl)
                 .await?;
             Ok(GetBlockNumberByTxTreeRootResponse { block_number })
         }
@@ -377,7 +398,7 @@ impl State {
                 .get_block_merkle_proof(request.root_block_number, request.leaf_block_number)
                 .await?;
             self.cache
-                .set_with_ttl::<V>(&key, &block_merkle_proof, self.config.static_ttl)
+                .set_with_ttl::<V>(&key, &block_merkle_proof, self.cache_config.static_ttl)
                 .await?;
             Ok(GetBlockMerkleProofResponse { block_merkle_proof })
         }
@@ -403,7 +424,7 @@ impl State {
                 .await?;
             // the result is
             self.cache
-                .set_with_ttl::<V>(&key, &deposit_merkle_proof, self.config.static_ttl)
+                .set_with_ttl::<V>(&key, &deposit_merkle_proof, self.cache_config.static_ttl)
                 .await?;
             Ok(GetDepositMerkleProofResponse {
                 deposit_merkle_proof,

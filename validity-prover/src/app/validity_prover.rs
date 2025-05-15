@@ -1,5 +1,6 @@
 use super::{
     error::ValidityProverError, leader_election::LeaderElection, observer_api::ObserverApi,
+    rate_manager::RateManager,
 };
 use crate::{
     app::setting_consistency::SettingConsistency,
@@ -48,6 +49,11 @@ const BLOCK_DB_TAG: u32 = 2;
 const DEPOSIT_DB_TAG: u32 = 3;
 const MAX_TASKS: u32 = 30;
 
+pub const SYNC_VALIDITY_WITNESS_KEY: &str = "sync_validity_witness";
+pub const GENERATE_VALIDITY_PROOF_KEY: &str = "generate_validity_proof";
+pub const ADD_TASKS_KEY: &str = "add_tasks";
+pub const CLEANUP_INACTIVE_TASKS_KEY: &str = "cleanup_inactive_tasks";
+
 #[derive(Clone, Debug)]
 pub struct ValidityProverConfig {
     pub is_sync_mode: bool,
@@ -60,15 +66,16 @@ pub struct ValidityProverConfig {
 
 #[derive(Clone)]
 pub struct ValidityProver {
-    pub(crate) config: ValidityProverConfig,
-    pub(crate) manager: Arc<TaskManager<TransitionProofTask, TransitionProofTaskResult>>,
-    pub(crate) validity_circuit: Arc<OnceLock<ValidityCircuit<F, C, D>>>,
-    pub(crate) observer_api: ObserverApi,
-    pub(crate) leader_election: LeaderElection,
-    pub(crate) account_tree: SqlIndexedMerkleTree,
-    pub(crate) block_tree: SqlIncrementalMerkleTree<Bytes32>,
-    pub(crate) deposit_hash_tree: SqlIncrementalMerkleTree<DepositHash>,
-    pub(crate) pool: DbPool,
+    pub config: ValidityProverConfig,
+    pub manager: Arc<TaskManager<TransitionProofTask, TransitionProofTaskResult>>,
+    pub validity_circuit: Arc<OnceLock<ValidityCircuit<F, C, D>>>,
+    pub observer_api: ObserverApi,
+    pub leader_election: LeaderElection,
+    pub rate_manager: RateManager,
+    pub account_tree: SqlIndexedMerkleTree,
+    pub block_tree: SqlIncrementalMerkleTree<Bytes32>,
+    pub deposit_hash_tree: SqlIncrementalMerkleTree<DepositHash>,
+    pub pool: DbPool,
 }
 
 impl ValidityProver {
@@ -76,6 +83,7 @@ impl ValidityProver {
         env: &EnvVar,
         observer_api: ObserverApi,
         leader_election: LeaderElection,
+        rate_manager: RateManager,
     ) -> Result<Self, ValidityProverError> {
         let config = ValidityProverConfig {
             is_sync_mode: env.is_sync_mode,
@@ -144,6 +152,7 @@ impl ValidityProver {
             validity_circuit: Arc::new(OnceLock::new()),
             observer_api,
             leader_election,
+            rate_manager,
             pool,
             account_tree,
             block_tree,
@@ -427,6 +436,7 @@ impl ValidityProver {
             tokio::time::interval(Duration::from_secs(self.config.witness_sync_interval));
         loop {
             interval.tick().await;
+            self.rate_manager.add(SYNC_VALIDITY_WITNESS_KEY).await?;
             self.sync_validity_witness().await?;
         }
     }
@@ -436,6 +446,7 @@ impl ValidityProver {
             tokio::time::interval(Duration::from_secs(self.config.validity_proof_interval));
         loop {
             interval.tick().await;
+            self.rate_manager.add(GENERATE_VALIDITY_PROOF_KEY).await?;
             self.generate_validity_proof().await?;
         }
     }
@@ -445,6 +456,7 @@ impl ValidityProver {
             tokio::time::interval(Duration::from_secs(self.config.add_tasks_interval));
         loop {
             interval.tick().await;
+            self.rate_manager.add(ADD_TASKS_KEY).await?;
             self.add_tasks().await?;
         }
     }
@@ -455,6 +467,7 @@ impl ValidityProver {
         ));
         loop {
             interval.tick().await;
+            self.rate_manager.add(CLEANUP_INACTIVE_TASKS_KEY).await?;
             self.manager.cleanup_inactive_tasks().await?;
         }
     }
@@ -468,9 +481,6 @@ impl ValidityProver {
 
         // clear all tasks
         self.manager.clear_all().await?;
-
-        // // run observer job
-        // self.observer_api.start_all_jobs();
 
         let this = Arc::new(self.clone());
 
