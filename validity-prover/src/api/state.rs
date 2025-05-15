@@ -1,5 +1,8 @@
 use futures::future;
-use intmax2_client_sdk::external_api::contract::utils::get_provider_with_fallback;
+use intmax2_client_sdk::external_api::contract::{
+    liquidity_contract::LiquidityContract, rollup_contract::RollupContract,
+    utils::get_provider_with_fallback,
+};
 use intmax2_interfaces::{
     api::validity_prover::{
         interface::DepositInfo,
@@ -20,11 +23,18 @@ use intmax2_zkp::common::{
     trees::{block_hash_tree::BlockHashMerkleProof, deposit_tree::DepositMerkleProof},
     witness::validity_witness::ValidityWitness,
 };
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use server_common::redis::cache::RedisCache;
 
-use crate::{app::validity_prover::ValidityProver, EnvVar};
+use crate::{
+    app::{
+        leader_election::LeaderElection, observer_api::ObserverApi,
+        observer_common::run_and_switch_observers, observer_graph::TheGraphObserver,
+        observer_rpc::RPCObserver, rate_manager::RateManager, validity_prover::ValidityProver,
+    },
+    EnvVar,
+};
 
 pub struct CacheConfig {
     pub dynamic_ttl: Duration,
@@ -43,21 +53,55 @@ impl State {
     pub async fn new(env: &EnvVar) -> anyhow::Result<Self> {
         let l1_provider = get_provider_with_fallback(&[env.l1_rpc_url.clone()])?;
         let l2_provider = get_provider_with_fallback(&[env.l2_rpc_url.clone()])?;
-        let validity_prover = ValidityProver::new(env, l1_provider, l2_provider).await?;
+        let rollup_contract = RollupContract::new(l2_provider, env.rollup_contract_address);
+        let liquidity_contract =
+            LiquidityContract::new(l1_provider, env.liquidity_contract_address);
+        let observer_api = ObserverApi::new(env, rollup_contract, liquidity_contract).await?;
+        let leader_election = LeaderElection::new(
+            &env.redis_url,
+            "validity_prover:sync_leader",
+            std::time::Duration::from_secs(env.leader_lock_ttl),
+        )?;
+        let rate_manager = RateManager::new(
+            Duration::from_secs(env.rate_manager_window),
+            Duration::from_secs(env.rate_manager_timeout),
+        );
+
+        let validity_prover =
+            ValidityProver::new(env, observer_api.clone(), leader_election.clone()).await?;
         let cache = RedisCache::new(&env.redis_url, "validity_prover:cache")?;
         let config = CacheConfig {
             dynamic_ttl: Duration::from_secs(env.dynamic_cache_ttl),
             static_ttl: Duration::from_secs(env.static_cache_ttl),
         };
+
+        let rpc_observer = RPCObserver::new(
+            env,
+            observer_api.clone(),
+            leader_election.clone(),
+            rate_manager.clone(),
+        )
+        .await?;
+        let graph_observer = if env.the_graph_l1_url.is_some() && env.the_graph_l2_url.is_some() {
+            log::info!("The Graph observer is enabled");
+            Some(Arc::new(
+                TheGraphObserver::new(env, observer_api, leader_election.clone(), rate_manager)
+                    .await?,
+            ))
+        } else {
+            None
+        };
+
+        // start jos
+        leader_election.start_job();
+        run_and_switch_observers(Arc::new(rpc_observer), graph_observer).await;
+        validity_prover.clone().start_all_jobs().await.unwrap();
+
         Ok(Self {
             validity_prover,
             cache,
             config,
         })
-    }
-
-    pub async fn job(&self) {
-        self.validity_prover.clone().start_all_jobs().await.unwrap();
     }
 
     pub async fn get_block_number(&self) -> anyhow::Result<u32> {
@@ -99,7 +143,7 @@ impl State {
         } else {
             let deposit_index = self
                 .validity_prover
-                .observer
+                .observer_api
                 .get_next_deposit_index()
                 .await?;
             self.cache
@@ -117,7 +161,7 @@ impl State {
         } else {
             let deposit_id = self
                 .validity_prover
-                .observer
+                .observer_api
                 .get_local_last_deposit_id()
                 .await?;
             self.cache
@@ -135,7 +179,7 @@ impl State {
         } else {
             let deposit_index = self
                 .validity_prover
-                .observer
+                .observer_api
                 .get_latest_included_deposit_index()
                 .await?;
             self.cache
@@ -252,7 +296,7 @@ impl State {
         } else {
             let deposit_info = self
                 .validity_prover
-                .observer
+                .observer_api
                 .get_deposit_info(request.pubkey_salt_hash)
                 .await?;
             // the result is mutable

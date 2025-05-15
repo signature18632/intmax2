@@ -32,6 +32,12 @@ pub struct EnvVar {
     pub liquidity_contract_address: Address,
     pub liquidity_contract_deployed_block_number: u64,
 
+    // the graph settings
+    pub the_graph_l1_url: Option<String>,
+    pub the_graph_l2_url: Option<String>,
+    pub the_graph_l1_bearer: Option<String>,
+    pub the_graph_l2_bearer: Option<String>,
+
     // db settings
     pub database_url: String,
     pub database_max_connections: u32,
@@ -45,4 +51,9 @@ pub struct EnvVar {
     // cache
     pub dynamic_cache_ttl: u64,
     pub static_cache_ttl: u64,
+
+    // rate manager
+    pub observer_error_threshold: u64,
+    pub rate_manager_window: u64,
+    pub rate_manager_timeout: u64,
 }

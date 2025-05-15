@@ -1,8 +1,7 @@
+use super::retry::with_retry;
 use intmax2_interfaces::api::error::ServerError;
-use reqwest::{Response, Url};
+use reqwest::{header, Response, Url};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-
-use super::{debug::is_debug_mode, retry::with_retry};
 
 #[derive(Debug, Deserialize)]
 struct ErrorResponse {
@@ -16,16 +15,29 @@ pub async fn post_request<B: Serialize, R: DeserializeOwned>(
     endpoint: &str,
     body: Option<&B>,
 ) -> Result<R, ServerError> {
+    post_request_with_bearer_token(base_url, endpoint, None, body).await
+}
+
+pub async fn post_request_with_bearer_token<B: Serialize, R: DeserializeOwned>(
+    base_url: &str,
+    endpoint: &str,
+    bearer_token: Option<String>,
+    body: Option<&B>,
+) -> Result<R, ServerError> {
     let url = format!("{}{}", base_url, endpoint);
     let _ = Url::parse(&url)
         .map_err(|e| ServerError::MalformedUrl(format!("Failed to parse URL {}: {}", url, e)))?;
     let client = reqwest::Client::new();
-    let response = if let Some(body) = body {
-        with_retry(|| async { client.post(&url).json(body).send().await }).await
-    } else {
-        with_retry(|| async { client.post(&url).send().await }).await
+    let mut request = client.post(url.clone());
+    if let Some(token) = bearer_token {
+        request = request.header(header::AUTHORIZATION, token);
     }
-    .map_err(|e| ServerError::NetworkError(e.to_string()))?;
+    if let Some(body) = body {
+        request = request.json(body);
+    }
+    let response = with_retry(|| async { request.try_clone().unwrap().send().await })
+        .await
+        .map_err(|e| ServerError::NetworkError(e.to_string()))?;
 
     // Serialize the body to a string for logging
     let body_str = if let Some(body) = &body {
@@ -35,10 +47,9 @@ pub async fn post_request<B: Serialize, R: DeserializeOwned>(
     } else {
         None
     };
-    if is_debug_mode() {
-        let body_size = body_str.as_ref().map(|s| s.len()).unwrap_or(0);
-        log::info!("POST request url: {} body size: {} bytes", url, body_size);
-    }
+    let body_size = body_str.as_ref().map(|s| s.len()).unwrap_or(0);
+    log::debug!("POST request url: {} body size: {} bytes", url, body_size);
+
     handle_response(response, &url, &body_str).await
 }
 
@@ -69,9 +80,7 @@ where
     let response = with_retry(|| async { client.get(&url).send().await })
         .await
         .map_err(|e| ServerError::NetworkError(e.to_string()))?;
-    if is_debug_mode() {
-        log::info!("GET request url: {}", url);
-    }
+    log::debug!("GET request url: {}", url);
     handle_response(response, &url, &query_str).await
 }
 
@@ -90,7 +99,7 @@ async fn handle_response<R: DeserializeOwned>(
             Ok(error_resp) => error_resp.message.unwrap_or(error_resp.error),
             Err(_) => error_text,
         };
-        let abr_request = if is_debug_mode() {
+        let abr_request = if log::log_enabled!(log::Level::Debug) {
             // full request string
             request_str.clone().unwrap_or_default()
         } else {
@@ -107,8 +116,25 @@ async fn handle_response<R: DeserializeOwned>(
             abr_request,
         ));
     }
-    response
-        .json::<R>()
-        .await
-        .map_err(|e| ServerError::DeserializationError(e.to_string()))
+
+    let response_text = response.text().await.map_err(|e| {
+        ServerError::DeserializationError(format!("Failed to read response: {}", e))
+    })?;
+
+    match serde_json::from_str::<R>(&response_text) {
+        Ok(result) => Ok(result),
+        Err(e) => {
+            let abr_response = if log::log_enabled!(log::Level::Debug) {
+                // full request string
+                response_text
+            } else {
+                // Truncate the response string to 500 characters if it is too long
+                response_text.chars().take(500).collect::<String>()
+            };
+            Err(ServerError::DeserializationError(format!(
+                "Failed to deserialize response of url:{} response:{}, error:{}",
+                url, abr_response, e
+            )))
+        }
+    }
 }

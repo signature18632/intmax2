@@ -3657,6 +3657,7 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "tower 0.5.2",
+ "tracing",
 ]
 
 [[package]]
@@ -6815,7 +6816,9 @@ dependencies = [
  "redis",
  "reqwest",
  "serde",
+ "serde_json",
  "serde_qs",
+ "serde_with",
  "server-common",
  "sqlx",
  "thiserror 2.0.12",
