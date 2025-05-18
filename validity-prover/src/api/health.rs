@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     api::state::State,
     app::{
@@ -15,7 +17,6 @@ use actix_web::{
     Error,
 };
 use serde::Serialize;
-use tracing::error;
 
 #[derive(Serialize)]
 pub struct HealthCheckResponse {
@@ -25,7 +26,7 @@ pub struct HealthCheckResponse {
 
 #[get("/health-check")]
 pub async fn health_check(state: Data<State>) -> Result<Json<HealthCheckResponse>, Error> {
-    let heartbeat_timeout = state.health_check_config.thread_heartbeat_timeout;
+    let heartbeat_timeout = state.health_check_config.thread_heartbeat_timeout.as_secs();
 
     let mut keys = [
         EventType::Deposited,
@@ -41,29 +42,29 @@ pub async fn health_check(state: Data<State>) -> Result<Json<HealthCheckResponse
         ADD_TASKS_KEY.to_string(),
         CLEANUP_INACTIVE_TASKS_KEY.to_string(),
     ]);
-    let mut too_old_heartbeat = Vec::new();
-    for key in keys {
-        let last_timestamp = state.rate_manager.last_timestamp(&key).await.map_err(|_| {
+    let mut last_heartbeats = HashMap::new();
+
+    let current_timestamp = chrono::Utc::now().timestamp() as u64;
+    for key in keys.iter() {
+        let last_timestamp = state.rate_manager.last_timestamp(key).await.map_err(|_| {
             actix_web::error::ErrorInternalServerError("Failed to get last timestamp")
         })?;
         if let Some(last_timestamp) = last_timestamp {
-            if last_timestamp.elapsed() > heartbeat_timeout {
-                too_old_heartbeat.push(key.clone());
-                error!(
-                    "Heartbeat for {} is too old: {}",
-                    key,
-                    last_timestamp.elapsed().as_secs()
-                );
+            if last_timestamp + heartbeat_timeout < current_timestamp {
+                return Err(actix_web::error::ErrorInternalServerError(format!(
+                    "Heartbeat for {} is too old, last heartbeat: {}, current timestamp: {}",
+                    key, last_timestamp, current_timestamp
+                )));
             }
         };
+        let delta =
+            last_timestamp.map(|last_timestamp| current_timestamp.saturating_sub(last_timestamp));
+        last_heartbeats.insert(key.clone(), delta);
     }
-    if !too_old_heartbeat.is_empty() {
-        return Err(actix_web::error::ErrorInternalServerError(format!(
-            "Heartbeat for {} is too old",
-            too_old_heartbeat.join(", "),
-        )));
-    }
-
+    tracing::info!(
+        "Heartbeat check passed. Last heartbeats: {:?}",
+        last_heartbeats
+    );
     Ok(Json(HealthCheckResponse {
         name: env!("CARGO_PKG_NAME").to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
