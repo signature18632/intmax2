@@ -438,6 +438,7 @@ impl ValidityProver {
         Ok(())
     }
 
+    #[instrument(skip(self))]
     async fn sync_validity_witness_loop(&self) -> Result<(), ValidityProverError> {
         let mut interval =
             tokio::time::interval(Duration::from_secs(self.config.witness_sync_interval));
@@ -450,6 +451,7 @@ impl ValidityProver {
         }
     }
 
+    #[instrument(skip(self))]
     async fn generate_validity_proof_loop(&self) -> Result<(), ValidityProverError> {
         let mut interval =
             tokio::time::interval(Duration::from_secs(self.config.validity_proof_interval));
@@ -462,6 +464,7 @@ impl ValidityProver {
         }
     }
 
+    #[instrument(skip(self))]
     async fn add_tasks_loop(&self) -> Result<(), ValidityProverError> {
         let mut interval =
             tokio::time::interval(Duration::from_secs(self.config.add_tasks_interval));
@@ -472,6 +475,7 @@ impl ValidityProver {
         }
     }
 
+    #[instrument(skip(self))]
     async fn cleanup_inactive_tasks_loop(&self) -> Result<(), ValidityProverError> {
         let mut interval = tokio::time::interval(Duration::from_secs(
             self.config.cleanup_inactive_tasks_interval,
@@ -485,7 +489,6 @@ impl ValidityProver {
         }
     }
 
-    #[instrument(skip(self))]
     pub async fn start_all_jobs(&self) -> Result<(), ValidityProverError> {
         // clear all tasks
         self.manager.clear_all().await?;
@@ -496,12 +499,14 @@ impl ValidityProver {
 
         // generate validity proof job
         let this_clone = this.clone();
-        tokio::spawn(async move {
+        actix_web::rt::spawn(async move {
             // restart loop
             loop {
                 let this_clone = this_clone.clone();
                 let handler =
-                    tokio::spawn(async move { this_clone.generate_validity_proof_loop().await });
+                    actix_web::rt::spawn(
+                        async move { this_clone.generate_validity_proof_loop().await },
+                    );
                 match handler.await {
                     Ok(Ok(_)) => {
                         tracing::error!("generate_validity_proof_loop finished");
@@ -519,11 +524,12 @@ impl ValidityProver {
 
         // add tasks job
         let this_clone = this.clone();
-        tokio::spawn(async move {
+        actix_web::rt::spawn(async move {
             // restart loop
             loop {
                 let this_clone = this_clone.clone();
-                let handler = tokio::spawn(async move { this_clone.add_tasks_loop().await });
+                let handler =
+                    actix_web::rt::spawn(async move { this_clone.add_tasks_loop().await });
                 match handler.await {
                     Ok(Ok(_)) => {
                         tracing::error!("add_tasks_loop finished");

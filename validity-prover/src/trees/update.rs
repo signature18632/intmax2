@@ -1,8 +1,13 @@
+use super::merkle_tree::IndexedMerkleTreeClient;
+use crate::trees::merkle_tree::IncrementalMerkleTreeClient;
 use anyhow::ensure;
-use hashbrown::HashMap;
+use futures::StreamExt as _;
 use intmax2_zkp::{
     common::{
-        trees::{account_tree::AccountRegistrationProof, sender_tree::get_sender_leaves},
+        trees::{
+            account_tree::{AccountMerkleProof, AccountRegistrationProof},
+            sender_tree::get_sender_leaves,
+        },
         witness::{
             block_witness::BlockWitness, full_block::FullBlock,
             validity_transition_witness::ValidityTransitionWitness,
@@ -13,11 +18,16 @@ use intmax2_zkp::{
     ethereum_types::{account_id::AccountIdPacked, bytes32::Bytes32, u256::U256},
     utils::trees::indexed_merkle_tree::membership::MembershipProof,
 };
+use log::warn;
+use std::{
+    collections::{HashMap, HashSet},
+    time::Instant,
+};
+use tracing::{info, instrument};
 
-use crate::trees::merkle_tree::IncrementalMerkleTreeClient;
+const PARALLELISM_LIMIT: usize = 10;
 
-use super::merkle_tree::IndexedMerkleTreeClient;
-
+#[instrument(skip_all, fields(timestamp = timestamp))]
 pub async fn to_block_witness<
     HistoricalAccountTree: IndexedMerkleTreeClient,
     HistoricalBlockHashTree: IncrementalMerkleTreeClient<Bytes32>,
@@ -27,6 +37,7 @@ pub async fn to_block_witness<
     account_tree: &HistoricalAccountTree,
     block_tree: &HistoricalBlockHashTree,
 ) -> anyhow::Result<BlockWitness> {
+    let instant = Instant::now();
     ensure!(
         full_block.block.block_number != 0,
         "genesis block is not allowed"
@@ -37,46 +48,12 @@ pub async fn to_block_witness<
         .is_registration_block;
     let (pubkeys, account_id_packed, account_merkle_proofs, account_membership_proofs) =
         if is_registration_block {
-            let mut pubkeys = full_block.pubkeys.clone().ok_or(anyhow::anyhow!(
-                "pubkeys is not given while it is registration block"
-            ))?;
-            pubkeys.resize(NUM_SENDERS_IN_BLOCK, U256::dummy_pubkey());
-            let mut account_membership_proofs = Vec::new();
-            let mut cached_proofs: HashMap<U256, MembershipProof> = HashMap::new();
-            for pubkey in pubkeys.iter() {
-                if cached_proofs.contains_key(pubkey) {
-                    account_membership_proofs.push(cached_proofs[pubkey].clone());
-                    continue;
-                }
-                let is_dummy = pubkey.is_dummy_pubkey();
-                if !(account_tree.index(timestamp, *pubkey).await?.is_none() || is_dummy) {
-                    log::warn!(
-                        "Invalid block {}: account already exists",
-                        full_block.block.block_number
-                    );
-                }
-                let proof = account_tree.prove_membership(timestamp, *pubkey).await?;
-                account_membership_proofs.push(proof.clone());
-                cached_proofs.insert(*pubkey, proof);
-            }
+            let (pubkeys, account_membership_proofs) =
+                generate_account_membership_proofs(account_tree, full_block, timestamp).await?;
             (pubkeys, None, None, Some(account_membership_proofs))
         } else {
-            let account_id_trimmed_bytes = full_block.account_ids.clone().ok_or(
-                anyhow::anyhow!("account_ids is not given while it is non-registration block"),
-            )?;
-            let account_id_packed = AccountIdPacked::from_trimmed_bytes(&account_id_trimmed_bytes)
-                .map_err(|e| anyhow::anyhow!("error while recovering packed account ids {}", e))?;
-            let account_ids = account_id_packed.unpack();
-            let mut account_merkle_proofs = Vec::new();
-            let mut pubkeys = Vec::new();
-            for account_id in account_ids {
-                let pubkey = account_tree.key(timestamp, account_id.0).await?;
-                let proof = account_tree
-                    .prove_inclusion(timestamp, account_id.0)
-                    .await?;
-                pubkeys.push(pubkey);
-                account_merkle_proofs.push(proof);
-            }
+            let (pubkeys, account_id_packed, account_merkle_proofs) =
+                generate_account_merkle_proofs(account_tree, full_block, timestamp).await?;
             (
                 pubkeys,
                 Some(account_id_packed),
@@ -98,9 +75,117 @@ pub async fn to_block_witness<
         account_merkle_proofs,
         account_membership_proofs,
     };
+    info!(
+        "block_witness generated : block_number:{}, took: {:?}",
+        block_witness.block.block_number,
+        instant.elapsed()
+    );
     Ok(block_witness)
 }
 
+#[instrument(skip_all, fields(timestamp = timestamp))]
+async fn generate_account_membership_proofs<HistoricalAccountTree: IndexedMerkleTreeClient>(
+    account_tree: &HistoricalAccountTree,
+    full_block: &FullBlock,
+    timestamp: u64,
+) -> anyhow::Result<(Vec<U256>, Vec<MembershipProof>)> {
+    let mut pubkeys = full_block.pubkeys.clone().ok_or(anyhow::anyhow!(
+        "pubkeys is not given while it is registration block"
+    ))?;
+    pubkeys.resize(NUM_SENDERS_IN_BLOCK, U256::dummy_pubkey());
+
+    let futures = pubkeys
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .map(|pubkey| async move {
+            let proof = account_tree.prove_membership(timestamp, pubkey).await?;
+            anyhow::Ok((pubkey, proof))
+        });
+    let results = futures::stream::iter(futures)
+        .buffer_unordered(PARALLELISM_LIMIT)
+        .collect::<Vec<_>>()
+        .await;
+
+    let mut proofs_map = HashMap::with_capacity(pubkeys.len());
+    for result in results {
+        let (pubkey, proof) =
+            result.map_err(|e| anyhow::anyhow!("Failed to generate membership proof: {}", e))?;
+        proofs_map.insert(pubkey, proof);
+    }
+
+    let account_membership_proofs = pubkeys
+        .iter()
+        .map(|pubkey| {
+            proofs_map
+                .get(pubkey)
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Failed to generate membership proof for pubkey {}", pubkey)
+                })
+                .cloned()
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok((pubkeys, account_membership_proofs))
+}
+
+#[instrument(skip_all, fields(timestamp = timestamp))]
+async fn generate_account_merkle_proofs<HistoricalAccountTree: IndexedMerkleTreeClient>(
+    account_tree: &HistoricalAccountTree,
+    full_block: &FullBlock,
+    timestamp: u64,
+) -> anyhow::Result<(Vec<U256>, AccountIdPacked, Vec<AccountMerkleProof>)> {
+    let account_id_trimmed_bytes = full_block.account_ids.clone().ok_or(anyhow::anyhow!(
+        "account_ids is not given while it is non-registration block"
+    ))?;
+    let account_id_packed = AccountIdPacked::from_trimmed_bytes(&account_id_trimmed_bytes)
+        .map_err(|e| anyhow::anyhow!("error while recovering packed account ids {}", e))?;
+    let account_ids = account_id_packed.unpack();
+
+    let futures = account_ids
+        .iter()
+        .cloned()
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .map(|account_id| async move {
+            let pubkey = account_tree.key(timestamp, account_id.0).await?;
+            let proof = account_tree
+                .prove_inclusion(timestamp, account_id.0)
+                .await?;
+            anyhow::Ok((account_id, pubkey, proof))
+        });
+    let results = futures::stream::iter(futures)
+        .buffer_unordered(PARALLELISM_LIMIT)
+        .collect::<Vec<_>>()
+        .await;
+    let mut proofs_map = HashMap::with_capacity(account_ids.len());
+    for result in results {
+        let (account_id, pubkey, proof) = result
+            .map_err(|e| anyhow::anyhow!("Failed to generate account merkle proof: {}", e))?;
+        proofs_map.insert(account_id, (pubkey, proof));
+    }
+
+    let mut pubkeys = Vec::with_capacity(account_ids.len());
+    let mut account_merkle_proofs = Vec::with_capacity(account_ids.len());
+    for account_id in account_ids {
+        let (pubkey, proof) = proofs_map
+            .get(&account_id)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Failed to generate account merkle proof for account id {}",
+                    account_id.0
+                )
+            })?
+            .clone();
+        pubkeys.push(pubkey);
+        account_merkle_proofs.push(proof);
+    }
+
+    Ok((pubkeys, account_id_packed, account_merkle_proofs))
+}
+
+#[instrument(skip_all, fields(timestamp = timestamp))]
 pub async fn update_trees<
     HistoricalAccountTree: IndexedMerkleTreeClient,
     HistoricalBlockHashTree: IncrementalMerkleTreeClient<Bytes32>,
@@ -110,13 +195,16 @@ pub async fn update_trees<
     account_tree: &HistoricalAccountTree,
     block_tree: &HistoricalBlockHashTree,
 ) -> anyhow::Result<ValidityWitness> {
+    let instant = Instant::now();
     let block_pis = block_witness.to_main_validation_pis().map_err(|e| {
         anyhow::anyhow!("failed to convert to main validation public inputs: {}", e)
     })?;
     let block_tree_len = block_tree.len(timestamp).await?;
     ensure!(
         block_pis.block_number == block_tree_len as u32,
-        "block number mismatch"
+        "block number mismatch: witness {} != block tree len {}",
+        block_pis.block_number,
+        block_tree_len
     );
 
     // Update block tree
@@ -191,8 +279,33 @@ pub async fn update_trees<
         account_registration_proofs,
         account_update_proofs,
     };
-    Ok(ValidityWitness {
+
+    let validity_witness = ValidityWitness {
         validity_transition_witness,
         block_witness: block_witness.clone(),
-    })
+    };
+
+    let pis = validity_witness
+        .to_validity_pis()
+        .map_err(|e| anyhow::anyhow!("failed to convert to validity public inputs: {}", e))?;
+
+    if !pis.is_valid_block && pis.tx_tree_root != Bytes32::default() {
+        // tx_tree_root == 0x is empty block for deposit sync
+        warn!(
+            "block:{}, is_registration:{} is not valid",
+            pis.public_state.block_number,
+            block_witness
+                .signature
+                .block_sign_payload
+                .is_registration_block
+        );
+    }
+
+    info!(
+        "validity_witness generated : block_number:{}, took: {:?}",
+        block_witness.block.block_number,
+        instant.elapsed()
+    );
+
+    Ok(validity_witness)
 }
