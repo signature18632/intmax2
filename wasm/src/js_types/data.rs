@@ -63,6 +63,8 @@ impl From<TransferData> for JsTransferData {
 pub struct JsTxData {
     pub tx: JsTx,
     pub transfers: Vec<JsTransfer>,
+    pub transfer_digests: Vec<String>,
+    pub transfer_types: Vec<String>,
 }
 
 impl From<TxData> for JsTxData {
@@ -81,7 +83,17 @@ impl From<TxData> for JsTxData {
                 }
             })
             .collect();
-        Self { tx, transfers }
+        let transfer_digests = tx_data
+            .transfer_digests
+            .into_iter()
+            .map(|digest| digest.to_hex())
+            .collect();
+        Self {
+            tx,
+            transfers,
+            transfer_digests,
+            transfer_types: tx_data.transfer_types,
+        }
     }
 }
 
@@ -108,10 +120,8 @@ impl From<DepositResult> for JsDepositResult {
 pub struct JsTxResult {
     pub tx_tree_root: String,
     pub tx_digest: String,
-    pub transfer_digests: Vec<String>,
-    pub withdrawal_digests: Vec<String>,
+    pub tx_data: JsTxData,
     pub transfer_data_vec: Vec<JsTransferData>,
-    pub withdrawal_data_vec: Vec<JsTransferData>,
     pub backup_csv: String,
 }
 
@@ -120,23 +130,9 @@ impl From<TxResult> for JsTxResult {
         Self {
             tx_tree_root: tx_result.tx_tree_root.to_hex(),
             tx_digest: tx_result.tx_digest.to_hex(),
-            transfer_digests: tx_result
-                .transfer_digests
-                .into_iter()
-                .map(|x| x.to_hex())
-                .collect(),
-            withdrawal_digests: tx_result
-                .withdrawal_digests
-                .into_iter()
-                .map(|x| x.to_hex())
-                .collect(),
+            tx_data: tx_result.tx_data.into(),
             transfer_data_vec: tx_result
                 .transfer_data_vec
-                .into_iter()
-                .map(JsTransferData::from)
-                .collect(),
-            withdrawal_data_vec: tx_result
-                .withdrawal_data_vec
                 .into_iter()
                 .map(JsTransferData::from)
                 .collect(),

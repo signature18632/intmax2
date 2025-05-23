@@ -84,26 +84,28 @@ pub fn format_timestamp(timestamp: u64) -> String {
 fn format_status(status: &EntryStatus) -> ColoredString {
     match status {
         EntryStatus::Processed(block_number) => {
-            format!("Settled in block {} and processed", block_number).bright_blue()
+            format!("Settled in block {block_number} and processed").bright_blue()
         }
         EntryStatus::Settled(block_number) => {
-            format!("Settled in block {}", block_number).bright_green()
+            format!("Settled in block {block_number}").bright_green()
         }
         EntryStatus::Pending => "Pending".bright_yellow(),
         EntryStatus::Timeout => "Timeout".bright_red(),
     }
 }
 
-fn format_transfer(transfer: &Transfer) -> String {
+fn format_transfer(transfer: &Transfer, transfer_type: &str, transfer_digest: Bytes32) -> String {
     format!(
-        "Transfer to {}: token_index: {}, amount: {}",
+        "Transfer ({}) to {}: token_index: {}, amount: {}, digest: {}",
+        transfer_type,
         if transfer.recipient.is_pubkey {
             transfer.recipient.to_pubkey().unwrap().to_hex()
         } else {
             transfer.recipient.to_address().unwrap().to_hex()
         },
         transfer.token_index,
-        transfer.amount
+        transfer.amount,
+        transfer_digest.to_hex()
     )
 }
 
@@ -195,12 +197,24 @@ fn print_history_entry(entry: &HistoryEum) -> Result<(), CliError> {
                 tx.spent_witness.tx.nonce.to_string().cyan()
             );
             println!("  Transfers:");
-            for (i, transfer) in tx.spent_witness.transfers.iter().enumerate() {
-                if transfer == &Transfer::default() {
-                    // ignore dummy transfers
-                    continue;
-                }
-                println!("    {}: {}", i, format_transfer(transfer).white());
+            let transfers = tx
+                .spent_witness
+                .transfers
+                .iter()
+                .filter(|transfer| transfer != &&Transfer::default())
+                .collect::<Vec<_>>();
+
+            for (i, ((transfer, transfer_type), transfer_digest)) in transfers
+                .iter()
+                .zip(tx.transfer_types.iter())
+                .zip(tx.transfer_digests.iter())
+                .enumerate()
+            {
+                println!(
+                    "    {}: {}",
+                    i,
+                    format_transfer(transfer, transfer_type, *transfer_digest).white()
+                );
             }
         }
     }

@@ -516,7 +516,7 @@ impl WithdrawalServer {
         let transfer_data_with_meta = match transfer_data_with_meta {
             Ok(data) => data,
             Err(e) => {
-                log::warn!("Failed to decrypt transfer data: {}", e);
+                log::warn!("Failed to decrypt transfer data: {e}");
                 return Ok((Vec::new(), FeeResult::DecryptionError));
             }
         };
@@ -582,7 +582,7 @@ impl WithdrawalServer {
         &self,
         transfers: &[Transfer],
     ) -> Result<(), WithdrawalServerError> {
-        log::info!("fee collected: {:?}", transfers);
+        log::info!("fee collected: {transfers:?}");
         let nullifiers: Vec<String> = transfers
             .iter()
             .map(|t| t.nullifier().to_hex())
@@ -653,7 +653,7 @@ pub mod test_withdrawal_server_helper {
     use sqlx::query;
 
     pub fn run_withdrawal_docker(port: u16, container_name: &str) -> Output {
-        let port_arg = format!("{}:5432", port);
+        let port_arg = format!("{port}:5432");
 
         let output = Command::new("docker")
             .args([
@@ -702,17 +702,17 @@ pub mod test_withdrawal_server_helper {
                 .status()
                 .expect("Failed to execute docker exec");
 
-            assert!(status.success(), "Couldn't run {}", sql_cmd);
+            assert!(status.success(), "Couldn't run {sql_cmd}");
         }
     }
 
     pub async fn create_tables(pool: &DbPool, file_path: &str) {
         // Open and read file
         let mut file =
-            fs::File::open(file_path).unwrap_or_else(|e| panic!("Failed to open SQL file: {}", e));
+            fs::File::open(file_path).unwrap_or_else(|e| panic!("Failed to open SQL file: {e}"));
         let mut sql_content = String::new();
         file.read_to_string(&mut sql_content)
-            .unwrap_or_else(|e| panic!("Failed to read SQL file: {}", e));
+            .unwrap_or_else(|e| panic!("Failed to read SQL file: {e}"));
 
         // Execute the SQL content
         for statement in sql_content.split(';') {
@@ -721,7 +721,7 @@ pub mod test_withdrawal_server_helper {
                 query(trimmed)
                     .execute(pool)
                     .await
-                    .unwrap_or_else(|e| panic!("Failed to execute SQL: {}", e));
+                    .unwrap_or_else(|e| panic!("Failed to execute SQL: {e}"));
             }
         }
     }
@@ -848,21 +848,17 @@ mod tests {
 
         let mut env = get_example_env();
         env.database_url =
-            format!("postgres://postgres:password@localhost:{}/withdrawal", port).to_string();
+            format!("postgres://postgres:password@localhost:{port}/withdrawal").to_string();
         let server = WithdrawalServer::new(&env, get_provider()).await;
 
         if let Err(err) = &server {
             stop_withdrawal_docker(cont_name);
-            panic!("Withdrawal Server initialization failed: {:?}", err);
+            panic!("Withdrawal Server initialization failed: {err:?}");
         }
         let server = server.unwrap();
 
         // Create needed SQL tables
-        create_tables(
-            &server.pool,
-            "./migrations/20250309092609_create_initial_tables.up.sql",
-        )
-        .await;
+        create_tables(&server.pool, "./migrations/20250523164255_initial.up.sql").await;
 
         // Test get_claim_fee and get_withdrawal_fee
         {
@@ -1058,8 +1054,7 @@ mod keyset_tests {
         assert_eq!(
             keyset.pubkey_g1(),
             expected_pubkey_g1,
-            "Public key mismatch for privkey: {:?}",
-            h
+            "Public key mismatch for privkey: {h:?}"
         );
 
         // Ensure pubkey is not dummy
