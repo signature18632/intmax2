@@ -58,9 +58,9 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlNodeHashes<V> {
         let hash = bincode::serialize(&hash).unwrap();
         sqlx::query!(
             r#"
-            INSERT INTO hash_nodes (timestamp_value, tag, bit_path, hash_value)
+            INSERT INTO hash_nodes (timestamp, tag, bit_path, hash_value)
             VALUES ($1, $2, $3, $4)
-            ON CONFLICT (timestamp_value, tag, bit_path)
+            ON CONFLICT (tag, timestamp, bit_path)
             DO UPDATE SET hash_value = $4
             "#,
             timestamp as i64,
@@ -84,15 +84,16 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlNodeHashes<V> {
             r#"
         SELECT hash_value 
         FROM hash_nodes 
-        WHERE bit_path = $1 
-          AND timestamp_value <= $2 
-          AND tag = $3 
-        ORDER BY timestamp_value DESC 
+        WHERE 
+          tag = $1
+          AND bit_path = $2
+          AND timestamp <= $3
+        ORDER BY timestamp DESC 
         LIMIT 1
         "#,
+            self.tag as i32,
             bit_path_serialized,
             timestamp as i64,
-            self.tag as i32
         )
         .fetch_optional(tx.as_mut())
         .await?;
@@ -139,14 +140,15 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlNodeHashes<V> {
             r#"
             SELECT bit_path, hash_value
             FROM hash_nodes
-            WHERE bit_path = ANY($1)
-              AND timestamp_value <= $2
-              AND tag = $3
-            ORDER BY bit_path, timestamp_value DESC
+            WHERE 
+              tag = $1
+              AND bit_path = ANY($2)
+              AND timestamp <= $3
+            ORDER BY bit_path, timestamp DESC
             "#,
+            self.tag as i32,
             &serialized_paths[..],
             timestamp as i64,
-            self.tag as i32
         )
         .fetch_all(tx.as_mut())
         .await?;
@@ -208,7 +210,7 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlNodeHashes<V> {
         sqlx::query!(
             r#"
             DELETE FROM hash_nodes
-            WHERE tag = $1 AND timestamp_value >= $2
+            WHERE tag = $1 AND timestamp >= $2
             "#,
             self.tag as i32,
             timestamp as i64
@@ -221,19 +223,14 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlNodeHashes<V> {
 
 #[cfg(test)]
 mod tests {
-    use intmax2_interfaces::utils::random::default_rng;
-    use rand::Rng;
     use sqlx::postgres::PgPoolOptions;
+
+    use crate::trees::{create_partitions_for_test, generate_random_tag, setup_test};
 
     use super::{BitPath, SqlNodeHashes};
     use intmax2_zkp::utils::leafable::Leafable;
 
     type TestValue = u32;
-
-    fn setup_test() -> String {
-        dotenvy::dotenv().ok();
-        std::env::var("DATABASE_URL").unwrap()
-    }
 
     // helper func
     fn collect_paths(path: &BitPath) -> Vec<BitPath> {
@@ -254,8 +251,10 @@ mod tests {
             .connect(&database_url)
             .await?;
 
-        let mut rng = default_rng();
-        let tag = rng.gen();
+        let tag = generate_random_tag();
+
+        create_partitions_for_test(&pool, tag).await?;
+
         let height = 10;
         let node_hashes = SqlNodeHashes::<TestValue>::new(pool.clone(), tag, height);
 
@@ -301,8 +300,10 @@ mod tests {
             .connect(&database_url)
             .await?;
 
-        let mut rng = default_rng();
-        let tag = rng.gen();
+        let tag = generate_random_tag();
+
+        create_partitions_for_test(&pool, tag).await?;
+
         let height = 10;
         let node_hashes = SqlNodeHashes::<TestValue>::new(pool.clone(), tag, height);
 
@@ -363,8 +364,10 @@ mod tests {
             .connect(&database_url)
             .await?;
 
-        let mut rng = default_rng();
-        let tag = rng.gen();
+        let tag = generate_random_tag();
+
+        create_partitions_for_test(&pool, tag).await?;
+
         let height = 10;
         let node_hashes = SqlNodeHashes::<TestValue>::new(pool.clone(), tag, height);
 
@@ -405,8 +408,10 @@ mod tests {
             .connect(&database_url)
             .await?;
 
-        let mut rng = default_rng();
-        let tag = rng.gen();
+        let tag = generate_random_tag();
+
+        create_partitions_for_test(&pool, tag).await?;
+
         let height = 10;
         let node_hashes = SqlNodeHashes::<TestValue>::new(pool.clone(), tag, height);
 
@@ -448,8 +453,10 @@ mod tests {
             .connect(&database_url)
             .await?;
 
-        let mut rng = default_rng();
-        let tag = rng.gen();
+        let tag = generate_random_tag();
+
+        create_partitions_for_test(&pool, tag).await?;
+
         let height = 10;
         let node_hashes = SqlNodeHashes::<TestValue>::new(pool.clone(), tag, height);
 
@@ -490,8 +497,10 @@ mod tests {
             .connect(&database_url)
             .await?;
 
-        let mut rng = default_rng();
-        let tag = rng.gen();
+        let tag = generate_random_tag();
+
+        create_partitions_for_test(&pool, tag).await?;
+
         let height = 10;
         let node_hashes = SqlNodeHashes::<TestValue>::new(pool.clone(), tag, height);
 
@@ -534,8 +543,10 @@ mod tests {
             .connect(&database_url)
             .await?;
 
-        let mut rng = default_rng();
-        let tag = rng.gen();
+        let tag = generate_random_tag();
+
+        create_partitions_for_test(&pool, tag).await?;
+
         let height = 10;
         let node_hashes = SqlNodeHashes::<TestValue>::new(pool.clone(), tag, height);
 

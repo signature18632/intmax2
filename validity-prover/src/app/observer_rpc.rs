@@ -108,6 +108,21 @@ impl RPCObserver {
                 got_event_id: first.deposit_index as u64,
             });
         }
+
+        // sequence check
+        {
+            let mut next_event_id = expected_next_event_id;
+            for event in &events {
+                if event.deposit_index as u64 != next_event_id {
+                    return Err(ObserverError::EventFetchError(format!(
+                        "Event sequence error. Deposited: Expected: {}, Got: {}",
+                        next_event_id, event.deposit_index
+                    )));
+                }
+                next_event_id += 1;
+            }
+        }
+
         let mut tx = self.pool.begin().await?;
         for event in &events {
             sqlx::query!(
@@ -152,6 +167,21 @@ impl RPCObserver {
                 got_event_id: first.deposit_id,
             });
         }
+
+        // sequence check
+        {
+            let mut next_event_id = expected_next_event_id;
+            for event in &events {
+                if event.deposit_id != next_event_id {
+                    return Err(ObserverError::EventFetchError(format!(
+                        "Event sequence error. Deposited: Expected: {}, Got: {}",
+                        next_event_id, event.deposit_id
+                    )));
+                }
+                next_event_id += 1;
+            }
+        }
+
         let mut tx = self.pool.begin().await?;
         for event in &events {
             let deposit_hash = event.to_deposit().hash();
@@ -205,6 +235,21 @@ impl RPCObserver {
                 got_event_id: first.block_number as u64,
             });
         }
+
+        // sequence check
+        {
+            let mut next_event_id = expected_next_event_id;
+            for event in &events {
+                if event.block_number as u64 != next_event_id {
+                    return Err(ObserverError::EventFetchError(format!(
+                        "Event sequence error. Block posted: Expected: {}, Got: {}",
+                        next_event_id, event.block_number
+                    )));
+                }
+                next_event_id += 1;
+            }
+        }
+
         // fetch full block
         let full_block_with_meta = self
             .rollup_contract
@@ -288,6 +333,7 @@ impl RPCObserver {
             to_eth_block_number >= from_eth_block_number,
             "to_eth_block_number should be greater than or equal to from_eth_block_number"
         );
+        generate_error_for_test()?;
         let next_event_id = match event_type {
             EventType::DepositLeafInserted => {
                 self.fetch_and_write_deposit_leaf_inserted_events(
@@ -435,4 +481,32 @@ impl SyncEvent for RPCObserver {
 
         Ok(())
     }
+}
+
+// This function is used to generate an error for trigging RPC error for testing purposes.
+pub fn generate_error_for_test() -> Result<(), ObserverError> {
+    let error_timestamps = match std::env::var("ERROR_TIMESTAMPS") {
+        Ok(val) => val,
+        Err(_) => return Ok(()), // No error if env var not set
+    };
+
+    let now = chrono::Utc::now().timestamp() as u64;
+
+    // Parse comma-separated list of timestamps
+    let timestamps: Vec<u64> = error_timestamps
+        .split(',')
+        .filter_map(|s| s.trim().parse::<u64>().ok())
+        .collect();
+
+    // Check if any timestamp is within 100 seconds of current time
+    for timestamp in timestamps {
+        if timestamp > now.saturating_sub(100) && timestamp < now.saturating_add(100) {
+            return Err(ObserverError::EnvError(format!(
+                "Error triggered by ERROR_TIMESTAMPS at time {}",
+                now
+            )));
+        }
+    }
+
+    Ok(())
 }

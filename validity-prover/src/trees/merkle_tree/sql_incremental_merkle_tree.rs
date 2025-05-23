@@ -46,13 +46,13 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlIncrementalMerkleTree<V> {
 
         sqlx::query!(
             r#"
-            INSERT INTO leaves (timestamp_value, tag, position, leaf_hash, leaf)
+            INSERT INTO leaves (tag, timestamp, position, leaf_hash, leaf)
             VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (timestamp_value, tag, position)
+            ON CONFLICT (tag, timestamp, position)
             DO UPDATE SET leaf_hash = $4, leaf = $5
             "#,
-            timestamp as i64,
             self.tag() as i32,
+            timestamp as i64,
             position as i64,
             leaf_hash_serialized,
             leaf_serialized,
@@ -61,13 +61,13 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlIncrementalMerkleTree<V> {
         .await?;
         sqlx::query!(
             r#"
-            INSERT INTO leaves_len (timestamp_value, tag, len)
+            INSERT INTO leaves_len (tag, timestamp, len)
             VALUES ($1, $2, $3)
-            ON CONFLICT (timestamp_value, tag)
+            ON CONFLICT (tag, timestamp)
             DO UPDATE SET len = $3
             "#,
-            timestamp as i64,
             self.tag() as i32,
+            timestamp as i64,
             next_len as i32,
         )
         .execute(tx.as_mut())
@@ -84,17 +84,18 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlIncrementalMerkleTree<V> {
     ) -> super::MTResult<V> {
         let record = sqlx::query!(
             r#"
-        SELECT leaf 
-        FROM leaves 
-        WHERE position = $1 
-          AND timestamp_value <= $2 
-          AND tag = $3 
-        ORDER BY timestamp_value DESC 
-        LIMIT 1
-        "#,
+            SELECT leaf 
+            FROM leaves 
+            WHERE 
+            tag = $1
+            AND position = $2
+            AND timestamp <= $3
+            ORDER BY timestamp DESC 
+            LIMIT 1
+            "#,
+            self.tag() as i32,
             position as i64,
             timestamp as i64,
-            self.tag() as i32
         )
         .fetch_optional(tx.as_mut())
         .await?;
@@ -150,13 +151,14 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlIncrementalMerkleTree<V> {
             r#"
             SELECT len
             FROM leaves_len
-            WHERE timestamp_value <= $1
-              AND tag = $2
-            ORDER BY timestamp_value DESC
+            WHERE 
+              tag = $1
+              AND timestamp <= $2
+            ORDER BY timestamp DESC
             LIMIT 1
             "#,
+            self.tag() as i32,
             timestamp as i64,
-            self.tag() as i32
         )
         .fetch_optional(tx.as_mut())
         .await?;
@@ -190,7 +192,7 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlIncrementalMerkleTree<V> {
         sqlx::query!(
             r#"
             DELETE FROM leaves
-            WHERE tag = $1 AND timestamp_value >= $2
+            WHERE tag = $1 AND timestamp >= $2
             "#,
             self.tag() as i32,
             timestamp as i64
@@ -201,7 +203,7 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlIncrementalMerkleTree<V> {
         sqlx::query!(
             r#"
             DELETE FROM leaves_len
-            WHERE tag = $1 AND timestamp_value >= $2
+            WHERE tag = $1 AND timestamp >= $2
             "#,
             self.tag() as i32,
             timestamp as i64
@@ -215,10 +217,10 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlIncrementalMerkleTree<V> {
     async fn get_last_timestamp(&self, tx: &mut sqlx::Transaction<'_, Postgres>) -> u64 {
         let record = sqlx::query!(
             r#"
-            SELECT timestamp_value
+            SELECT timestamp
             FROM leaves
             WHERE tag = $1
-            ORDER BY timestamp_value DESC
+            ORDER BY timestamp DESC
             LIMIT 1
             "#,
             self.tag() as i32
@@ -227,7 +229,7 @@ impl<V: Leafable + Serialize + DeserializeOwned> SqlIncrementalMerkleTree<V> {
         .await
         .unwrap();
         match record {
-            Some(row) => row.timestamp_value as u64,
+            Some(row) => row.timestamp as u64,
             None => 0,
         }
     }

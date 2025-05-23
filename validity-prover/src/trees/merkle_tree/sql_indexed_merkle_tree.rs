@@ -26,11 +26,6 @@ use super::{
 
 type V = IndexedMerkleLeaf;
 
-// next_index bigint NOT NULL,
-// key NUMERIC(78, 0) NOT NULL,
-// next_key NUMERIC(78, 0) NOT NULL,
-// value bigint NOT NULL,
-
 #[derive(Clone, Debug)]
 pub struct SqlIndexedMerkleTree {
     sql_node_hashes: SqlNodeHashes<V>,
@@ -84,13 +79,13 @@ impl SqlIndexedMerkleTree {
         let next_key = BigDecimal::from_str(&leaf.next_key.to_string()).unwrap();
         sqlx::query!(
             r#"
-            INSERT INTO indexed_leaves (timestamp_value, tag, position, leaf_hash, next_index, key, next_key, value)
+            INSERT INTO indexed_leaves (tag, timestamp, position, leaf_hash, next_index, key, next_key, value)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            ON CONFLICT (timestamp_value, tag, position)
+            ON CONFLICT (tag, position, timestamp)
             DO UPDATE SET leaf_hash = $4, next_index = $5, key = $6, next_key = $7, value = $8
             "#,
-            timestamp as i64,
             self.tag() as i32,
+            timestamp as i64,
             position as i64,
             leaf_hash_serialized,
             leaf.next_index as i64,
@@ -102,13 +97,13 @@ impl SqlIndexedMerkleTree {
         .await?;
         sqlx::query!(
             r#"
-            INSERT INTO leaves_len (timestamp_value, tag, len)
+            INSERT INTO leaves_len (tag, timestamp, len)
             VALUES ($1, $2, $3)
-            ON CONFLICT (timestamp_value, tag)
+            ON CONFLICT (tag, timestamp)
             DO UPDATE SET len = $3
             "#,
-            timestamp as i64,
             self.tag() as i32,
+            timestamp as i64,
             next_len as i32,
         )
         .execute(tx.as_mut())
@@ -125,17 +120,18 @@ impl SqlIndexedMerkleTree {
     ) -> super::MTResult<V> {
         let record = sqlx::query!(
             r#"
-        SELECT next_index, key, next_key, value
-        FROM indexed_leaves
-        WHERE position = $1 
-          AND timestamp_value <= $2 
-          AND tag = $3 
-        ORDER BY timestamp_value DESC 
-        LIMIT 1
-        "#,
+            SELECT next_index, key, next_key, value
+            FROM indexed_leaves
+            WHERE  
+                tag = $1
+                AND position = $2
+                AND timestamp <= $3
+            ORDER BY timestamp DESC 
+            LIMIT 1
+            "#,
+            self.tag() as i32,
             position as i64,
             timestamp as i64,
-            self.tag() as i32
         )
         .fetch_optional(tx.as_mut())
         .await?;
@@ -216,13 +212,14 @@ impl SqlIndexedMerkleTree {
             r#"
             SELECT len
             FROM leaves_len
-            WHERE timestamp_value <= $1
-              AND tag = $2
-            ORDER BY timestamp_value DESC
+            WHERE 
+              tag = $1
+              AND timestamp <= $2
+            ORDER BY timestamp DESC
             LIMIT 1
             "#,
+            self.tag() as i32,
             timestamp as i64,
-            self.tag() as i32
         )
         .fetch_optional(tx.as_mut())
         .await?;
@@ -256,20 +253,23 @@ impl SqlIndexedMerkleTree {
         sqlx::query!(
             r#"
             DELETE FROM indexed_leaves
-            WHERE tag = $1 AND timestamp_value >= $2
+            WHERE tag = $1
+                  AND timestamp >= $2
             "#,
             self.tag() as i32,
-            timestamp as i64
+            timestamp as i64,
         )
         .execute(tx.as_mut())
         .await?;
         sqlx::query!(
             r#"
             DELETE FROM leaves_len
-            WHERE tag = $1 AND timestamp_value >= $2
+            WHERE 
+              tag = $1
+              AND timestamp >= $2
             "#,
             self.tag() as i32,
-            timestamp as i64
+            timestamp as i64,
         )
         .execute(tx.as_mut())
         .await?;
@@ -280,10 +280,10 @@ impl SqlIndexedMerkleTree {
     async fn get_last_timestamp(&self, tx: &mut sqlx::Transaction<'_, Postgres>) -> u64 {
         let record = sqlx::query!(
             r#"
-            SELECT timestamp_value
+            SELECT timestamp
             FROM indexed_leaves
             WHERE tag = $1
-            ORDER BY timestamp_value DESC
+            ORDER BY timestamp DESC
             LIMIT 1
             "#,
             self.tag() as i32
@@ -292,48 +292,9 @@ impl SqlIndexedMerkleTree {
         .await
         .unwrap();
         match record {
-            Some(row) => row.timestamp_value as u64,
+            Some(row) => row.timestamp as u64,
             None => 0,
         }
-    }
-
-    async fn low_index(
-        &self,
-        tx: &mut sqlx::Transaction<'_, Postgres>,
-        timestamp: u64,
-        key: U256,
-    ) -> MTResult<u64> {
-        let key_decimal = BigDecimal::from_str(&key.to_string()).unwrap();
-        let rows = sqlx::query!(
-            r#"
-            WITH latest_leaves AS (
-                SELECT DISTINCT ON (position) position, key, next_key
-                FROM indexed_leaves
-                WHERE timestamp_value <= $1 AND tag = $2
-                ORDER BY position, timestamp_value DESC
-            )
-            SELECT position
-            FROM latest_leaves
-            WHERE key < $3 AND ($3 < next_key OR next_key = '0'::numeric)
-            "#,
-            timestamp as i64,
-            self.tag() as i32,
-            key_decimal
-        )
-        .fetch_all(tx.as_mut())
-        .await?;
-
-        if rows.is_empty() {
-            return Err(MerkleTreeError::InternalError(
-                "key already exists".to_string(),
-            ));
-        }
-        if rows.len() > 1 {
-            return Err(MerkleTreeError::InternalError(
-                "low_index: too many candidates".to_string(),
-            ));
-        }
-        Ok(rows[0].position as u64)
     }
 
     async fn index(
@@ -346,19 +307,18 @@ impl SqlIndexedMerkleTree {
             .map_err(|e| MerkleTreeError::InternalError(e.to_string()))?;
         let rows = sqlx::query!(
             r#"
-            WITH latest_leaves AS (
-                SELECT DISTINCT ON (position) position, key
-                FROM indexed_leaves
-                WHERE timestamp_value <= $1 AND tag = $2
-                ORDER BY position, timestamp_value DESC
-            )
             SELECT position
-            FROM latest_leaves
-            WHERE key = $3
+            FROM indexed_leaves
+            WHERE 
+                tag = $1
+                AND key = $2
+                AND timestamp <= $3
+            ORDER BY timestamp DESC
+            LIMIT 1
             "#,
-            timestamp as i64,
             self.tag() as i32,
-            key_decimal
+            key_decimal,
+            timestamp as i64,
         )
         .fetch_all(tx.as_mut())
         .await?;
@@ -374,31 +334,95 @@ impl SqlIndexedMerkleTree {
         }
     }
 
+    async fn low_index(
+        &self,
+        tx: &mut sqlx::Transaction<'_, Postgres>,
+        timestamp: u64,
+        key: U256,
+    ) -> MTResult<u64> {
+        let key_decimal = BigDecimal::from_str(&key.to_string()).unwrap();
+        let candidate_not_on_edge = sqlx::query!(
+            r#"
+            SELECT position, timestamp
+            FROM indexed_leaves
+            WHERE
+                tag = $1
+                AND next_key > $2
+                AND key < $2
+                AND timestamp <= $3
+            ORDER BY timestamp DESC
+            LIMIT 1
+            "#,
+            self.tag() as i32,
+            key_decimal,
+            timestamp as i64,
+        )
+        .fetch_optional(tx.as_mut())
+        .await?;
+
+        let candidate_on_edge = sqlx::query!(
+            r#"
+            SELECT position, timestamp
+            FROM indexed_leaves
+            WHERE 
+                tag = $1
+                AND next_key = '0'::numeric 
+                AND key < $2
+                AND timestamp <= $3
+            ORDER BY timestamp DESC
+            LIMIT 1
+            "#,
+            self.tag() as i32,
+            key_decimal,
+            timestamp as i64,
+        )
+        .fetch_optional(tx.as_mut())
+        .await?;
+
+        if candidate_not_on_edge.is_none() && candidate_on_edge.is_none() {
+            return Err(MerkleTreeError::InternalError(
+                "key already exists".to_string(),
+            ));
+        }
+
+        // choose the candidate which has the latest timestamp
+        let mut candidates = Vec::new();
+        if let Some(row) = candidate_not_on_edge {
+            candidates.push((row.position, row.timestamp));
+        }
+        if let Some(row) = candidate_on_edge {
+            candidates.push((row.position, row.timestamp));
+        }
+        // sort descending by timestamp
+        candidates.sort_by(|a, b| b.1.cmp(&a.1));
+        Ok(candidates[0].0 as u64)
+    }
+
     async fn key(
         &self,
         tx: &mut sqlx::Transaction<'_, Postgres>,
         timestamp: u64,
         index: u64,
     ) -> MTResult<U256> {
-        let rec = sqlx::query!(
+        let rows = sqlx::query!(
             r#"
-            WITH latest_leaves AS (
-                SELECT DISTINCT ON (position) position, key
-                FROM indexed_leaves
-                WHERE timestamp_value <= $1 AND tag = $2
-                ORDER BY position, timestamp_value DESC
-            )
             SELECT key
-            FROM latest_leaves
-            WHERE position = $3
+            FROM indexed_leaves
+            WHERE 
+                tag = $1
+                AND  position = $2
+                AND timestamp <= $3
+            ORDER BY timestamp DESC
+            LIMIT 1
             "#,
-            timestamp as i64,
             self.tag() as i32,
-            index as i64
+            index as i64,
+            timestamp as i64,
         )
         .fetch_optional(tx.as_mut())
         .await?;
-        if let Some(row) = rec {
+
+        if let Some(row) = rows {
             Ok(from_str_to_u256(&row.key.to_string()))
         } else {
             Ok(U256::default())
@@ -657,8 +681,10 @@ impl IndexedMerkleTreeClient for SqlIndexedMerkleTree {
 #[cfg(test)]
 mod tests {
     use super::IndexedMerkleTreeClient;
-    use crate::trees::merkle_tree::sql_indexed_merkle_tree::{
-        from_str_to_u256, SqlIndexedMerkleTree,
+    use crate::trees::{
+        create_partitions_for_test, generate_random_tag,
+        merkle_tree::sql_indexed_merkle_tree::{from_str_to_u256, SqlIndexedMerkleTree},
+        setup_test,
     };
     use intmax2_zkp::{
         common::trees::account_tree::AccountTree,
@@ -667,17 +693,12 @@ mod tests {
         utils::trees::indexed_merkle_tree::leaf::IndexedMerkleLeaf,
     };
 
-    fn setup_test() -> String {
-        dotenvy::dotenv().ok();
-        std::env::var("DATABASE_URL").unwrap()
-    }
-
     #[tokio::test]
     async fn test_account_tree() -> anyhow::Result<()> {
         let database_url = setup_test();
-
-        let tag = 3;
         let pool = sqlx::Pool::connect(&database_url).await?;
+        let tag = generate_random_tag();
+        create_partitions_for_test(&pool, tag).await?;
         let tree = SqlIndexedMerkleTree::new(pool, tag, ACCOUNT_TREE_HEIGHT);
         <SqlIndexedMerkleTree as IndexedMerkleTreeClient>::reset(&tree, 0).await?;
 
@@ -707,20 +728,27 @@ mod tests {
         let result = proof.verify(old_root, AccountId(account_id), (account_id as u32).into());
         assert!(result);
 
+        let mut tx = tree.pool().begin().await?;
+        tree.reset(&mut tx, 0).await?;
+        tx.commit().await?;
+
         Ok(())
     }
 
     #[tokio::test]
     async fn test_comparison_account_tree() -> anyhow::Result<()> {
         let database_url = setup_test();
-        let tag = 4;
         let pool = sqlx::Pool::connect(&database_url).await?;
+        let tag = generate_random_tag();
+        create_partitions_for_test(&pool, tag).await?;
         let db_tree = SqlIndexedMerkleTree::new(pool, tag, ACCOUNT_TREE_HEIGHT);
         <SqlIndexedMerkleTree as IndexedMerkleTreeClient>::reset(&db_tree, 0).await?;
 
         db_tree.initialize().await?;
 
         let mut tx = db_tree.pool().begin().await?;
+        let initial_db_root = db_tree.sql_node_hashes.get_root(&mut tx, 0).await?;
+
         let timestamp = db_tree.get_last_timestamp(&mut tx).await;
         for i in 2..10 {
             db_tree
@@ -730,6 +758,8 @@ mod tests {
         let db_root = db_tree.sql_node_hashes.get_root(&mut tx, timestamp).await?;
 
         let mut tree = AccountTree::initialize();
+        let initial_tree_root = tree.get_root();
+        assert_eq!(initial_db_root, initial_tree_root);
         for i in 2..10 {
             tree.insert(i.into(), i.into())?;
         }
@@ -741,8 +771,9 @@ mod tests {
     #[tokio::test]
     async fn test_update_leaf_consistency() -> anyhow::Result<()> {
         let database_url = setup_test();
-        let tag = 1000;
         let pool = sqlx::Pool::connect(&database_url).await?;
+        let tag = generate_random_tag();
+        create_partitions_for_test(&pool, tag).await?;
         let tree = SqlIndexedMerkleTree::new(pool, tag, ACCOUNT_TREE_HEIGHT);
         <SqlIndexedMerkleTree as IndexedMerkleTreeClient>::reset(&tree, 0).await?;
 
@@ -818,14 +849,19 @@ mod tests {
             tx.rollback().await?;
         }
 
+        let mut tx = tree.pool().begin().await?;
+        tree.reset(&mut tx, 0).await?;
+        tx.commit().await?;
+
         Ok(())
     }
 
     #[tokio::test]
     async fn test_update_leaf_edge_cases() -> anyhow::Result<()> {
         let database_url = setup_test();
-        let tag = 2000;
         let pool = sqlx::Pool::connect(&database_url).await?;
+        let tag = generate_random_tag();
+        create_partitions_for_test(&pool, tag).await?;
         let tree = SqlIndexedMerkleTree::new(pool, tag, ACCOUNT_TREE_HEIGHT);
         <SqlIndexedMerkleTree as IndexedMerkleTreeClient>::reset(&tree, 0).await?;
 
