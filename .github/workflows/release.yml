@@ -1,94 +1,179 @@
 name: Release Build
-
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
-  build_x86:
-    name: Build for x86
-    runs-on: ubuntu-24.04
+  build:
+    name: Build for ${{ matrix.platform.target }}
+    runs-on: ${{ matrix.platform.os }}
     strategy:
+      fail-fast: false
       matrix:
-        target: [
-          x86_64-unknown-linux-gnu,
-        ]
+        platform:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            bin: intmax2-cli
+            name: intmax2-cli-Linux-x86_64.tar.gz
+            command: build
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            bin: intmax2-cli
+            name: intmax2-cli-Linux-aarch64.tar.gz
+            command: build
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            bin: intmax2-cli
+            name: intmax2-cli-Darwin-x86_64.tar.gz
+            command: build
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bin: intmax2-cli
+            name: intmax2-cli-Darwin-aarch64.tar.gz
+            command: build
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: intmax2-cli.exe
+            name: intmax2-cli-Windows-x86_64.zip
+            command: build
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: nightly-2025-05-23
-          target: ${{ matrix.target }}
+          targets: ${{ matrix.platform.target }}
           override: true
 
-      - name: Build binary
-        run: cargo build --release
+      - name: Setup cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.platform.target }}
 
-      - name: Package binary
+      - name: Install cross-compilation tools (Linux)
+        if: matrix.platform.os == 'ubuntu-24.04' && matrix.platform.target == 'aarch64-unknown-linux-gnu'
         run: |
-          cd target/release
-          tar czvf ../../${{ github.event.repository.name }}-${{ matrix.target }}.tar.gz intmax2-cli block-builder
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build binary
+        run: cargo build --release --target ${{ matrix.platform.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+
+      - name: Package binary (Unix)
+        if: matrix.platform.os != 'windows-latest'
+        run: |
+          cd target/${{ matrix.platform.target }}/release
+          if [ -f "block-builder" ]; then
+            tar czvf ../../../${{ matrix.platform.name }} intmax2-cli block-builder
+          else
+            tar czvf ../../../${{ matrix.platform.name }} intmax2-cli
+          fi
           cd -
+
+      - name: Package binary (Windows)
+        if: matrix.platform.os == 'windows-latest'
+        run: |
+          cd target/${{ matrix.platform.target }}/release
+          if (Test-Path "block-builder.exe") {
+            7z a ../../../${{ matrix.platform.name }} intmax2-cli.exe block-builder.exe
+          } else {
+            7z a ../../../${{ matrix.platform.name }} intmax2-cli.exe
+          }
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.repository.name }}-${{ matrix.target }}
-          path: ${{ github.event.repository.name }}-${{ matrix.target }}.tar.gz
+          name: ${{ matrix.platform.name }}
+          path: ${{ matrix.platform.name }}
+          retention-days: 1
 
-  build_aarch64:
-    name: Build for aarch64
-    runs-on: ubuntu-24.04-arm
+  test:
+    name: Test ${{ matrix.platform.target }}
+    needs: build
+    runs-on: ${{ matrix.platform.os }}
     strategy:
+      fail-fast: false
       matrix:
-        target: [
-          aarch64-unknown-linux-gnu,
-        ]
+        platform:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: intmax2-cli-Linux-x86_64.tar.gz
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            name: intmax2-cli-Darwin-x86_64.tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: intmax2-cli-Windows-x86_64.zip
 
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@v1
+      - name: Download artifact
+        uses: actions/download-artifact@v4
         with:
-          toolchain: nightly-2025-05-23
-          target: ${{ matrix.target }}
-          override: true
+          name: ${{ matrix.platform.name }}
 
-      - name: Build binary
-        run: cargo build --release
-
-      - name: Package binary
+      - name: Extract and test (Unix)
+        if: matrix.platform.os != 'windows-latest'
         run: |
-          cd target/release
-          tar czvf ../../${{ github.event.repository.name }}-${{ matrix.target }}.tar.gz intmax2-cli block-builder
-          cd -
+          tar xzf ${{ matrix.platform.name }}
+          chmod +x intmax2-cli
+          ./intmax2-cli --version
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ github.event.repository.name }}-${{ matrix.target }}
-          path: ${{ github.event.repository.name }}-${{ matrix.target }}.tar.gz
+      - name: Extract and test (Windows)
+        if: matrix.platform.os == 'windows-latest'
+        run: |
+          7z x ${{ matrix.platform.name }}
+          .\intmax2-cli.exe --version
 
   create_release:
     name: Create Release
-    needs: [build_x86, build_aarch64]
+    needs: [build, test]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Download artifacts
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
 
+      - name: Generate release notes
+        run: |
+          echo "## What's Changed" > release_notes.md
+          echo "" >> release_notes.md
+          echo "### Downloads" >> release_notes.md
+          echo "- **Linux x86_64**: \`intmax2-cli-Linux-x86_64.tar.gz\`" >> release_notes.md
+          echo "- **Linux ARM64**: \`intmax2-cli-Linux-aarch64.tar.gz\`" >> release_notes.md
+          echo "- **macOS Intel**: \`intmax2-cli-Darwin-x86_64.tar.gz\`" >> release_notes.md
+          echo "- **macOS Apple Silicon**: \`intmax2-cli-Darwin-aarch64.tar.gz\`" >> release_notes.md
+          echo "- **Windows x86_64**: \`intmax2-cli-Windows-x86_64.zip\`" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### Installation" >> release_notes.md
+          echo "\`\`\`bash" >> release_notes.md
+          echo "# Linux/macOS" >> release_notes.md
+          echo "tar xzf intmax2-cli-*.tar.gz" >> release_notes.md
+          echo "chmod +x intmax2-cli" >> release_notes.md
+          echo "./intmax2-cli --version" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "# Windows" >> release_notes.md
+          echo "# Extract zip file and run intmax2-cli.exe" >> release_notes.md
+          echo "\`\`\`" >> release_notes.md
+
       - name: Create Release
-        id: create_release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             */*.tar.gz
+            */*.zip
+          body_path: release_notes.md
           draft: false
           prerelease: false
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
